@@ -70,6 +70,14 @@ export function resolveShiftNameForSelection(departmentName, designationName) {
  * timings, since HR chooses per staff member which one applies. Returns
  * null if the department isn't picked yet (caller should show every shift).
  */
+// export function resolveShiftNamesForSelection(departmentName, designationName) {
+//   if (!departmentName) return null;
+
+//   const single = resolveShiftNameForSelection(departmentName, designationName);
+//   if (single) return [single];
+
+//   return OFFICE_SHIFT_NAMES;
+// }
 export function resolveShiftNamesForSelection(departmentName, designationName) {
   if (!departmentName) return null;
 
@@ -78,7 +86,6 @@ export function resolveShiftNamesForSelection(departmentName, designationName) {
 
   return OFFICE_SHIFT_NAMES;
 }
-
 /**
  * Filters a `shifts` list down to just the shift(s) that match this
  * department/designation combo — a single fixed shift for
