@@ -763,6 +763,32 @@ export default function CheckInOutCard({
   const [place, setPlace] = useState(null); // { city, region, country }
   const [placeLoading, setPlaceLoading] = useState(false);
 
+  // Reverse-geocoded label for the check-in/check-out coordinates already
+  // saved on today's attendance row (as opposed to `place` above, which is
+  // for the *live* GPS fix before you've checked in). This is what actually
+  // answers "where were they when they checked in" — previously the card
+  // only ever showed the nearest *configured office* name, which silently
+  // showed a misleading office name even when the real GPS point was far
+  // from any office (e.g. a field visit) since it just picks the closest
+  // one with no distance cutoff.
+  const [checkInPlace, setCheckInPlace] = useState(null);
+  const [checkOutPlace, setCheckOutPlace] = useState(null);
+
+  async function reverseGeocodeLabel(latitude, longitude) {
+    try {
+      const res = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
+      );
+      if (!res.ok) throw new Error("reverse geocode failed");
+      const data = await res.json();
+      const city = data.city || data.locality || data.principalSubdivision;
+      const region = data.principalSubdivision;
+      return [city, region].filter(Boolean).join(", ") || null;
+    } catch {
+      return null;
+    }
+  }
+
   async function load() {
     try {
       setLoading(true);
@@ -875,6 +901,35 @@ export default function CheckInOutCard({
     }
   }, [coords, eligibleLocations]);
 
+  // Resolve real place names for wherever the employee actually was when
+  // they checked in / out today, straight from the saved lat/lon — this is
+  // what drives the "at <place>" label under each timeline entry below,
+  // instead of only the nearest-configured-office guess.
+  useEffect(() => {
+    if (today?.check_in_latitude != null && today?.check_in_longitude != null) {
+      reverseGeocodeLabel(
+        today.check_in_latitude,
+        today.check_in_longitude,
+      ).then(setCheckInPlace);
+    } else {
+      setCheckInPlace(null);
+    }
+  }, [today?.check_in_latitude, today?.check_in_longitude]);
+
+  useEffect(() => {
+    if (
+      today?.check_out_latitude != null &&
+      today?.check_out_longitude != null
+    ) {
+      reverseGeocodeLabel(
+        today.check_out_latitude,
+        today.check_out_longitude,
+      ).then(setCheckOutPlace);
+    } else {
+      setCheckOutPlace(null);
+    }
+  }, [today?.check_out_latitude, today?.check_out_longitude]);
+
   async function runAction(path, successReload = true) {
     setBusy(true);
     setError(null);
@@ -914,16 +969,22 @@ export default function CheckInOutCard({
   const checkedIn = !!today?.check_in_time;
   const checkedOut = !!today?.check_out_time;
 
-  const checkInLocation = nearestLocationName(
+  const checkInOfficeMatch = nearestLocationName(
     today?.check_in_latitude,
     today?.check_in_longitude,
     locations,
   );
-  const checkOutLocation = nearestLocationName(
+  const checkOutOfficeMatch = nearestLocationName(
     today?.check_out_latitude,
     today?.check_out_longitude,
     locations,
   );
+
+  // Prefer the real detected place ("Chennai, Tamil Nadu") since that's
+  // where the employee actually was; fall back to the nearest configured
+  // office name if reverse-geocoding hasn't resolved yet.
+  const checkInLocation = checkInPlace || checkInOfficeMatch;
+  const checkOutLocation = checkOutPlace || checkOutOfficeMatch;
 
   if (notLinked) {
     return (
@@ -1234,6 +1295,15 @@ export default function CheckInOutCard({
                       <span className="text-blue-600">
                         Within range of {nearest.location.location_name} (
                         {Math.round(nearest.distance)}m)
+                        {place && (
+                          <span className="text-slate-400">
+                            {" "}
+                            —{" "}
+                            {[place.city, place.region]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </span>
+                        )}
                       </span>
                     </>
                   )}
@@ -1247,6 +1317,16 @@ export default function CheckInOutCard({
                         {Math.round(nearest.distance)}m from{" "}
                         {nearest.location.location_name} — outside the{" "}
                         {nearest.location.radius}m radius
+                        {place && (
+                          <span className="text-slate-400">
+                            {" "}
+                            (you're currently at{" "}
+                            {[place.city, place.region]
+                              .filter(Boolean)
+                              .join(", ")}
+                            )
+                          </span>
+                        )}
                       </span>
                     </>
                   )}
@@ -1257,7 +1337,15 @@ export default function CheckInOutCard({
                         className="text-slate-400 shrink-0 mt-0.5"
                       />
                       <span className="text-slate-500">
-                        Location acquired — no office locations configured yet.
+                        {place
+                          ? `Detected at ${[place.city, place.region]
+                              .filter(Boolean)
+                              .join(
+                                ", ",
+                              )} — no office locations configured yet.`
+                          : placeLoading
+                            ? "Location acquired — resolving place…"
+                            : "Location acquired — no office locations configured yet."}
                       </span>
                     </>
                   )}

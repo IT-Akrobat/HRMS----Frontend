@@ -367,6 +367,7 @@ export default function Users() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [deptFilter, setDeptFilter] = useState("");
+  const [designationFilter, setDesignationFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -446,17 +447,19 @@ export default function Users() {
       }
       if (roleFilter && u.role_id !== roleFilter) return false;
       if (deptFilter && u.department_id !== deptFilter) return false;
+      if (designationFilter && u.designation_id !== designationFilter)
+        return false;
       if (statusFilter && u.employment_status !== statusFilter) return false;
       return true;
     });
-  }, [users, search, roleFilter, deptFilter, statusFilter]);
+  }, [users, search, roleFilter, deptFilter, designationFilter, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => {
     setPage(1);
-  }, [search, roleFilter, deptFilter, statusFilter]);
+  }, [search, roleFilter, deptFilter, designationFilter, statusFilter]);
 
   const stats = useMemo(() => {
     const active = users.filter((u) => u.employment_status === "Active").length;
@@ -572,6 +575,15 @@ export default function Users() {
         />
 
         <FilterDropdown
+          allLabel="All Designations"
+          value={designationFilter}
+          onChange={setDesignationFilter}
+          options={designations}
+          getKey={(d) => d.id}
+          getLabel={(d) => d.designation_name}
+        />
+
+        <FilterDropdown
           allLabel="All Status"
           value={statusFilter}
           onChange={setStatusFilter}
@@ -579,12 +591,17 @@ export default function Users() {
           getKey={(s) => s}
           getLabel={(s) => s}
         />
-        {(search || roleFilter || deptFilter || statusFilter) && (
+        {(search ||
+          roleFilter ||
+          deptFilter ||
+          designationFilter ||
+          statusFilter) && (
           <button
             onClick={() => {
               setSearch("");
               setRoleFilter("");
               setDeptFilter("");
+              setDesignationFilter("");
               setStatusFilter("");
             }}
             className="text-sm text-orange-600 hover:underline"

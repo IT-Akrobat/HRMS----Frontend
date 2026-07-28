@@ -233,15 +233,15 @@ export const NAVIGATION_CONFIG = {
         { label: "Locations", path: "/super-admin/organization/locations" },
       ],
     },
-    {
-      label: "Employee Management",
-      icon: User,
-      children: [
-        { label: "Employees", path: "/super-admin/employees" },
-        // { label: "HR Admins", path: "/super-admin/employees/hr-admins" },
-        // { label: "Managers", path: "/super-admin/employees/managers" },
-      ],
-    },
+    // {
+    //   label: "Employee Management",
+    //   icon: User,
+    //   children: [
+    //     { label: "Employees", path: "/super-admin/employees" },
+    //     // { label: "HR Admins", path: "/super-admin/employees/hr-admins" },
+    //     // { label: "Managers", path: "/super-admin/employees/managers" },
+    //   ],
+    // },
     {
       label: "Leave Management",
       icon: Palmtree,

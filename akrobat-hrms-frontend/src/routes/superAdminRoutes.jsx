@@ -41,7 +41,6 @@
 // Auto-generated route list for the super-admin role.
 // Add a page: create the component in ../pages/super-admin/, import it here, add a { path, element } entry.
 import Dashboard from "../pages/super-admin/Dashboard.jsx";
-import Employees from "../pages/super-admin/Employees.jsx";
 import LeaveRequests from "../pages/super-admin/LeaveRequests.jsx";
 import LiveTracking from "../pages/super-admin/LiveTracking.jsx";
 import OrganizationCompanyProfile from "../pages/super-admin/OrganizationCompanyProfile.jsx";
@@ -69,7 +68,7 @@ export const superAdminRoutes = [
   },
   { path: "organization/departments", element: <OrganizationDepartments /> },
   { path: "organization/locations", element: <OrganizationLocations /> },
-  { path: "employees", element: <Employees /> },
+  // { path: "employees", element: <Employees /> },
   // { path: "employees/hr-admins", element: <EmployeesHrAdmins /> },
   // { path: "employees/managers", element: <EmployeesManagers /> },
   { path: "leave/requests", element: <LeaveRequests /> },

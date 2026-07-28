@@ -7,8 +7,10 @@ import {
   LogOut,
   MapPin,
   Megaphone,
+  Pencil,
   Plus,
   ShieldCheck,
+  Trash2,
   UserCheck,
   UserPlus,
   Users,
@@ -454,12 +456,13 @@ export default function SuperAdminDashboard() {
       .finally(() => setAddUserLoading(false));
   }
 
-  // Create Announcement — Super Admin only (this button intentionally
-  // does not exist on the HR Admin / Manager / Employee dashboards, which
-  // only read /announcements/active). Whatever's created here shows up
-  // for every role automatically since they all hit that same endpoint —
-  // no per-role wiring needed beyond keeping the create button out of
-  // their dashboards.
+  // Create / Edit / Delete Announcement — Super Admin only (this button
+  // and the hover edit/delete controls intentionally don't exist on the
+  // HR Admin / Manager / Employee dashboards, which only read
+  // /announcements/active read-only). Whatever's created/edited/deleted
+  // here shows up for every role automatically since they all hit that
+  // same endpoint — no per-role wiring needed beyond keeping these
+  // controls out of their dashboards.
   const [announceOpen, setAnnounceOpen] = useState(false);
   const [announceForm, setAnnounceForm] = useState({
     title: "",
@@ -469,12 +472,18 @@ export default function SuperAdminDashboard() {
   });
   const [announceSaving, setAnnounceSaving] = useState(false);
   const [announceError, setAnnounceError] = useState(null);
+  // null => create mode; an announcement id => editing that announcement.
+  const [editingAnnounceId, setEditingAnnounceId] = useState(null);
+  // id currently mid-delete, so its row can show a spinner/disabled state
+  // instead of letting a double-click fire two DELETE requests.
+  const [deletingAnnounceId, setDeletingAnnounceId] = useState(null);
 
   function openAnnounce() {
     // Default start_date to today so the common case (announcement starts
     // now) doesn't force an extra click — end_date is left blank since it
     // depends on the announcement.
     const today = new Date().toISOString().slice(0, 10);
+    setEditingAnnounceId(null);
     setAnnounceForm({
       title: "",
       description: "",
@@ -483,6 +492,26 @@ export default function SuperAdminDashboard() {
     });
     setAnnounceError(null);
     setAnnounceOpen(true);
+  }
+
+  function openEditAnnounce(a) {
+    setEditingAnnounceId(a.id);
+    setAnnounceForm({
+      title: a.title || "",
+      description: a.description || "",
+      // start_date/end_date come back as "YYYY-MM-DD" from the API, which
+      // is exactly what <input type="date"> expects.
+      start_date: a.start_date || "",
+      end_date: a.end_date || "",
+    });
+    setAnnounceError(null);
+    setAnnounceOpen(true);
+  }
+
+  function refreshAnnouncements() {
+    return apiClient
+      .get("/announcements/active")
+      .then((res) => setAnnouncements(res?.data || []));
   }
 
   function submitAnnounce(e) {
@@ -508,25 +537,51 @@ export default function SuperAdminDashboard() {
     }
     setAnnounceSaving(true);
     setAnnounceError(null);
-    apiClient
-      .post("/announcements/", {
-        title: announceForm.title.trim(),
-        description: announceForm.description.trim() || undefined,
-        start_date: announceForm.start_date,
-        end_date: announceForm.end_date,
-      })
+
+    const payload = {
+      title: announceForm.title.trim(),
+      description: announceForm.description.trim() || undefined,
+      start_date: announceForm.start_date,
+      end_date: announceForm.end_date,
+    };
+
+    const request = editingAnnounceId
+      ? apiClient.put(`/announcements/${editingAnnounceId}`, payload)
+      : apiClient.post("/announcements/", payload);
+
+    request
       .then(() => {
         setAnnounceOpen(false);
-        // Re-fetch rather than optimistically prepending — /announcements/active
-        // may apply its own filtering/ordering (e.g. active-date windows), so
-        // this keeps the panel consistent with what other roles will see.
-        return apiClient.get("/announcements/active");
+        setEditingAnnounceId(null);
+        // Re-fetch rather than optimistically prepending/patching in place
+        // — /announcements/active may apply its own filtering/ordering
+        // (e.g. active-date windows), so this keeps the panel consistent
+        // with what other roles will see.
+        return refreshAnnouncements();
       })
-      .then((res) => setAnnouncements(res?.data || []))
       .catch((err) => {
-        setAnnounceError(err.message || "Could not create the announcement.");
+        setAnnounceError(
+          err.message ||
+            (editingAnnounceId
+              ? "Could not update the announcement."
+              : "Could not create the announcement."),
+        );
       })
       .finally(() => setAnnounceSaving(false));
+  }
+
+  function deleteAnnounceItem(a) {
+    if (deletingAnnounceId) return;
+    if (!window.confirm(`Delete the announcement "${a.title}"?`)) return;
+
+    setDeletingAnnounceId(a.id);
+    apiClient
+      .delete(`/announcements/${a.id}`)
+      .then(() => refreshAnnouncements())
+      .catch((err) => {
+        window.alert(err.message || "Could not delete the announcement.");
+      })
+      .finally(() => setDeletingAnnounceId(null));
   }
 
   // Pulled out of the mount effect so it can also be called right after a
@@ -848,10 +903,10 @@ export default function SuperAdminDashboard() {
               <p className="text-sm text-slate-400">No active announcements.</p>
             ) : (
               <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
-                {announcements.slice(0, 3).map((a) => (
+                {announcements.map((a) => (
                   <div
                     key={a.id}
-                    className="bg-orange-50 border border-orange-100 rounded-lg p-2.5"
+                    className="group relative bg-orange-50 border border-orange-100 rounded-lg p-2.5 pr-16"
                   >
                     <p className="text-sm font-medium text-slate-800 truncate">
                       {a.title}
@@ -859,6 +914,31 @@ export default function SuperAdminDashboard() {
                     <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
                       {a.description}
                     </p>
+
+                    {/* Edit / Delete — only appear on hover, Super Admin
+                        only (this whole dashboard file is Super Admin
+                        only). */}
+                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => openEditAnnounce(a)}
+                        title="Edit announcement"
+                        aria-label="Edit announcement"
+                        className="w-6 h-6 rounded-md bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteAnnounceItem(a)}
+                        disabled={deletingAnnounceId === a.id}
+                        title="Delete announcement"
+                        aria-label="Delete announcement"
+                        className="w-6 h-6 rounded-md bg-white border border-red-200 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors shrink-0 disabled:opacity-50"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -887,7 +967,10 @@ export default function SuperAdminDashboard() {
       </Link> */}
 
       {/* ---------- Add User modal (opened from the "Add New User" quick
-          action above, instead of navigating to /super-admin/users) ---------- */}
+          action above, instead of navigating to /super-admin/users) ----------
+          No "Loading form…" placeholder anymore — the modal simply appears
+          once refData is ready. If loading fails, the error overlay below
+          still shows so it isn't silent. */}
       {addUserOpen &&
         (addUserRefData ? (
           <UserFormModal
@@ -896,41 +979,40 @@ export default function SuperAdminDashboard() {
             onClose={() => setAddUserOpen(false)}
             onSaved={() => setAddUserOpen(false)}
           />
-        ) : (
+        ) : addUserError ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-sm p-6 text-center shadow-xl">
-              {addUserError ? (
-                <>
-                  <p className="text-sm text-orange-600 mb-4">{addUserError}</p>
-                  <button
-                    onClick={() => setAddUserOpen(false)}
-                    className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-                  >
-                    Close
-                  </button>
-                </>
-              ) : (
-                <p className="text-sm text-slate-500">Loading form…</p>
-              )}
+              <p className="text-sm text-orange-600 mb-4">{addUserError}</p>
+              <button
+                onClick={() => setAddUserOpen(false)}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Close
+              </button>
             </div>
           </div>
-        ))}
+        ) : null)}
 
-      {/* ---------- Create Announcement modal (Super Admin only) ---------- */}
+      {/* ---------- Create / Edit Announcement modal (Super Admin only) ---------- */}
       {announceOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
                 <h2 className="text-lg font-bold text-slate-800">
-                  Create Announcement
+                  {editingAnnounceId
+                    ? "Edit Announcement"
+                    : "Create Announcement"}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Visible to every role on their dashboard.
                 </p>
               </div>
               <button
-                onClick={() => setAnnounceOpen(false)}
+                onClick={() => {
+                  setAnnounceOpen(false);
+                  setEditingAnnounceId(null);
+                }}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
                 <X size={18} />
@@ -1018,7 +1100,10 @@ export default function SuperAdminDashboard() {
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setAnnounceOpen(false)}
+                  onClick={() => {
+                    setAnnounceOpen(false);
+                    setEditingAnnounceId(null);
+                  }}
                   className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
                 >
                   Cancel
@@ -1028,7 +1113,13 @@ export default function SuperAdminDashboard() {
                   disabled={announceSaving}
                   className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-60"
                 >
-                  {announceSaving ? "Publishing…" : "Publish"}
+                  {announceSaving
+                    ? editingAnnounceId
+                      ? "Saving…"
+                      : "Publishing…"
+                    : editingAnnounceId
+                      ? "Save changes"
+                      : "Publish"}
                 </button>
               </div>
             </form>
