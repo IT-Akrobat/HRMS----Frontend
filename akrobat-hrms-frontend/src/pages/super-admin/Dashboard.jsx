@@ -26,7 +26,7 @@ import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard ";
 import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
-import UserFormModal from "../../components/common/Userformmodal ";
+import UserFormModal from "../../components/common/UserformModal ";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 
