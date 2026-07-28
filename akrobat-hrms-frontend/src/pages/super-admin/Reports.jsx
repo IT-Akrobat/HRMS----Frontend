@@ -17,6 +17,7 @@ import * as XLSX from "xlsx";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import { reportsService } from "../../services/ReportService";
+import { parseServerDate } from "../../utils/date";
 
 // ---------------------------------------------------------------------
 // Wired to the real backend: GET /reports/dashboard (counts) and
@@ -54,8 +55,8 @@ function formatDate(value) {
 
 function formatTime(value) {
   if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
+  const d = parseServerDate(value);
+  if (!d || Number.isNaN(d.getTime())) return "—";
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 

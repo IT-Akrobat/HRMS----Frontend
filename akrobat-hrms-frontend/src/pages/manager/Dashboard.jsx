@@ -6,6 +6,7 @@ import {
   LogIn,
   LogOut,
   MapPin,
+  Megaphone,
   UserCheck,
   Users,
 } from "lucide-react";
@@ -61,6 +62,34 @@ function formatTime(value) {
   return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
 
+// Mirrors distanceMeters/resolveLocationName in the HR Admin / Super Admin
+// dashboards — matches a raw check-in/out coordinate against the company's
+// registered locations so Team Recent Activity can show *where* each event
+// happened, not just when.
+function distanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function resolveLocationName(lat, lon, locations) {
+  if (lat == null || lon == null || !locations || locations.length === 0) {
+    return null;
+  }
+  let best = null;
+  for (const loc of locations) {
+    if (loc.latitude == null || loc.longitude == null) continue;
+    const d = distanceMeters(lat, lon, loc.latitude, loc.longitude);
+    if (!best || d < best.distance) best = { loc, distance: d };
+  }
+  return best ? best.loc.location_name : null;
+}
+
 // Colored-circle icon per activity type — mirrors the LogIcon used on the
 // Super Admin / HR Admin Recent Activity panels, trimmed to the two kinds
 // team attendance rows can actually produce.
@@ -95,6 +124,8 @@ function buildTeamActivity(teamAttendance) {
         kind: "checkin",
         action: "Checked in",
         time: row.check_in_time,
+        lat: row.check_in_latitude ?? null,
+        lon: row.check_in_longitude ?? null,
       });
     }
     if (row.check_out_time) {
@@ -104,12 +135,16 @@ function buildTeamActivity(teamAttendance) {
         kind: "checkout",
         action: "Checked out",
         time: row.check_out_time,
+        lat: row.check_out_latitude ?? null,
+        lon: row.check_out_longitude ?? null,
       });
     }
   }
-  return events.sort(
-    (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
-  );
+  return events.sort((a, b) => {
+    const aTime = parseServerDate(a.time)?.getTime() ?? 0;
+    const bTime = parseServerDate(b.time)?.getTime() ?? 0;
+    return bTime - aTime;
+  });
 }
 
 export default function ManagerDashboard() {
@@ -120,6 +155,16 @@ export default function ManagerDashboard() {
 
   const [teamLeaves, setTeamLeaves] = useState([]);
   const [leavesLoading, setLeavesLoading] = useState(true);
+
+  // Needed to turn raw check-in/out coordinates in Team Recent Activity
+  // into a real location name instead of showing nothing.
+  const [locations, setLocations] = useState([]);
+
+  // Company-wide announcements (created by Super Admin) — every role's
+  // dashboard reads the same GET /announcements/active endpoint so a new
+  // announcement shows up everywhere automatically. This panel was
+  // missing here, unlike the Employee/HR Admin/Super Admin dashboards.
+  const [announcements, setAnnouncements] = useState([]);
 
   function loadTeamLeaves() {
     setLeavesLoading(true);
@@ -144,6 +189,16 @@ export default function ManagerDashboard() {
   useEffect(() => {
     loadTeamAttendance();
     loadTeamLeaves();
+
+    apiClient
+      .get("/locations/")
+      .then((res) => setLocations(res.data || []))
+      .catch(() => setLocations([]));
+
+    apiClient
+      .get("/announcements/active")
+      .then((res) => setAnnouncements(res.data || []))
+      .catch(() => setAnnouncements([]));
   }, []);
 
   const presentCount = teamAttendance.filter(
@@ -203,10 +258,10 @@ export default function ManagerDashboard() {
       {/* ---------- Two-column body ----------
           Left (65%):  Check-in/out -> Team Recent Activity
           Right (35%): Pending Leave Requests -> Team Attendance (Today)
-                       -> On Leave Today -> Upcoming Birthdays. Every card
-                       below is a fixed height with its own hidden-
-                       scrollbar overflow so extra items scroll inside the
-                       card instead of growing the row.
+                       -> On Leave Today -> Announcements -> Upcoming
+                       Birthdays. Every card below is a fixed height with
+                       its own hidden-scrollbar overflow so extra items
+                       scroll inside the card instead of growing the row.
       ---------------------------------------------------------------- */}
       <div className="grid grid-cols-1 lg:grid-cols-[65%_1fr] gap-6 items-start min-w-0">
         {/* ================= Left column (65%) ================= */}
@@ -244,29 +299,52 @@ export default function ManagerDashboard() {
               </p>
             ) : (
               <ul className="divide-y divide-slate-100 overflow-y-auto no-scrollbar flex-1">
-                {teamActivity.map((entry) => (
-                  <li
-                    key={entry.key}
-                    className="py-2.5 flex items-start gap-2.5"
-                  >
-                    <LogIcon kind={entry.kind} />
-                    <div className="min-w-0 flex-1 flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">
-                          {entry.name}
-                        </p>
-                        <p className="text-xs text-slate-500 truncate">
-                          {entry.action}
-                        </p>
+                {teamActivity.map((entry) => {
+                  const matchedOffice = resolveLocationName(
+                    entry.lat,
+                    entry.lon,
+                    locations,
+                  );
+                  // Matched company office -> raw coordinates, so a
+                  // check-in from outside every registered office (e.g. a
+                  // different city/country) still shows something.
+                  const locationName =
+                    matchedOffice ||
+                    (entry.lat != null && entry.lon != null
+                      ? `${Number(entry.lat).toFixed(4)}, ${Number(
+                          entry.lon,
+                        ).toFixed(4)}`
+                      : null);
+                  return (
+                    <li
+                      key={entry.key}
+                      className="py-2.5 flex items-start gap-2.5"
+                    >
+                      <LogIcon kind={entry.kind} />
+                      <div className="min-w-0 flex-1 flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">
+                            {entry.name}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {entry.action}
+                          </p>
+                          {locationName && (
+                            <p className="text-[11px] text-slate-400 flex items-center gap-0.5 truncate">
+                              <MapPin size={9} className="shrink-0" />{" "}
+                              {locationName}
+                            </p>
+                          )}
+                        </div>
+                        {entry.time && (
+                          <span className="text-xs text-slate-400 whitespace-nowrap">
+                            {formatTime(entry.time)}
+                          </span>
+                        )}
                       </div>
-                      {entry.time && (
-                        <span className="text-xs text-slate-400 whitespace-nowrap">
-                          {formatTime(entry.time)}
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -409,6 +487,32 @@ export default function ManagerDashboard() {
           {/* ---------- On Leave Today ---------- */}
           <div className="h-72">
             <OnLeaveTodayCard />
+          </div>
+
+          {/* ---------- Announcements ---------- */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5 h-72 flex flex-col">
+            <h3 className="font-semibold text-slate-800 flex items-center gap-2 mb-3">
+              <Megaphone size={17} className="text-orange-500" /> Announcements
+            </h3>
+            {announcements.length === 0 ? (
+              <p className="text-sm text-slate-400">No active announcements.</p>
+            ) : (
+              <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
+                {announcements.slice(0, 3).map((a) => (
+                  <div
+                    key={a.id}
+                    className="bg-orange-50 border border-orange-100 rounded-lg p-2.5"
+                  >
+                    <p className="text-sm font-medium text-slate-800 truncate">
+                      {a.title}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                      {a.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ---------- Upcoming Birthdays ---------- */}

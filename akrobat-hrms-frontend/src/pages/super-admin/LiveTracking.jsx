@@ -7,6 +7,7 @@ import { AlertTriangle, Loader2, MapPin, RefreshCw, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
 import { apiClient } from "../../services/apiClient";
+import { parseServerDate } from "../../utils/date";
 
 // ---------------------------------------------------------------------
 // Two tabs:
@@ -65,7 +66,9 @@ const STATUS_META = {
 function timeOnly(iso) {
   if (!iso) return "--";
   try {
-    return new Date(iso).toLocaleTimeString([], {
+    const d = parseServerDate(iso);
+    if (!d) return "--";
+    return d.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });

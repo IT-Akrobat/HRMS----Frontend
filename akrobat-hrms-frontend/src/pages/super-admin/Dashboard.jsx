@@ -7,10 +7,12 @@ import {
   LogOut,
   MapPin,
   Megaphone,
+  Plus,
   ShieldCheck,
   UserCheck,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -24,7 +26,9 @@ import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard ";
 import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
+import UserFormModal from "../../components/common/Userformmodal ";
 import { apiClient } from "../../services/apiClient";
+import { parseServerDate } from "../../utils/date";
 
 // -----------------------------------------------------------------------
 // A note on scope: the reference mockup (Server Status / Storage Usage /
@@ -150,13 +154,34 @@ function parseLogEntry(log, locations = []) {
     log.created_at ||
     null;
 
+  // Coordinates can show up in a few different shapes depending on how
+  // the backend wrote this particular entry:
+  //  - UPDATE-style entries (e.g. a correction) go through record_audit_log's
+  //    _diff() and land in changes.check_in_latitude / check_out_latitude
+  //    as {old, new} pairs (unwrapped via diffValue below).
+  //  - CREATE-style entries (a fresh check-in/check-out — the common case)
+  //    have nothing to diff against, so some backend versions instead put
+  //    the raw value straight on `details` (details.check_in_latitude /
+  //    details.latitude) or even inside `changes` as a plain number rather
+  //    than an {old,new} pair.
+  // Try every shape in order rather than assuming just one — this is what
+  // was silently leaving "Checked in" rows with no location line even
+  // when the check-in genuinely had a GPS fix.
   const rawLat =
     diffValue(changes.check_in_latitude) ??
     diffValue(changes.check_out_latitude) ??
+    diffValue(changes.latitude) ??
+    details?.check_in_latitude ??
+    details?.check_out_latitude ??
+    details?.latitude ??
     null;
   const rawLon =
     diffValue(changes.check_in_longitude) ??
     diffValue(changes.check_out_longitude) ??
+    diffValue(changes.longitude) ??
+    details?.check_in_longitude ??
+    details?.check_out_longitude ??
+    details?.longitude ??
     null;
 
   // Coerce to real numbers — Supabase/Postgres numeric columns can come
@@ -178,8 +203,8 @@ function parseLogEntry(log, locations = []) {
 
 function formatTime(value) {
   if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
+  const d = parseServerDate(value);
+  if (!d || Number.isNaN(d.getTime())) return "";
   return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
 
@@ -207,7 +232,10 @@ function LogIcon({ kind }) {
 // "System Dashboard" title (top-right of the page header) instead of the
 // old full-width card at the bottom of the page.
 const QUICK_ACTIONS = [
-  { to: "/super-admin/users", label: "Add New User", icon: UserPlus },
+  // "kind: add-user" opens the Add User modal in place (see openAddUser
+  // below) instead of navigating to /super-admin/users — previously this
+  // was a Link and took the admin off the dashboard for a one-off task.
+  { key: "add-user", label: "Add New User", icon: UserPlus, kind: "add-user" },
   {
     to: "/super-admin/organization/locations?new=1",
     label: "New Site",
@@ -226,19 +254,37 @@ const QUICK_ACTIONS = [
   // },
 ];
 
-function QuickActionCircle({ to, label, icon: Icon }) {
+function QuickActionCircle({ to, label, icon: Icon, onClick }) {
+  const className =
+    "group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0";
+  const tooltip = (
+    <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+      {label}
+    </span>
+  );
+
+  // Button variant (e.g. "Add New User") opens something in place rather
+  // than navigating — no `to`, so nothing for react-router-dom's <Link>
+  // to point at.
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title={label}
+        aria-label={label}
+        className={className}
+      >
+        <Icon size={16} />
+        {tooltip}
+      </button>
+    );
+  }
+
   return (
-    <Link
-      to={to}
-      title={label}
-      aria-label={label}
-      className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
-    >
+    <Link to={to} title={label} aria-label={label} className={className}>
       <Icon size={16} />
-      {/* Tooltip on hover */}
-      <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-        {label}
-      </span>
+      {tooltip}
     </Link>
   );
 }
@@ -299,11 +345,17 @@ async function reverseGeocode(lat, lon) {
     const city =
       addr.city || addr.town || addr.village || addr.municipality || null;
 
-    // "Building Name, B.No X, Area, City" — building/number first (most
-    // specific), then area, then city. Falls back gracefully: a check-in
-    // out on a plain street just shows "Area, City" with the building
-    // part dropped, rather than leaving a blank "," in its place.
-    const parts = [building, area, city]
+    // State / province — Nominatim calls this "state" for most countries;
+    // "state_district" is its fallback on some records (e.g. parts of
+    // South/Southeast Asia where Nominatim splits state into districts).
+    const state = addr.state || addr.state_district || null;
+
+    // "Building Name, B.No X, Area, City, State" — building/number first
+    // (most specific), then area, city, state. Falls back gracefully: a
+    // check-in on a plain street with no state resolved just shows
+    // "Area, City" with the missing parts dropped, rather than leaving a
+    // blank "," in its place.
+    const parts = [building, area, city, state]
       .filter(Boolean)
       // Drop consecutive duplicates (e.g. area === city for smaller towns).
       .filter((p, i, arr) => p !== arr[i - 1]);
@@ -350,6 +402,132 @@ export default function SuperAdminDashboard() {
   // coordinate in Recent Activity, keyed by placeKey(lat, lon) — see
   // reverseGeocode() above. Populated lazily once logs load.
   const [placeCache, setPlaceCache] = useState({});
+
+  // "Add New User" quick action now opens UserFormModal in place instead
+  // of navigating to /super-admin/users. The modal needs the same
+  // reference data Users.jsx loads (departments/designations/shifts/roles
+  // + the full user list, for the "Reporting Manager" dropdown) — fetched
+  // lazily on first open rather than on every dashboard visit, since most
+  // visits never touch this action.
+  const [addUserOpen, setAddUserOpen] = useState(false);
+  const [addUserRefData, setAddUserRefData] = useState(null);
+  const [addUserLoading, setAddUserLoading] = useState(false);
+  const [addUserError, setAddUserError] = useState(null);
+
+  function openAddUser() {
+    setAddUserOpen(true);
+    if (addUserRefData || addUserLoading) return; // already loaded/loading
+    setAddUserLoading(true);
+    setAddUserError(null);
+    Promise.all([
+      apiClient.get("/departments/").catch(() => []),
+      apiClient.get("/designations/").catch(() => []),
+      apiClient.get("/shifts/").catch(() => []),
+      apiClient.get("/roles/").catch(() => ({ data: [] })),
+    ])
+      .then(([departmentsRes, designationsRes, shiftsRes, rolesRes]) => {
+        const roles = rolesRes?.data || [];
+        // Same technique Users.jsx uses to build the full account list:
+        // there's no single "every user, every role" endpoint, so fetch
+        // /employees/?role_id=<id> once per role and union the results —
+        // only needed here for the "Reporting Manager" dropdown.
+        return Promise.all(
+          roles.map((role) =>
+            apiClient
+              .get(`/employees/?role_id=${role.id}`)
+              .then((res) => res.data || [])
+              .catch(() => []),
+          ),
+        ).then((perRole) => {
+          setAddUserRefData({
+            departments: departmentsRes || [],
+            designations: designationsRes || [],
+            shifts: shiftsRes || [],
+            roles,
+            users: perRole.flat(),
+          });
+        });
+      })
+      .catch((err) => {
+        setAddUserError(err.message || "Could not load form data.");
+      })
+      .finally(() => setAddUserLoading(false));
+  }
+
+  // Create Announcement — Super Admin only (this button intentionally
+  // does not exist on the HR Admin / Manager / Employee dashboards, which
+  // only read /announcements/active). Whatever's created here shows up
+  // for every role automatically since they all hit that same endpoint —
+  // no per-role wiring needed beyond keeping the create button out of
+  // their dashboards.
+  const [announceOpen, setAnnounceOpen] = useState(false);
+  const [announceForm, setAnnounceForm] = useState({
+    title: "",
+    description: "",
+    start_date: "",
+    end_date: "",
+  });
+  const [announceSaving, setAnnounceSaving] = useState(false);
+  const [announceError, setAnnounceError] = useState(null);
+
+  function openAnnounce() {
+    // Default start_date to today so the common case (announcement starts
+    // now) doesn't force an extra click — end_date is left blank since it
+    // depends on the announcement.
+    const today = new Date().toISOString().slice(0, 10);
+    setAnnounceForm({
+      title: "",
+      description: "",
+      start_date: today,
+      end_date: "",
+    });
+    setAnnounceError(null);
+    setAnnounceOpen(true);
+  }
+
+  function submitAnnounce(e) {
+    e.preventDefault();
+    if (!announceForm.title.trim()) {
+      setAnnounceError("Title is required.");
+      return;
+    }
+    // Backend requires both start_date and end_date (see 422 on POST
+    // /announcements/ — "Field required" for both), so validate here
+    // before hitting the API.
+    if (!announceForm.start_date) {
+      setAnnounceError("Start date is required.");
+      return;
+    }
+    if (!announceForm.end_date) {
+      setAnnounceError("End date is required.");
+      return;
+    }
+    if (announceForm.end_date < announceForm.start_date) {
+      setAnnounceError("End date cannot be before start date.");
+      return;
+    }
+    setAnnounceSaving(true);
+    setAnnounceError(null);
+    apiClient
+      .post("/announcements/", {
+        title: announceForm.title.trim(),
+        description: announceForm.description.trim() || undefined,
+        start_date: announceForm.start_date,
+        end_date: announceForm.end_date,
+      })
+      .then(() => {
+        setAnnounceOpen(false);
+        // Re-fetch rather than optimistically prepending — /announcements/active
+        // may apply its own filtering/ordering (e.g. active-date windows), so
+        // this keeps the panel consistent with what other roles will see.
+        return apiClient.get("/announcements/active");
+      })
+      .then((res) => setAnnouncements(res?.data || []))
+      .catch((err) => {
+        setAnnounceError(err.message || "Could not create the announcement.");
+      })
+      .finally(() => setAnnounceSaving(false));
+  }
 
   // Pulled out of the mount effect so it can also be called right after a
   // check-in/out/break action (via CheckInOutCard's onActivityChange) —
@@ -452,7 +630,11 @@ export default function SuperAdminDashboard() {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               {QUICK_ACTIONS.map((action) => (
-                <QuickActionCircle key={action.to} {...action} />
+                <QuickActionCircle
+                  key={action.key || action.to}
+                  {...action}
+                  onClick={action.kind === "add-user" ? openAddUser : undefined}
+                />
               ))}
             </div>
             <QuoteOfDayCard compact />
@@ -575,9 +757,21 @@ export default function SuperAdminDashboard() {
                     entry.lat != null && entry.lon != null
                       ? placeCache[placeKey(entry.lat, entry.lon)]
                       : null;
+                  const matchedOffice = resolveLocationName(
+                    entry.lat,
+                    entry.lon,
+                    locations,
+                  );
+                  // Priority: reverse-geocoded place -> matched company
+                  // office -> raw coordinates, so a check-in from outside
+                  // every registered office (e.g. a different city/country)
+                  // still shows *something* instead of nothing at all.
                   const locationName =
                     geocoded ||
-                    resolveLocationName(entry.lat, entry.lon, locations);
+                    matchedOffice ||
+                    (entry.lat != null && entry.lon != null
+                      ? `${entry.lat.toFixed(4)}, ${entry.lon.toFixed(4)}`
+                      : null);
                   return (
                     <li key={log.id} className="py-2 flex items-start gap-2.5">
                       <LogIcon kind={entry.kind} />
@@ -636,9 +830,20 @@ export default function SuperAdminDashboard() {
 
           {/* ---------- Announcements ---------- */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 h-72 flex flex-col">
-            <h3 className="font-semibold text-slate-800 flex items-center gap-2 mb-3">
-              <Megaphone size={17} className="text-orange-500" /> Announcements
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <Megaphone size={17} className="text-orange-500" />{" "}
+                Announcements
+              </h3>
+              <button
+                onClick={openAnnounce}
+                title="Create announcement"
+                aria-label="Create announcement"
+                className="w-7 h-7 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
             {announcements.length === 0 ? (
               <p className="text-sm text-slate-400">No active announcements.</p>
             ) : (
@@ -680,6 +885,156 @@ export default function SuperAdminDashboard() {
       >
         <Plus size={24} />
       </Link> */}
+
+      {/* ---------- Add User modal (opened from the "Add New User" quick
+          action above, instead of navigating to /super-admin/users) ---------- */}
+      {addUserOpen &&
+        (addUserRefData ? (
+          <UserFormModal
+            mode="add"
+            refData={addUserRefData}
+            onClose={() => setAddUserOpen(false)}
+            onSaved={() => setAddUserOpen(false)}
+          />
+        ) : (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 text-center shadow-xl">
+              {addUserError ? (
+                <>
+                  <p className="text-sm text-orange-600 mb-4">{addUserError}</p>
+                  <button
+                    onClick={() => setAddUserOpen(false)}
+                    className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  >
+                    Close
+                  </button>
+                </>
+              ) : (
+                <p className="text-sm text-slate-500">Loading form…</p>
+              )}
+            </div>
+          </div>
+        ))}
+
+      {/* ---------- Create Announcement modal (Super Admin only) ---------- */}
+      {announceOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">
+                  Create Announcement
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Visible to every role on their dashboard.
+                </p>
+              </div>
+              <button
+                onClick={() => setAnnounceOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={submitAnnounce} className="px-6 py-5 space-y-4">
+              {announceError && (
+                <div className="flex items-start gap-2 rounded-lg bg-orange-50 border border-orange-100 text-orange-600 text-sm px-3 py-2">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                  <span>{announceError}</span>
+                </div>
+              )}
+
+              <label className="block">
+                <span className="text-xs font-medium text-slate-600 mb-1 block">
+                  Title <span className="text-orange-500">*</span>
+                </span>
+                <input
+                  autoFocus
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                  value={announceForm.title}
+                  onChange={(e) =>
+                    setAnnounceForm((f) => ({ ...f, title: e.target.value }))
+                  }
+                  placeholder="Office closed on Aug 15"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-medium text-slate-600 mb-1 block">
+                  Description
+                </span>
+                <textarea
+                  rows={4}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 resize-none"
+                  value={announceForm.description}
+                  onChange={(e) =>
+                    setAnnounceForm((f) => ({
+                      ...f,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="Details for this announcement..."
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-600 mb-1 block">
+                    Start date <span className="text-orange-500">*</span>
+                  </span>
+                  <input
+                    type="date"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                    value={announceForm.start_date}
+                    onChange={(e) =>
+                      setAnnounceForm((f) => ({
+                        ...f,
+                        start_date: e.target.value,
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-600 mb-1 block">
+                    End date <span className="text-orange-500">*</span>
+                  </span>
+                  <input
+                    type="date"
+                    min={announceForm.start_date || undefined}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                    value={announceForm.end_date}
+                    onChange={(e) =>
+                      setAnnounceForm((f) => ({
+                        ...f,
+                        end_date: e.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAnnounceOpen(false)}
+                  className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={announceSaving}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-60"
+                >
+                  {announceSaving ? "Publishing…" : "Publish"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

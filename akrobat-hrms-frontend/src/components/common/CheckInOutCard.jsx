@@ -614,7 +614,7 @@ import {
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
-import { toLocalISODate } from "../../utils/date";
+import { parseServerDate, toLocalISODate } from "../../utils/date";
 import { isFieldEmployee } from "../../utils/employeeType";
 
 // GET /attendance/check-in, /check-out, /break-start, /break-end all work
@@ -654,7 +654,9 @@ function todayIso() {
 
 function formatTime(iso) {
   if (!iso) return "--:--";
-  return new Date(iso).toLocaleTimeString([], {
+  const d = parseServerDate(iso);
+  if (!d) return "--:--";
+  return d.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });

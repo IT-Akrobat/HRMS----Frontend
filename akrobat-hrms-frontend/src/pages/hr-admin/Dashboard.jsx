@@ -8,7 +8,7 @@ import {
   Megaphone,
   ShieldCheck,
   UserCheck,
-  Users
+  Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -23,6 +23,7 @@ import QuoteOfDayCard from "../../components/common/Quoteofdaycard ";
 import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import { apiClient } from "../../services/apiClient";
+import { parseServerDate } from "../../utils/date";
 
 // -----------------------------------------------------------------------
 // A note on scope: the reference mockup (Server Status / Storage Usage /
@@ -175,8 +176,8 @@ function parseLogEntry(log, locations = []) {
 
 function formatTime(value) {
   if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
+  const d = parseServerDate(value);
+  if (!d || Number.isNaN(d.getTime())) return "";
   return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
 
@@ -277,11 +278,17 @@ async function reverseGeocode(lat, lon) {
     const city =
       addr.city || addr.town || addr.village || addr.municipality || null;
 
-    // "Building Name, B.No X, Area, City" — building/number first (most
-    // specific), then area, then city. Falls back gracefully: a check-in
-    // out on a plain street just shows "Area, City" with the building
-    // part dropped, rather than leaving a blank "," in its place.
-    const parts = [building, area, city]
+    // State / province — Nominatim calls this "state" for most countries;
+    // "state_district" is its fallback on some records (e.g. parts of
+    // South/Southeast Asia where Nominatim splits state into districts).
+    const state = addr.state || addr.state_district || null;
+
+    // "Building Name, B.No X, Area, City, State" — building/number first
+    // (most specific), then area, city, state. Falls back gracefully: a
+    // check-in on a plain street with no state resolved just shows
+    // "Area, City" with the missing parts dropped, rather than leaving a
+    // blank "," in its place.
+    const parts = [building, area, city, state]
       .filter(Boolean)
       // Drop consecutive duplicates (e.g. area === city for smaller towns).
       .filter((p, i, arr) => p !== arr[i - 1]);
@@ -546,9 +553,22 @@ export default function HrAdminDashboard() {
                     entry.lat != null && entry.lon != null
                       ? placeCache[placeKey(entry.lat, entry.lon)]
                       : null;
+                  const matchedOffice = resolveLocationName(
+                    entry.lat,
+                    entry.lon,
+                    locations,
+                  );
+                  // Priority: reverse-geocoded "City, State, Country" ->
+                  // matched company office name -> raw coordinates (so a
+                  // check-in from outside every registered office, or one
+                  // whose geocode hasn't resolved yet, still shows
+                  // *something* instead of the location silently vanishing.
                   const locationName =
                     geocoded ||
-                    resolveLocationName(entry.lat, entry.lon, locations);
+                    matchedOffice ||
+                    (entry.lat != null && entry.lon != null
+                      ? `${entry.lat.toFixed(4)}, ${entry.lon.toFixed(4)}`
+                      : null);
                   return (
                     <li key={log.id} className="py-2 flex items-start gap-2.5">
                       <LogIcon kind={entry.kind} />

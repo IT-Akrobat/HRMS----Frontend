@@ -1550,7 +1550,7 @@ import * as XLSX from "xlsx";
 import PageHeader from "../../components/common/PageHeader";
 import DatePicker from "../../components/layout/DatePicker";
 import { apiClient } from "../../services/apiClient";
-import { toLocalISODate } from "../../utils/date";
+import { parseServerDate, toLocalISODate } from "../../utils/date";
 
 // ---------------------------------------------------------------------
 // Backend contract (see BACKEND_NOTES.md / attendance_history.sql that
@@ -1598,7 +1598,9 @@ function todayIso() {
 
 function formatTime(iso) {
   if (!iso) return "--:--";
-  return new Date(iso).toLocaleTimeString([], {
+  const d = parseServerDate(iso);
+  if (!d) return "--:--";
+  return d.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -1951,7 +1953,10 @@ export default function AttendanceHistory() {
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance History");
-    XLSX.writeFile(workbook, `attendance-history-${exportRangeLabel("-")}.xlsx`);
+    XLSX.writeFile(
+      workbook,
+      `attendance-history-${exportRangeLabel("-")}.xlsx`,
+    );
   }
 
   function exportPdf() {

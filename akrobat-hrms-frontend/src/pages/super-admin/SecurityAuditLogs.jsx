@@ -18,6 +18,7 @@ import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
+import { geocodeQueue, placeKey, reverseGeocode } from "../../utils/Geocode";
 
 // ---------------------------------------------------------------------
 // Backend contract (app/audit_logs/routes.py — VIEW_AUDIT_LOGS, which
@@ -98,6 +99,58 @@ function parseDescription(raw) {
   return { message: raw, changes: null, targetEmployeeId: null };
 }
 
+// Every field in a CHECK_IN/CHECK_OUT description's `changes` comes from
+// record_audit_log's diff (see app/core/audit.py -> _diff), which stores
+// {old, new} pairs, not the raw value — unwrap to .new so callers always
+// get a plain string/number.
+function diffValue(v) {
+  if (v && typeof v === "object" && "new" in v) return v.new;
+  return v;
+}
+
+// Pulls the check-in/check-out coordinates (if any) out of a log row, the
+// same way the dashboard's Recent Activity panel does. Most rows (LOGIN,
+// LEAVE, PAYROLL, etc.) simply have none — only ATTENDANCE CHECK_IN /
+// CHECK_OUT entries carry a GPS fix, so this returns { lat: null, lon:
+// null } for everything else and the Location column shows "—".
+function extractCoords(log) {
+  let details = null;
+  if (typeof log.description === "string") {
+    try {
+      details = JSON.parse(log.description);
+    } catch {
+      details = null;
+    }
+  } else if (log.description && typeof log.description === "object") {
+    details = log.description;
+  }
+
+  const changes = details?.changes || {};
+  const rawLat =
+    diffValue(changes.check_in_latitude) ??
+    diffValue(changes.check_out_latitude) ??
+    diffValue(changes.latitude) ??
+    details?.check_in_latitude ??
+    details?.check_out_latitude ??
+    details?.latitude ??
+    null;
+  const rawLon =
+    diffValue(changes.check_in_longitude) ??
+    diffValue(changes.check_out_longitude) ??
+    diffValue(changes.longitude) ??
+    details?.check_in_longitude ??
+    details?.check_out_longitude ??
+    details?.longitude ??
+    null;
+
+  const lat = rawLat != null && rawLat !== "" ? Number(rawLat) : null;
+  const lon = rawLon != null && rawLon !== "" ? Number(rawLon) : null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return { lat: null, lon: null };
+  }
+  return { lat, lon };
+}
+
 function initials(name) {
   if (!name) return "?";
   return name
@@ -148,6 +201,13 @@ export default function SecurityAuditLogs() {
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
 
+  // Reverse-geocoded "Building, Area, City, State" per unique check-in/out
+  // coordinate on this page, keyed by placeKey(lat, lon) — see
+  // src/utils/Geocode.jsx. Populated lazily once records load; rows with
+  // no GPS fix (LOGIN, LEAVE, PAYROLL, etc.) never get an entry here and
+  // just show "—" in the Location column.
+  const [placeCache, setPlaceCache] = useState({});
+
   function load() {
     setRecords(null);
     setError("");
@@ -163,8 +223,23 @@ export default function SecurityAuditLogs() {
     apiClient
       .get(path)
       .then((res) => {
-        setRecords(res?.data?.records || []);
+        const rows = res?.data?.records || [];
+        setRecords(rows);
         setTotal(res?.data?.total || 0);
+
+        // Geocode every unique coordinate pair on this page, once, rather
+        // than per-render — throttled to Nominatim's 1 req/sec limit.
+        const uniqueCoords = new Map();
+        for (const row of rows) {
+          const { lat, lon } = extractCoords(row);
+          if (lat == null || lon == null) continue;
+          const key = placeKey(lat, lon);
+          if (!key || uniqueCoords.has(key)) continue;
+          uniqueCoords.set(key, { key, lat, lon });
+        }
+        geocodeQueue(Array.from(uniqueCoords.values()), (key, label) => {
+          setPlaceCache((prev) => ({ ...prev, [key]: label }));
+        });
       })
       .catch((err) => {
         setRecords([]);
@@ -318,6 +393,7 @@ export default function SecurityAuditLogs() {
                   <th className="font-medium px-3 py-3">Module</th>
                   <th className="font-medium px-3 py-3">Action</th>
                   <th className="font-medium px-3 py-3">Description</th>
+                  <th className="font-medium px-3 py-3">Location</th>
                   <th className="font-medium px-3 py-3">IP Address</th>
                   <th className="font-medium px-3 py-3 text-right">When</th>
                 </tr>
@@ -327,6 +403,19 @@ export default function SecurityAuditLogs() {
                   const meta = actionMeta(log.action);
                   const ActionIcon = meta.icon;
                   const { message } = parseDescription(log.description);
+                  const { lat, lon } = extractCoords(log);
+                  const place =
+                    lat != null && lon != null
+                      ? placeCache[placeKey(lat, lon)]
+                      : null;
+                  // While a fresh coordinate is still being reverse-geocoded
+                  // (placeCache hasn't caught up yet), show the raw fix
+                  // rather than a blank cell.
+                  const locationText =
+                    place ||
+                    (lat != null && lon != null
+                      ? `${lat.toFixed(4)}, ${lon.toFixed(4)}`
+                      : "—");
 
                   return (
                     <tr
@@ -366,6 +455,14 @@ export default function SecurityAuditLogs() {
                       <td className="px-3 py-3 max-w-xs">
                         <p className="text-sm text-slate-600 truncate">
                           {message || "—"}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3 max-w-[220px]">
+                        <p
+                          className="text-xs text-slate-500 truncate"
+                          title={locationText}
+                        >
+                          {locationText}
                         </p>
                       </td>
                       <td className="px-3 py-3 text-xs text-slate-400 whitespace-nowrap">
@@ -426,6 +523,31 @@ function AuditDetail({ log }) {
     log.description,
   );
 
+  // Resolve the same way the table row does — this modal doesn't have
+  // access to SecurityAuditLogs' placeCache, so it looks the coordinate
+  // up fresh (cheap: reverseGeocode's own in-memory/localStorage cache
+  // means this is instant if the row's already been geocoded on the
+  // table, and only does one live request otherwise).
+  const { lat, lon } = extractCoords(log);
+  const [place, setPlace] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (lat != null && lon != null) {
+      reverseGeocode(lat, lon).then((label) => {
+        if (!cancelled) setPlace(label);
+      });
+    } else {
+      setPlace(null);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [lat, lon]);
+
+  const locationText =
+    place ||
+    (lat != null && lon != null ? `${lat.toFixed(4)}, ${lon.toFixed(4)}` : "—");
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 text-sm">
@@ -434,6 +556,7 @@ function AuditDetail({ log }) {
         <Field label="Timestamp" value={formatDateTime(log.created_at)} />
         <Field label="IP Address" value={log.ip_address || "—"} />
         <Field label="Record ID" value={log.record_id || "—"} mono />
+        <Field label="Location" value={locationText} />
         {targetEmployeeId && (
           <Field label="Target Employee" value={targetEmployeeId} mono />
         )}

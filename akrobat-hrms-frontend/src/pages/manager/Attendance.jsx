@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import { apiClient } from "../../services/apiClient";
+import { parseServerDate } from "../../utils/date";
 import { unwrap } from "../../utils/unwrap";
 
 // ---------------------------------------------------------------------
@@ -32,7 +33,9 @@ import { unwrap } from "../../utils/unwrap";
 
 function formatTime(iso) {
   if (!iso) return "--:--";
-  return new Date(iso).toLocaleTimeString([], {
+  const d = parseServerDate(iso);
+  if (!d) return "--:--";
+  return d.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
