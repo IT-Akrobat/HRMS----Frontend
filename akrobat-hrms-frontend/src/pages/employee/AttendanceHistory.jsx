@@ -1546,7 +1546,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import PageHeader from "../../components/common/PageHeader";
 import DatePicker from "../../components/layout/DatePicker";
 import { apiClient } from "../../services/apiClient";

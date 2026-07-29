@@ -1,4 +1,5 @@
 import {
+  AlarmClock,
   Bell,
   CalendarClock,
   CheckCheck,
@@ -27,6 +28,10 @@ const TYPE_STYLES = {
   LEAVE: { icon: CalendarClock, className: "text-orange-500 bg-orange-50" },
   OVERTIME: { icon: Clock, className: "text-blue-500 bg-blue-50" },
   ATTENDANCE: { icon: Clock, className: "text-blue-500 bg-blue-50" },
+  ATTENDANCE_REMINDER: {
+    icon: AlarmClock,
+    className: "text-orange-500 bg-orange-50",
+  },
   SYSTEM: { icon: Megaphone, className: "text-slate-500 bg-slate-100" },
   GENERAL: { icon: Bell, className: "text-slate-500 bg-slate-100" },
 };
@@ -182,6 +187,36 @@ function NotificationBell() {
     // ~20s on its own, without the user needing to refresh the page.
     const interval = setInterval(load, 20000);
     return () => clearInterval(interval);
+  }, []);
+
+  // "Have I forgotten to check in?" — GET /attendance/reminder-check
+  // (see app/attendance/services.py::get_attendance_reminder_status()).
+  // This backend has no scheduler (no cron/celery/APScheduler), so
+  // nothing can fire this on its own at shift-start time the way a real
+  // reminder system would; instead this component -- already mounted
+  // in every dashboard layout, already polling every 20s -- pings the
+  // check itself while the person is logged in. The endpoint is a safe
+  // no-op unless the employee has actually opted into "Attendance
+  // reminders" in Settings AND is confirmed late-and-unchecked-in for
+  // the day, and it only ever writes one notification per employee per
+  // day. When it does write one, the load() poll above picks that row
+  // up on its next tick and surfaces it as a toast — no separate
+  // delivery path needed here. Every 3 minutes is frequent enough to
+  // catch "just walked in late" promptly without hammering the
+  // endpoint.
+  useEffect(() => {
+    function checkAttendanceReminder() {
+      apiClient.get("/attendance/reminder-check").catch(() => {
+        // Best-effort — a failed check here should never surface to
+        // the user; the next poll will just try again.
+      });
+    }
+    checkAttendanceReminder();
+    const reminderInterval = setInterval(
+      checkAttendanceReminder,
+      3 * 60 * 1000,
+    );
+    return () => clearInterval(reminderInterval);
   }, []);
 
   // Ask once for permission to show native browser/OS notifications —

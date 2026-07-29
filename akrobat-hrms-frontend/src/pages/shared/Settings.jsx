@@ -37,13 +37,15 @@ import { apiClient } from "../../services/apiClient";
 //                   no point duplicating it here).
 //   Security      — change password, backed by POST /auth/change-password
 //                   (see app/auth/routes.py / app/auth/services.py).
-//   Notifications — per-user alert toggles. No preferences endpoint
-//                   exists yet either, so these persist to localStorage
-//                   for now (keyed per user) rather than silently doing
-//                   nothing; swap the marked spots for real API calls
-//                   once a /notifications/preferences endpoint exists.
-//   Preferences   — language/date-format/theme. Same story: local-only
-//                   until there's somewhere to save it server-side.
+//   Notifications — per-user alert toggles, backed by GET/PUT
+//                   /notification-preferences/me (see
+//                   app/notification_preferences/routes.py). The
+//                   "Attendance reminders" toggle here is what
+//                   app/attendance/services.py::get_attendance_reminder_status()
+//                   checks before ever sending a reminder — see the
+//                   periodic poll added in Header.jsx.
+//   Preferences   — language/date-format/theme. Still local-only until
+//                   there's somewhere to save it server-side.
 
 const TABS = [
   { key: "account", label: "Account", icon: User },
@@ -201,24 +203,64 @@ export default function Settings() {
   }
 
   // ---------------- Notifications ----------------
+  // Backed by GET/PUT /notification-preferences/me (see
+  // app/notification_preferences/routes.py) — previously these five
+  // toggles only ever persisted to localStorage and nothing on the
+  // backend could read them (in particular, the "Attendance reminders"
+  // toggle had no effect on anything). Now the value in the DB is what
+  // app/attendance/services.py::get_attendance_reminder_status() checks
+  // before it will ever send a reminder.
   const [notifs, setNotifs] = useState(NOTIF_DEFAULTS);
-  const [notifMsg, setNotifMsg] = useState("");
+  const [notifLoading, setNotifLoading] = useState(true);
+  const [notifSaving, setNotifSaving] = useState(false);
+  const [notifMsg, setNotifMsg] = useState({ type: "", text: "" });
 
   // ---------------- Preferences ----------------
+  // Language/date-format/theme still have nowhere server-side to live —
+  // unchanged, local-only for now.
   const [prefs, setPrefs] = useState(PREF_DEFAULTS);
   const [prefMsg, setPrefMsg] = useState("");
 
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
-      if (saved.notifications)
-        setNotifs({ ...NOTIF_DEFAULTS, ...saved.notifications });
       if (saved.preferences)
         setPrefs({ ...PREF_DEFAULTS, ...saved.preferences });
     } catch {
       // ignore malformed local data
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setNotifLoading(true);
+    apiClient
+      .get("/notification-preferences/me")
+      .then((res) => {
+        if (cancelled) return;
+        const row = res?.data || {};
+        setNotifs({
+          email_notifications:
+            row.email_notifications ?? NOTIF_DEFAULTS.email_notifications,
+          leave_updates: row.leave_updates ?? NOTIF_DEFAULTS.leave_updates,
+          announcements: row.announcements ?? NOTIF_DEFAULTS.announcements,
+          celebrations: row.celebrations ?? NOTIF_DEFAULTS.celebrations,
+          attendance_reminders:
+            row.attendance_reminders ?? NOTIF_DEFAULTS.attendance_reminders,
+        });
+      })
+      .catch(() => {
+        // Endpoint unreachable — fall back to defaults rather than
+        // leaving the tab stuck on a spinner; Save will retry the PUT.
+        if (!cancelled) setNotifs(NOTIF_DEFAULTS);
+      })
+      .finally(() => {
+        if (!cancelled) setNotifLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function persist(partial) {
@@ -229,13 +271,34 @@ export default function Settings() {
     );
   }
 
-  function saveNotifications() {
-    // No /notifications/preferences endpoint yet — persisted locally so
-    // the toggles aren't purely cosmetic. Swap in an apiClient.put(...)
-    // call here once one exists.
-    persist({ notifications: notifs });
-    setNotifMsg("Notification preferences saved.");
-    setTimeout(() => setNotifMsg(""), 2500);
+  async function saveNotifications() {
+    setNotifSaving(true);
+    setNotifMsg({ type: "", text: "" });
+    try {
+      const res = await apiClient.put("/notification-preferences/me", notifs);
+      const row = res?.data;
+      if (row) {
+        setNotifs({
+          email_notifications: row.email_notifications,
+          leave_updates: row.leave_updates,
+          announcements: row.announcements,
+          celebrations: row.celebrations,
+          attendance_reminders: row.attendance_reminders,
+        });
+      }
+      setNotifMsg({
+        type: "success",
+        text: "Notification preferences saved.",
+      });
+      setTimeout(() => setNotifMsg({ type: "", text: "" }), 2500);
+    } catch (err) {
+      setNotifMsg({
+        type: "error",
+        text: err.message || "Could not save notification preferences.",
+      });
+    } finally {
+      setNotifSaving(false);
+    }
   }
 
   function savePreferences() {
@@ -247,6 +310,23 @@ export default function Settings() {
   const profile = user?.profile || {};
   const designation = profile.designation?.designation_name;
   const department = user?.department?.department_name;
+
+  // If no real email was ever set for this employee, the backend fills
+  // in a placeholder login email built from the employee code itself
+  // (e.g. "akr-ins-cw-0002@akrobat.com.sg" — see create_employee() in
+  // app/employees/services.py). It's only there so Supabase Auth has
+  // something to log in with; it should never be shown here as if it
+  // were a real email, since that reads as "the employee code got
+  // appended into my email". Show "Not set" instead when that's the
+  // case — same rule MyProfile.jsx already applies, just missing here.
+  const rawEmail = user?.email || "";
+  const employeeIdForEmailCheck = profile.employee_id || "";
+  const isPlaceholderEmail =
+    !!rawEmail &&
+    !!employeeIdForEmailCheck &&
+    rawEmail.split("@")[0]?.toLowerCase() ===
+      employeeIdForEmailCheck.toLowerCase();
+  const displayEmail = isPlaceholderEmail ? "" : rawEmail;
 
   return (
     <div>
@@ -320,7 +400,7 @@ export default function Settings() {
                   <div className="min-w-0">
                     <p className="text-xs text-slate-400">Email</p>
                     <p className="text-sm font-medium text-slate-800 truncate">
-                      {user?.email || "—"}
+                      {displayEmail || "Not set"}
                     </p>
                   </div>
                 </div>
@@ -423,55 +503,66 @@ export default function Settings() {
               title="Notification preferences"
               description="Choose what you'd like to be notified about."
             >
-              {notifMsg && <Banner type="success" message={notifMsg} />}
-              <div className="divide-y divide-slate-100">
-                <ToggleSwitch
-                  label="Email notifications"
-                  description="Receive a copy of important updates by email."
-                  checked={notifs.email_notifications}
-                  onChange={(v) =>
-                    setNotifs((n) => ({ ...n, email_notifications: v }))
-                  }
-                />
-                <ToggleSwitch
-                  label="Leave request updates"
-                  description="When your leave is approved, rejected, or commented on."
-                  checked={notifs.leave_updates}
-                  onChange={(v) =>
-                    setNotifs((n) => ({ ...n, leave_updates: v }))
-                  }
-                />
-                <ToggleSwitch
-                  label="Announcements"
-                  description="Company-wide announcements."
-                  checked={notifs.announcements}
-                  onChange={(v) =>
-                    setNotifs((n) => ({ ...n, announcements: v }))
-                  }
-                />
-                <ToggleSwitch
-                  label="Birthdays & work anniversaries"
-                  description="Reminders about teammates' celebrations."
-                  checked={notifs.celebrations}
-                  onChange={(v) =>
-                    setNotifs((n) => ({ ...n, celebrations: v }))
-                  }
-                />
-                <ToggleSwitch
-                  label="Attendance reminders"
-                  description="A nudge if you haven't checked in by your shift start."
-                  checked={notifs.attendance_reminders}
-                  onChange={(v) =>
-                    setNotifs((n) => ({ ...n, attendance_reminders: v }))
-                  }
-                />
-              </div>
+              {notifMsg.text && (
+                <Banner type={notifMsg.type} message={notifMsg.text} />
+              )}
+              {notifLoading ? (
+                <div className="space-y-4 animate-pulse">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="h-12 bg-slate-100 rounded-lg" />
+                  ))}
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  <ToggleSwitch
+                    label="Email notifications"
+                    description="Receive a copy of important updates by email."
+                    checked={notifs.email_notifications}
+                    onChange={(v) =>
+                      setNotifs((n) => ({ ...n, email_notifications: v }))
+                    }
+                  />
+                  <ToggleSwitch
+                    label="Leave request updates"
+                    description="When your leave is approved, rejected, or commented on."
+                    checked={notifs.leave_updates}
+                    onChange={(v) =>
+                      setNotifs((n) => ({ ...n, leave_updates: v }))
+                    }
+                  />
+                  <ToggleSwitch
+                    label="Announcements"
+                    description="Company-wide announcements."
+                    checked={notifs.announcements}
+                    onChange={(v) =>
+                      setNotifs((n) => ({ ...n, announcements: v }))
+                    }
+                  />
+                  <ToggleSwitch
+                    label="Birthdays & work anniversaries"
+                    description="Reminders about teammates' celebrations."
+                    checked={notifs.celebrations}
+                    onChange={(v) =>
+                      setNotifs((n) => ({ ...n, celebrations: v }))
+                    }
+                  />
+                  <ToggleSwitch
+                    label="Attendance reminders"
+                    description="A nudge if you haven't checked in by your shift start."
+                    checked={notifs.attendance_reminders}
+                    onChange={(v) =>
+                      setNotifs((n) => ({ ...n, attendance_reminders: v }))
+                    }
+                  />
+                </div>
+              )}
               <div className="mt-5 pt-5 border-t border-slate-100 flex justify-end">
                 <button
                   onClick={saveNotifications}
-                  className="bg-brand-orange text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:opacity-90 transition"
+                  disabled={notifLoading || notifSaving}
+                  className="bg-brand-orange text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-60 transition"
                 >
-                  Save preferences
+                  {notifSaving ? "Saving…" : "Save preferences"}
                 </button>
               </div>
             </SectionCard>

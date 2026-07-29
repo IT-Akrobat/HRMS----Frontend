@@ -13,11 +13,50 @@ import {
   Wallet,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
+// NOTE: plain "xlsx" (SheetJS Community Edition) silently ignores cell
+// styles (bold/fill/etc) on write -- it's a hard limitation of the free
+// build, not a bug in this file. xlsx-js-style is a drop-in fork (same
+// API, same underlying SheetJS 0.18.5) that actually applies them.
+import * as XLSX from "xlsx-js-style";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import { reportsService } from "../../services/ReportService";
 import { parseServerDate } from "../../utils/date";
+
+// ---------------------------------------------------------------------
+// Excel export styling -- field labels ("Employee Name", "Blood Group",
+// etc) and table header rows get bolded + a light fill so they're
+// visually distinct from the values next to them. Requires
+// xlsx-js-style (plain "xlsx" ignores cell.s entirely on write).
+// ---------------------------------------------------------------------
+const LABEL_STYLE = {
+  font: { bold: true },
+  fill: { fgColor: { rgb: "EEF2F7" } },
+};
+
+// Bolds + fills column A for every row in `rows` (skips blank spacer
+// rows, e.g. `[]`, since there's no label to highlight there) -- for
+// the "Field Name | Value" style sheets like Profile.
+function styleLabelColumn(sheet, rowCount) {
+  for (let r = 0; r < rowCount; r++) {
+    const addr = XLSX.utils.encode_cell({ r, c: 0 });
+    const cell = sheet[addr];
+    if (cell && cell.v !== undefined && cell.v !== null && cell.v !== "") {
+      cell.s = LABEL_STYLE;
+    }
+  }
+}
+
+// Bolds + fills the first row (r: 0) across `colCount` columns -- for
+// table-style sheets like "Sites Worked" / "Monthly Sites" where row 1
+// is the column header rather than a label column.
+function styleHeaderRow(sheet, colCount) {
+  for (let c = 0; c < colCount; c++) {
+    const addr = XLSX.utils.encode_cell({ r: 0, c });
+    const cell = sheet[addr];
+    if (cell) cell.s = LABEL_STYLE;
+  }
+}
 
 // ---------------------------------------------------------------------
 // Wired to the real backend: GET /reports/dashboard (counts) and
@@ -476,6 +515,7 @@ function downloadEmployeesExcel(rows) {
   sheet["!cols"] = EMPLOYEES_EXPORT_HEADER.map((h) => ({
     wch: Math.max(14, Math.min(28, h.length + 4)),
   }));
+  styleHeaderRow(sheet, EMPLOYEES_EXPORT_HEADER.length);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Employees");
   XLSX.writeFile(
@@ -531,6 +571,7 @@ function downloadAttendanceExcel(rows) {
     { wch: 10 },
     { wch: 12 },
   ];
+  styleHeaderRow(sheet, ATTENDANCE_EXPORT_HEADER.length);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Attendance");
   XLSX.writeFile(
@@ -805,6 +846,7 @@ export default function Reports() {
         ];
         const profileSheet = XLSX.utils.aoa_to_sheet(profileRows);
         profileSheet["!cols"] = [{ wch: 22 }, { wch: 32 }];
+        styleLabelColumn(profileSheet, profileRows.length);
 
         const sitesRows = (data.sites_worked || []).map((s) => [
           s.location_name,
@@ -816,10 +858,51 @@ export default function Reports() {
           ...sitesRows,
         ]);
         sitesSheet["!cols"] = [{ wch: 24 }, { wch: 10 }, { wch: 12 }];
+        styleHeaderRow(sitesSheet, 3);
+
+        // Monthly / yearly breakdown — how many distinct sites, which
+        // ones, and how long, per calendar month and per year.
+        const monthlyRows = (data.monthly_sites || []).map((p) => [
+          p.period,
+          p.distinct_site_count,
+          (p.site_names || []).join(", "),
+          (p.total_minutes / 60).toFixed(1),
+        ]);
+        const monthlySheet = XLSX.utils.aoa_to_sheet([
+          ["Month", "Distinct Sites", "Site Names", "Total Hours"],
+          ...monthlyRows,
+        ]);
+        monthlySheet["!cols"] = [
+          { wch: 10 },
+          { wch: 14 },
+          { wch: 40 },
+          { wch: 12 },
+        ];
+        styleHeaderRow(monthlySheet, 4);
+
+        const yearlyRows = (data.yearly_sites || []).map((p) => [
+          p.period,
+          p.distinct_site_count,
+          (p.site_names || []).join(", "),
+          (p.total_minutes / 60).toFixed(1),
+        ]);
+        const yearlySheet = XLSX.utils.aoa_to_sheet([
+          ["Year", "Distinct Sites", "Site Names", "Total Hours"],
+          ...yearlyRows,
+        ]);
+        yearlySheet["!cols"] = [
+          { wch: 10 },
+          { wch: 14 },
+          { wch: 40 },
+          { wch: 12 },
+        ];
+        styleHeaderRow(yearlySheet, 4);
 
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, profileSheet, "Profile");
         XLSX.utils.book_append_sheet(workbook, sitesSheet, "Sites Worked");
+        XLSX.utils.book_append_sheet(workbook, monthlySheet, "Monthly Sites");
+        XLSX.utils.book_append_sheet(workbook, yearlySheet, "Yearly Sites");
         const nameSlug = (data.full_name || "").replace(/[^a-z0-9]+/gi, "-");
         XLSX.writeFile(
           workbook,
@@ -891,6 +974,15 @@ export default function Reports() {
           { wch: 10 },
           { wch: 30 },
         ];
+        styleHeaderRow(sheet, header.length);
+        // TOTAL row sits after the header + all data rows + one blank
+        // spacer row -- bolded the same way as a label, so it stands
+        // out from the daily rows above it.
+        const totalsRowIndex = 1 + rows.length + 1;
+        for (let c = 0; c < header.length; c++) {
+          const addr = XLSX.utils.encode_cell({ r: totalsRowIndex, c });
+          if (sheet[addr]) sheet[addr].s = LABEL_STYLE;
+        }
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, sheet, "Monthly Attendance");
 

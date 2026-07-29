@@ -1,10 +1,10 @@
 import {
-    AlertTriangle,
-    Briefcase,
-    ChevronDown,
-    Loader2,
-    Shield,
-    X,
+  AlertTriangle,
+  Briefcase,
+  ChevronDown,
+  Loader2,
+  Shield,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../../services/apiClient";
@@ -127,6 +127,22 @@ export function FilterDropdown({
   );
 }
 
+// If no real email was ever set for this employee, the backend fills in
+// a placeholder login email built from the employee code itself (e.g.
+// "akr-ins-cw-0002@akrobat.com.sg" — see create_employee() in
+// app/employees/services.py). It should never be prefilled into this
+// editable field as if it were real -- saving the form unchanged would
+// just resubmit the same placeholder, and it reads as "the employee
+// code got appended into my email" to whoever opens Edit. Same rule
+// Employees.jsx's isSystemGeneratedEmail() already applies for the
+// HR/Super-Admin employee list; this modal (Users.jsx / Dashboard.jsx)
+// just never had it.
+function isSystemGeneratedEmail(candidateUser) {
+  if (!candidateUser?.email || !candidateUser?.employee_id) return false;
+  const localPart = candidateUser.email.split("@")[0]?.toLowerCase();
+  return localPart === candidateUser.employee_id.toLowerCase();
+}
+
 // ==========================================================================
 // Add / Edit modal
 // ==========================================================================
@@ -143,7 +159,7 @@ export default function UserFormModal({
 
   const [form, setForm] = useState(() => ({
     full_name: user?.full_name || "",
-    email: user?.email || "",
+    email: isSystemGeneratedEmail(user) ? "" : user?.email || "",
     phone: user?.phone || "",
     department_id: user?.department_id || "",
     designation_id: user?.designation_id || "",
