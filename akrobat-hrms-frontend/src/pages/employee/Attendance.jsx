@@ -13,7 +13,7 @@ import { Link } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
-import { toLocalISODate } from "../../utils/date";
+import { parseServerDate, toLocalISODate } from "../../utils/date";
 import { isFieldEmployee } from "../../utils/employeeType";
 // ---------------------------------------------------------------------
 // Same GET /attendance/timeline/{date} + check-in/break-start/break-end/
@@ -77,7 +77,9 @@ function todayIso() {
 
 function formatTime(iso) {
   if (!iso) return "--:--";
-  return new Date(iso).toLocaleTimeString([], {
+  const d = parseServerDate(iso);
+  if (!d || Number.isNaN(d.getTime())) return "--:--";
+  return d.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });

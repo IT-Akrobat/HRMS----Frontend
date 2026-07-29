@@ -2,7 +2,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Building2,
-  Clock3,
   LogIn,
   LogOut,
   MapPin,
@@ -14,7 +13,7 @@ import {
   UserCheck,
   UserPlus,
   Users,
-  X,
+  X
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -737,7 +736,7 @@ export default function SuperAdminDashboard() {
               value={stats?.total_departments ?? "—"}
             />
           </div>
-          <div className="min-w-[170px] w-[170px] shrink-0">
+          {/* <div className="min-w-[170px] w-[170px] shrink-0">
             <StatCard
               icon={MapPin}
               label="Locations"
@@ -754,7 +753,7 @@ export default function SuperAdminDashboard() {
               loading={statsLoading}
               value={stats?.total_shifts ?? "—"}
             />
-          </div>
+          </div> */}
         </div>
       </div>
 

@@ -1,16 +1,16 @@
 import {
-    Bell,
-    Building2,
-    CheckCircle2,
-    Eye,
-    EyeOff,
-    Globe,
-    Lock,
-    Mail,
-    Phone,
-    ShieldCheck,
-    User,
-    XCircle,
+  Bell,
+  Building2,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Globe,
+  Lock,
+  Mail,
+  Phone,
+  ShieldCheck,
+  User,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -141,7 +141,7 @@ function PasswordField({ label, value, onChange, autoComplete }) {
 }
 
 export default function Settings() {
-  const { user, role } = useAuth();
+  const { user, role, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState("account");
 
   const storageKey = `akrobat_settings_${user?.id || "guest"}`;
@@ -187,6 +187,9 @@ export default function Settings() {
       });
       setPwdMsg({ type: "success", text: "Password updated successfully." });
       setPwd({ current: "", next: "", confirm: "" });
+      // Clears the Access Control expiry banner in DashboardLayout right
+      // away instead of leaving it up until the next login.
+      updateUser({ passwordExpired: false });
     } catch (err) {
       setPwdMsg({
         type: "error",

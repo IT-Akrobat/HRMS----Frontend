@@ -41,6 +41,10 @@ export const authService = {
       department: me.department,
       profile: me.profile,
       theme: me.theme,
+      // From /auth/login (see app/access_control) -- both reflect
+      // Access Control settings enforced at sign-in time.
+      mfaRequired: loginData.mfa_required,
+      passwordExpired: loginData.password_expired,
     };
 
     sessionStorage.setItem(USER_KEY, JSON.stringify(user));
