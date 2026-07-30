@@ -930,18 +930,54 @@ export default function CheckInOutCard({
     }
   }, [today?.check_out_latitude, today?.check_out_longitude]);
 
+  // On-demand GPS fetch, used as a fallback right before check-in/out —
+  // separate from detectLocation() (which runs automatically on mount and
+  // drives the status banner). If the user clicks Check In/Out before that
+  // automatic fix has resolved (slow GPS, or they were fast), `coords` is
+  // still null and the request would otherwise go out with no lat/long at
+  // all. This grabs a fresh position at the moment of the click instead,
+  // so a location is always attached (never hardcoded, always the real
+  // detected one — just via a fresh request if we didn't already have it).
+  function getFreshCoords() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) =>
+          resolve({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 10000 },
+      );
+    });
+  }
+
   async function runAction(path, successReload = true) {
     setBusy(true);
     setError(null);
     try {
-      // Always send whatever real GPS fix we have. location_id is only
-      // included when we actually matched one — the backend skips the
-      // geofence check entirely if location_id is missing, so an unmatched
-      // location deliberately does NOT get silently treated as "in range".
-      const body = coords
+      // Prefer the already-detected fix; if none has resolved yet, fetch
+      // one now rather than sending an empty body. Either way this is the
+      // real device location at request time, never a stored/hardcoded
+      // value.
+      const liveCoords = coords || (await getFreshCoords());
+      if (liveCoords && !coords) {
+        setCoords(liveCoords);
+        setGeoStatus("ok");
+        reverseGeocode(liveCoords.latitude, liveCoords.longitude);
+      }
+      // location_id is only included when we actually matched one — the
+      // backend skips the geofence check entirely if location_id is
+      // missing, so an unmatched location deliberately does NOT get
+      // silently treated as "in range".
+      const body = liveCoords
         ? {
-            latitude: coords.latitude,
-            longitude: coords.longitude,
+            latitude: liveCoords.latitude,
+            longitude: liveCoords.longitude,
             ...(nearest ? { location_id: nearest.location.id } : {}),
           }
         : {};
@@ -1309,24 +1345,19 @@ export default function CheckInOutCard({
                   )}
                   {geoStatus === "ok" && nearest && !nearest.withinRadius && (
                     <>
-                      <AlertTriangle
+                      <MapPin
                         size={13}
-                        className="text-orange-500 shrink-0 mt-0.5"
+                        className="text-slate-400 shrink-0 mt-0.5"
                       />
-                      <span className="text-orange-500">
-                        {Math.round(nearest.distance)}m from{" "}
-                        {nearest.location.location_name} — outside the{" "}
-                        {nearest.location.radius}m radius
-                        {place && (
-                          <span className="text-slate-400">
-                            {" "}
-                            (you're currently at{" "}
-                            {[place.city, place.region]
+                      <span className="text-slate-500">
+                        {place
+                          ? `Detected at ${[place.city, place.region]
                               .filter(Boolean)
-                              .join(", ")}
-                            )
-                          </span>
-                        )}
+                              .join(", ")}`
+                          : "Location detected"}{" "}
+                        ({Math.round(nearest.distance)}m from{" "}
+                        {nearest.location.location_name}) — check-in is allowed
+                        from any location.
                       </span>
                     </>
                   )}
