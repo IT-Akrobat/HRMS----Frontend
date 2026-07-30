@@ -737,6 +737,7 @@ export default function CheckInOutCard({
   // Geolocation state
   const [locations, setLocations] = useState([]);
   const [coords, setCoords] = useState(null); // { latitude, longitude }
+  const [accuracy, setAccuracy] = useState(null); // meters — radius of uncertainty for `coords`
   const [geoStatus, setGeoStatus] = useState("locating"); // locating | ok | denied | unsupported
   const [nearest, setNearest] = useState(null); // { location, distance, withinRadius }
 
@@ -833,6 +834,15 @@ export default function CheckInOutCard({
   // Pulled out so it can run both automatically on mount AND again on demand
   // when the user taps "Detect Location" (e.g. after they granted permission
   // following an earlier denial, or just want a fresh GPS fix).
+  //
+  // A single getCurrentPosition() call isn't reliable on a laptop with no
+  // GPS chip: the browser/OS location provider often returns a coarse
+  // Wi-Fi- or IP-based fix *first* (sometimes off by hundreds of km — this
+  // is why "Detect Location" was showing a different state entirely) and
+  // only refines to a tighter Wi-Fi-triangulated fix a few seconds later,
+  // if at all. So instead of taking the first result, we watch for up to
+  // ~8s and keep whichever fix has the smallest `accuracy` (meters of
+  // uncertainty), and stop early once we get a genuinely GPS-grade fix.
   function detectLocation() {
     if (!navigator.geolocation) {
       setGeoStatus("unsupported");
@@ -840,16 +850,44 @@ export default function CheckInOutCard({
     }
     setGeoStatus("locating");
     setPlace(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setCoords({ latitude, longitude });
+    setAccuracy(null);
+
+    let bestFix = null;
+    let watchId = null;
+    let settled = false;
+    let timeoutId = null;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+      if (bestFix) {
+        setCoords({ latitude: bestFix.latitude, longitude: bestFix.longitude });
+        setAccuracy(bestFix.accuracy);
         setGeoStatus("ok");
-        reverseGeocode(latitude, longitude);
+        reverseGeocode(bestFix.latitude, bestFix.longitude);
+      } else {
+        setGeoStatus("denied");
+      }
+    };
+
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy: acc } = pos.coords;
+        if (!bestFix || acc < bestFix.accuracy) {
+          bestFix = { latitude, longitude, accuracy: acc };
+        }
+        // GPS-grade fix already — no need to keep waiting.
+        if (acc <= 50) finish();
       },
-      () => setGeoStatus("denied"),
-      { enableHighAccuracy: true, timeout: 10000 },
+      () => finish(),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
+
+    // Give the provider a few seconds to refine from an initial coarse
+    // (Wi-Fi/IP) fix to a tighter one, then lock in whatever's best so far.
+    timeoutId = setTimeout(finish, 8000);
   }
 
   useEffect(() => {
@@ -1394,6 +1432,25 @@ export default function CheckInOutCard({
                   {geoStatus === "locating" ? "Detecting…" : "Detect Location"}
                 </button>
               </div>
+
+              {/* Accuracy check — a laptop with no GPS chip is often given a
+                  coarse Wi-Fi- or IP-based fix instead of a real GPS one,
+                  which can be off by hundreds of km (the accuracy value
+                  reveals this even when the place name looks plausible).
+                  LOW_ACCURACY_THRESHOLD_M is deliberately generous (GPS is
+                  normally <50m, Wi-Fi positioning a few hundred m) so this
+                  only fires for genuinely unreliable, IP-grade fixes. */}
+              {geoStatus === "ok" && accuracy != null && accuracy > 3000 && (
+                <div className="mt-1.5 flex items-start gap-2 text-orange-600">
+                  <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                  <span>
+                    Low-accuracy location (±{Math.round(accuracy / 1000)}km) —
+                    this looks like a network-based estimate, not your real GPS
+                    position. Turn on Location Services / Wi-Fi on this device,
+                    or check in from a mobile phone for an accurate fix.
+                  </span>
+                </div>
+              )}
             </div>
           )}
           {error && (
