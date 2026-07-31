@@ -171,7 +171,46 @@ export default function CheckInOutCard({
   const [checkInPlace, setCheckInPlace] = useState(null);
   const [checkOutPlace, setCheckOutPlace] = useState(null);
 
+  // Singapore's bounding box (rough, with a little padding). Coordinates
+  // outside this box skip OneMap entirely and go straight to BigDataCloud
+  // below — so Chennai/India and everywhere else keep working exactly as
+  // before.
+  const SG_LAT_MIN = 1.15,
+    SG_LAT_MAX = 1.48;
+  const SG_LON_MIN = 103.59,
+    SG_LON_MAX = 104.05;
+
+  function isInSingapore(latitude, longitude) {
+    return (
+      latitude >= SG_LAT_MIN &&
+      latitude <= SG_LAT_MAX &&
+      longitude >= SG_LON_MIN &&
+      longitude <= SG_LON_MAX
+    );
+  }
+
+  // Tries OneMap (via our backend, see app/locations/routes.py ->
+  // GET /locations/reverse-geocode) for a Singapore coordinate — it has
+  // the exact building/block/street that BigDataCloud can't give (BigData
+  // Cloud only ever returns city/region, never a building name). Returns
+  // null for anything outside Singapore, or if OneMap has no result /
+  // the call fails — callers fall back to BigDataCloud in that case.
+  async function reverseGeocodeOneMap(latitude, longitude) {
+    if (!isInSingapore(latitude, longitude)) return null;
+    try {
+      const res = await apiClient.get(
+        `/locations/reverse-geocode?lat=${latitude}&lon=${longitude}`,
+      );
+      return res?.data?.address || null;
+    } catch {
+      return null;
+    }
+  }
+
   async function reverseGeocodeLabel(latitude, longitude) {
+    const oneMapAddress = await reverseGeocodeOneMap(latitude, longitude);
+    if (oneMapAddress) return oneMapAddress;
+
     try {
       const res = await fetch(
         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
@@ -208,6 +247,22 @@ export default function CheckInOutCard({
   // check-in attempt is coming from.
   async function reverseGeocode(latitude, longitude) {
     setPlaceLoading(true);
+
+    // Singapore coordinate -> OneMap gives the exact building/block/street,
+    // shown here as the "city" slot so it renders as the full address
+    // (region left blank so it doesn't duplicate "Singapore" twice).
+    const oneMapAddress = await reverseGeocodeOneMap(latitude, longitude);
+    if (oneMapAddress) {
+      setPlace({
+        city: oneMapAddress,
+        region: null,
+        country: "Singapore",
+        countryCode: "SG",
+      });
+      setPlaceLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch(
         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
