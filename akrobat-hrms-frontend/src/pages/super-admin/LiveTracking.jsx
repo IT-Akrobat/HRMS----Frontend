@@ -19,15 +19,17 @@ import { parseServerDate } from "../../utils/date";
 //    (get_org_site_visits_history) — everyone's past visits (defaults
 //    to the trailing 30 days, excluding today), one row per
 //    employee/day, with a date range filter.
-// Both gated on VIEW_ALL_ATTENDANCE. Reuses the exact fields already
-// captured by the existing Arrive/Depart Site flow — see
-// components/common/SiteVisitCard.jsx. No new location data is
-// collected here; this just visualizes what's already tracked.
+// Both gated on VIEW_ALL_ATTENDANCE. Reuses the arrival/departure points
+// from the existing Arrive/Depart Site flow, plus a live 1-minute
+// presence ping while a visit is open (POST /attendance/site-visit/ping,
+// fired by components/common/SiteVisitCard.jsx) — that ping is what
+// flags an employee as "Out of range" here the moment they're more than
+// 500m from their site (see ALERT_RADIUS_M in app/attendance/services.py).
 //
-// The Today tab polls every 30s while open for a "live" feel, since
-// continuous background GPS pings aren't part of this app (tracking is
-// point-in-time, at arrival/departure of each site). History does not
-// poll — it's a static lookback with a "Refresh" button.
+// The Today tab polls every 30s while open for a "live" feel — the
+// underlying position itself refreshes roughly every 60s on the
+// employee's device, so this poll just catches up to that. History does
+// not poll — it's a static lookback with a "Refresh" button.
 // ---------------------------------------------------------------------
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -75,6 +77,19 @@ function timeOnly(iso) {
   } catch {
     return "--";
   }
+}
+
+// "2m ago" / "just now" for a last-ping timestamp — used to show how
+// fresh the live position is, since a stale ping (phone died, app
+// closed, no signal) is worth surfacing differently from a fresh one.
+function timeAgo(iso) {
+  if (!iso) return null;
+  const d = parseServerDate(iso);
+  if (!d) return null;
+  const minutes = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+  if (minutes < 1) return "just now";
+  if (minutes === 1) return "1m ago";
+  return `${minutes}m ago`;
 }
 
 function initials(name) {
@@ -176,6 +191,35 @@ function TrailMapModal({ row, onClose }) {
         });
       });
 
+      // Live ping position — separate from the arrival/departure points
+      // above, since it can drift from where they arrived if they've
+      // wandered off (that's the whole point of the 1-min presence
+      // check). Only plotted while genuinely on site right now.
+      let liveLatLng = null;
+      if (
+        row.live_status === "on_site" &&
+        typeof row.current_latitude === "number" &&
+        typeof row.current_longitude === "number"
+      ) {
+        liveLatLng = [row.current_latitude, row.current_longitude];
+        const liveColor = row.is_outside_radius ? "#dc2626" : "#2563eb";
+        const liveMarker = L.circleMarker(liveLatLng, {
+          radius: 10,
+          color: liveColor,
+          fillColor: liveColor,
+          fillOpacity: 0.35,
+          weight: 3,
+        }).addTo(layer);
+        const distanceLabel = row.last_ping_distance_m
+          ? `${Math.round(row.last_ping_distance_m)}m from site`
+          : "";
+        liveMarker.bindTooltip(
+          `Live position${row.is_outside_radius ? " — OUT OF RANGE" : ""}<br/>${distanceLabel}`,
+          { direction: "top" },
+        );
+        latlngs.push(liveLatLng);
+      }
+
       map.fitBounds(L.latLngBounds(latlngs), {
         padding: [40, 40],
         maxZoom: 16,
@@ -215,6 +259,15 @@ function TrailMapModal({ row, onClose }) {
               </span>
               {row.current_site?.location_name && (
                 <span>· Currently at {row.current_site.location_name}</span>
+              )}
+              {row.live_status === "on_site" && row.is_outside_radius && (
+                <span className="inline-flex items-center gap-1 text-orange-600 font-medium">
+                  <AlertTriangle size={12} />
+                  Out of range
+                  {row.last_ping_distance_m
+                    ? ` (${Math.round(row.last_ping_distance_m)}m from site)`
+                    : ""}
+                </span>
               )}
             </p>
           </div>
@@ -302,6 +355,9 @@ function TodayTab() {
   }, []);
 
   const onSiteCount = rows.filter((r) => r.live_status === "on_site").length;
+  const outOfRangeCount = rows.filter(
+    (r) => r.live_status === "on_site" && r.is_outside_radius,
+  ).length;
 
   return (
     <div>
@@ -316,11 +372,17 @@ function TodayTab() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3 flex items-center justify-between text-sm">
-        <div className="flex items-center gap-2 text-slate-600">
+        <div className="flex items-center gap-2 text-slate-600 flex-wrap">
           <span className="w-2 h-2 rounded-full bg-green-500" />
           <span className="font-medium">{onSiteCount}</span> on site right now ·{" "}
           <span className="font-medium">{rows.length}</span> field employees
           total
+          {outOfRangeCount > 0 && (
+            <span className="flex items-center gap-1 text-orange-600 font-medium">
+              <AlertTriangle size={13} />
+              {outOfRangeCount} out of range
+            </span>
+          )}
         </div>
         {lastUpdated && (
           <span className="text-xs text-slate-400">
@@ -355,6 +417,7 @@ function TodayTab() {
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Current Site</th>
                   <th className="px-4 py-3 font-medium">Since</th>
+                  <th className="px-4 py-3 font-medium">Presence</th>
                   <th className="px-4 py-3 font-medium">Sites Visited Today</th>
                   <th className="px-4 py-3 font-medium"></th>
                 </tr>
@@ -406,6 +469,35 @@ function TodayTab() {
                       </td>
                       <td className="px-4 py-3 text-slate-500 text-xs">
                         {timeOnly(row.current_site_since)}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {row.live_status !== "on_site" ? (
+                          <span className="text-slate-300">—</span>
+                        ) : row.is_outside_radius ? (
+                          <span
+                            className="inline-flex items-center gap-1 text-orange-600 font-medium"
+                            title={
+                              row.last_ping_distance_m
+                                ? `${Math.round(row.last_ping_distance_m)}m from site`
+                                : undefined
+                            }
+                          >
+                            <AlertTriangle size={12} /> Out of range
+                            {row.last_ping_at && (
+                              <span className="text-slate-400 font-normal">
+                                · {timeAgo(row.last_ping_at)}
+                              </span>
+                            )}
+                          </span>
+                        ) : row.last_ping_at ? (
+                          <span className="text-slate-500">
+                            In range · {timeAgo(row.last_ping_at)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">
+                            No live ping yet
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-600">
                         {row.sites_visited_today}

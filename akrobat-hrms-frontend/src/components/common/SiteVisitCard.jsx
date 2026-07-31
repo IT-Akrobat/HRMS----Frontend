@@ -427,6 +427,43 @@ export default function SiteVisitCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasOpenVisit]);
 
+  // Live presence check — a one-time geofence check at "Arrived" only
+  // proves you were at the site *then*, not that you're still there now.
+  // While a visit is open, grab a fresh GPS fix every ~60s and send it to
+  // POST /attendance/site-visit/ping, which flags + notifies the manager
+  // and super admins if it lands more than 500m from the site (see
+  // ALERT_RADIUS_M in app/attendance/services.py::ping_site_visit).
+  // `outOfRange` mirrors that flag back here so the employee themselves
+  // also sees a warning, not just their manager.
+  const [outOfRange, setOutOfRange] = useState(false);
+
+  function pingPresence() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setCoords({ latitude, longitude });
+        apiClient
+          .post("/attendance/site-visit/ping", { latitude, longitude })
+          .then((res) => setOutOfRange(Boolean(res?.data?.outside_radius)))
+          .catch(() => {}); // best-effort — a missed ping just gets caught by the next one
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
+  }
+
+  useEffect(() => {
+    if (!hasOpenVisit) {
+      setOutOfRange(false);
+      return;
+    }
+    pingPresence(); // first ping right when a visit opens, not 60s later
+    const id = setInterval(pingPresence, 60000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasOpenVisit]);
+
   async function arrive(locationId) {
     if (!locationId) return;
     setBusy(true);
@@ -488,8 +525,14 @@ export default function SiteVisitCard({
           <Route size={16} className="text-orange-500" /> Site Visits Today
         </h3>
         {openVisit && (
-          <span className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-            <MapPin size={12} /> On site
+          <span
+            className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
+              outOfRange
+                ? "text-orange-600 bg-orange-50"
+                : "text-blue-600 bg-blue-50"
+            }`}
+          >
+            <MapPin size={12} /> {outOfRange ? "Out of range" : "On site"}
           </span>
         )}
       </div>
@@ -503,6 +546,17 @@ export default function SiteVisitCard({
         <p className="text-xs text-orange-600 bg-orange-50 rounded-lg px-3 py-2 mb-3">
           Only showing sites your manager assigned you to.
         </p>
+      )}
+
+      {outOfRange && (
+        <div className="mb-3 flex items-start gap-2 text-xs bg-orange-50 text-orange-700 rounded-lg px-3 py-2">
+          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+          <span>
+            You've moved more than 500m from the site while still marked "on
+            site" — your manager has been notified. Tap Departed if you've
+            actually left, or move back within range.
+          </span>
+        </div>
       )}
 
       {loading ? (

@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   Building2,
   ChevronDown,
   Clock,
@@ -189,6 +190,22 @@ function FieldStaffRow({ row }) {
           <span className="hidden sm:flex items-center gap-1 text-xs text-slate-400 shrink-0">
             <Route size={12} /> {row.sites_visited_today} site
             {row.sites_visited_today > 1 ? "s" : ""}
+          </span>
+        )}
+
+        {/* Live presence ping (~every 60s while on site — see
+            SiteVisitCard.jsx / ping_site_visit) flagged this employee as
+            more than 500m from their site while still marked "on site". */}
+        {row.live_status === "on_site" && row.is_outside_radius && (
+          <span
+            className="hidden sm:flex items-center gap-1 text-xs font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded-full shrink-0"
+            title={
+              row.last_ping_distance_m
+                ? `${Math.round(row.last_ping_distance_m)}m from site`
+                : undefined
+            }
+          >
+            <AlertTriangle size={11} /> Out of range
           </span>
         )}
 

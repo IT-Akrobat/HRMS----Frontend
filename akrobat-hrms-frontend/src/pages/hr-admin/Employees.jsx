@@ -5,9 +5,9 @@ import {
   Calendar,
   CheckCircle2,
   ChevronRight,
+  Clock,
   Contact,
   Copy,
-  Eye,
   KeyRound,
   Loader2,
   Mail,
@@ -16,6 +16,7 @@ import {
   Phone,
   Search,
   Trash2,
+  UserCheck,
   Users,
   X,
 } from "lucide-react";
@@ -606,15 +607,60 @@ function EmployeeFormModal({
 // View drawer
 // ==========================================================================
 
-function EmployeeViewModal({ employee, onClose, onEdit }) {
+function DetailRow({ icon: Icon, label, value }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-xl">
-        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
-          <div className="flex items-center gap-3">
+    <div className="flex items-start gap-3 py-2.5">
+      <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 mt-0.5">
+        <Icon size={14} className="text-slate-400" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-xs text-slate-400">{label}</div>
+        <div className="text-sm text-slate-700 truncate">{value || "—"}</div>
+      </div>
+    </div>
+  );
+}
+
+// Right-side slide-in drawer (same open/close animation and layout as
+// the employee drawer on the Super Admin Users page), rather than a
+// centered popup — clicking a row in column 3 opens this.
+function EmployeeViewModal({ employee, employees, onClose, onEdit }) {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setShow(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  const manager = (employees || []).find((e) => e.id === employee.manager_id);
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div
+        onClick={onClose}
+        className={`absolute inset-0 bg-slate-900/50 transition-opacity duration-200 ${
+          show ? "opacity-100" : "opacity-0"
+        }`}
+      />
+
+      <div
+        className={`absolute inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl flex flex-col transition-transform duration-200 ease-out ${
+          show ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
             <Avatar person={employee} className="w-12 h-12 rounded-full" />
-            <div>
-              <h2 className="text-base font-bold text-slate-800">
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-slate-800 truncate">
                 {employee.full_name}
               </h2>
               <p className="text-xs text-slate-500">{employee.employee_id}</p>
@@ -622,13 +668,13 @@ function EmployeeViewModal({ employee, onClose, onEdit }) {
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 shrink-0"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-3 text-sm">
+        <div className="flex-1 overflow-y-auto px-6 py-5">
           <span
             className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${
               STATUS_STYLES[employee.employment_status] ||
@@ -638,35 +684,60 @@ function EmployeeViewModal({ employee, onClose, onEdit }) {
             {employee.employment_status}
           </span>
 
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <div className="flex items-center gap-2 text-slate-600">
-              <Mail size={14} className="text-slate-400" />
-              <span className="truncate">{employee.email || "—"}</span>
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-5 mb-1">
+              Contact
+            </h3>
+            <div className="divide-y divide-slate-50">
+              <DetailRow icon={Mail} label="Email" value={employee.email} />
+              <DetailRow icon={Phone} label="Phone" value={employee.phone} />
             </div>
-            <div className="flex items-center gap-2 text-slate-600">
-              <Phone size={14} className="text-slate-400" />
-              <span>{employee.phone || "—"}</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-600">
-              <Building2 size={14} className="text-slate-400" />
-              <span>{employee.departments?.department_name || "—"}</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-600">
-              <Briefcase size={14} className="text-slate-400" />
-              <span>{employee.designations?.designation_name || "—"}</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-600">
-              <MapPin size={14} className="text-slate-400" />
-              <span>{employee.work_location || "—"}</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-600">
-              <Calendar size={14} className="text-slate-400" />
-              <span>Joined {formatDate(employee.joining_date)}</span>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-5 mb-1">
+              Work Details
+            </h3>
+            <div className="divide-y divide-slate-50">
+              <DetailRow
+                icon={Building2}
+                label="Department"
+                value={employee.departments?.department_name}
+              />
+              <DetailRow
+                icon={Briefcase}
+                label="Designation"
+                value={employee.designations?.designation_name}
+              />
+              <DetailRow
+                icon={UserCheck}
+                label="Reporting Manager"
+                value={
+                  manager
+                    ? `${manager.full_name} (${manager.employee_id})`
+                    : "—"
+                }
+              />
+              <DetailRow
+                icon={Clock}
+                label="Shift"
+                value={employee.shifts?.shift_name}
+              />
+              <DetailRow
+                icon={MapPin}
+                label="Work Location"
+                value={employee.work_location}
+              />
+              <DetailRow
+                icon={Calendar}
+                label="Joining Date"
+                value={formatDate(employee.joining_date)}
+              />
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100">
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 shrink-0">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -1112,7 +1183,13 @@ export default function EmployeesHrAdmin() {
           </div>
 
           <div className="flex-1 overflow-y-auto min-w-0">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-auto" />
+                <col className="w-24" />
+                <col className="w-28" />
+                <col className="w-20" />
+              </colgroup>
               <thead>
                 <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50 sticky top-0">
                   <th className="px-4 py-2.5 font-medium">Employee</th>
@@ -1155,7 +1232,8 @@ export default function EmployeesHrAdmin() {
                   pageItems.map((emp) => (
                     <tr
                       key={emp.id}
-                      className="border-b border-slate-50 hover:bg-slate-50/60"
+                      onClick={() => setViewing(emp)}
+                      className="border-b border-slate-50 hover:bg-slate-50/60 cursor-pointer"
                     >
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2.5">
@@ -1163,20 +1241,22 @@ export default function EmployeesHrAdmin() {
                             person={emp}
                             className="w-8 h-8 rounded-full text-xs"
                           />
+                          {/* Name / Employee Code / Designation, stacked one
+                              under the other so all three are always visible
+                              (e.g. after clicking "All" in column 2),
+                              rather than squeezed onto one line. */}
                           <div className="min-w-0">
                             <div className="font-medium text-slate-800 truncate">
                               {emp.full_name}
                             </div>
                             <div className="text-xs text-slate-500 truncate">
                               {emp.employee_id}
-                              {!selectedDept &&
-                                emp.departments?.department_name && (
-                                  <> · {emp.departments.department_name}</>
-                                )}
-                              {!selectedDesig &&
-                                emp.designations?.designation_name && (
-                                  <> · {emp.designations.designation_name}</>
-                                )}
+                            </div>
+                            <div
+                              className="text-xs text-slate-400 truncate"
+                              title={emp.designations?.designation_name || ""}
+                            >
+                              {emp.designations?.designation_name || "—"}
                             </div>
                           </div>
                         </div>
@@ -1195,14 +1275,10 @@ export default function EmployeesHrAdmin() {
                         {formatDate(emp.joining_date)}
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => setViewing(emp)}
-                            title="View"
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                          >
-                            <Eye size={14} />
-                          </button>
+                        <div
+                          className="flex items-center justify-end gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <button
                             onClick={() =>
                               setFormState({ mode: "edit", employee: emp })
@@ -1279,6 +1355,7 @@ export default function EmployeesHrAdmin() {
       {viewing && (
         <EmployeeViewModal
           employee={viewing}
+          employees={employees}
           onClose={() => setViewing(null)}
           onEdit={() => {
             const emp = viewing;
