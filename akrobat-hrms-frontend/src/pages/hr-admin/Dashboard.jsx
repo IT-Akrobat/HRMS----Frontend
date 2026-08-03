@@ -24,6 +24,7 @@ import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
+import { geocodeQueue, placeKey } from "../../utils/Geocode";
 
 // -----------------------------------------------------------------------
 // A note on scope: the reference mockup (Server Status / Storage Usage /
@@ -222,93 +223,15 @@ function QuickActionCircle({ to, label, icon: Icon }) {
   );
 }
 
-// Rounds to ~100m precision so nearby check-ins/logouts from the same spot
-// share one cache entry/lookup instead of firing a fresh reverse-geocode
-// call for every single log row.
-function placeKey(lat, lon) {
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  return `${lat.toFixed(3)},${lon.toFixed(3)}`;
-}
-
-// Nominatim (OpenStreetMap) reverse geocoding — unlike BigDataCloud's free
-// client-side API (used for the *live* GPS fix in CheckInOutCard.jsx),
-// whose Fair Use Policy explicitly restricts it to real-time coordinates
-// captured at the moment of the call and bans stored/cached coordinates,
-// Recent Activity is geocoding *historical* check-in/out coordinates
-// pulled from audit logs — exactly the case BigDataCloud's terms don't
-// allow. Nominatim's usage policy has no such restriction and returns
-// proper neighbourhood/suburb-level detail, so it's the correct tool
-// here. Its policy does ask for max 1 request/sec, which geocodeQueue()
-// below enforces.
-async function reverseGeocode(lat, lon) {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1`,
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const addr = data.address || {};
-
-    // Building name + number, when Nominatim has them (mainly for sites
-    // that sit inside a named building/complex — most residential/street
-    // check-ins won't have either, and that's fine, they just get
-    // dropped below). "building" is the named-building tag; "house_name"
-    // is its fallback on some records; "house_number" is the street
-    // number, shown as "B.No X" to match how site addresses are written
-    // elsewhere in the app (see OrganizationLocations.jsx).
-    const buildingName = addr.building || addr.house_name || null;
-    const buildingNo = addr.house_number ? `B.No ${addr.house_number}` : null;
-    const building =
-      buildingName && buildingNo
-        ? `${buildingName}, ${buildingNo}`
-        : buildingName || buildingNo || null;
-
-    // Finest-grained name Nominatim has for this point, tried in
-    // descending order of granularity — this is the "area" that was
-    // missing before (BigDataCloud rarely resolved it for stored coords).
-    const area =
-      addr.neighbourhood ||
-      addr.suburb ||
-      addr.quarter ||
-      addr.city_district ||
-      addr.borough ||
-      addr.hamlet ||
-      null;
-
-    const city =
-      addr.city || addr.town || addr.village || addr.municipality || null;
-
-    // State / province — Nominatim calls this "state" for most countries;
-    // "state_district" is its fallback on some records (e.g. parts of
-    // South/Southeast Asia where Nominatim splits state into districts).
-    const state = addr.state || addr.state_district || null;
-
-    // "Building Name, B.No X, Area, City, State" — building/number first
-    // (most specific), then area, city, state. Falls back gracefully: a
-    // check-in on a plain street with no state resolved just shows
-    // "Area, City" with the missing parts dropped, rather than leaving a
-    // blank "," in its place.
-    const parts = [building, area, city, state]
-      .filter(Boolean)
-      // Drop consecutive duplicates (e.g. area === city for smaller towns).
-      .filter((p, i, arr) => p !== arr[i - 1]);
-
-    return parts.length ? parts.join(", ") : null;
-  } catch {
-    return null;
-  }
-}
-
-// Nominatim's usage policy caps requests at 1/sec — this runs the queued
-// lookups one at a time with a delay between each, instead of firing them
-// all in parallel like the old BigDataCloud version did.
-async function geocodeQueue(coordsList, onResolved) {
-  for (const { key, lat, lon } of coordsList) {
-    const label = await reverseGeocode(lat, lon);
-    if (label) onResolved(key, label);
-    await new Promise((r) => setTimeout(r, 1100));
-  }
-}
+// Reverse-geocoding for Recent Activity now comes from the shared
+// utils/Geocode.jsx helper (imported above) instead of a local,
+// Nominatim-only copy. For Singapore coordinates that helper calls our
+// backend's OneMap proxy first (see app/locations/routes.py ->
+// GET /locations/reverse-geocode), which returns the exact building
+// name, block number, road name, and postal code instead of Nominatim's
+// coarser neighbourhood-level result (e.g. "Kampong Ubi, Singapore").
+// Non-Singapore coordinates fall back to Nominatim automatically, same
+// as before — no behavior change outside Singapore.
 
 export default function HrAdminDashboard() {
   const [stats, setStats] = useState(null);

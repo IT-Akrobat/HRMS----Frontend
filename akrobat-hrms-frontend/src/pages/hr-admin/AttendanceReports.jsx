@@ -5,6 +5,7 @@ import {
   Clock,
   Download,
   Search,
+  X,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -66,6 +67,30 @@ const STATUS_STYLES = {
   "Half Day": "bg-purple-50 text-purple-700",
 };
 
+// Records/rows-per-page for every view (Daily log / By employee /
+// By department) below the summary cards — keeps the list a fixed,
+// predictable height instead of growing unbounded with the date range.
+const PAGE_SIZE = 8;
+
+// Excel auto-detects the raw ISO date string ("2026-08-03") and
+// re-parses it as a date/number, which is what was producing the
+// "########" column-too-narrow display. Formatting it as a readable
+// label and prefixing with a tab character forces Excel to keep it
+// as plain text instead of reinterpreting it.
+function formatDateForExport(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return iso;
+  return (
+    "\t" +
+    d.toLocaleDateString(undefined, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })
+  );
+}
+
 function downloadCsv(rows, filename) {
   const headers = [
     "Employee",
@@ -77,20 +102,32 @@ function downloadCsv(rows, filename) {
     "Hours",
     "Status",
   ];
-  const lines = rows.map((r) =>
-    [
-      r.full_name || "",
-      r.employee_code || "",
-      r.department || "",
-      r.date || "",
-      r.check_in_time ? formatTime(r.check_in_time) : "",
-      r.check_out_time ? formatTime(r.check_out_time) : "",
-      r.working_hours ?? 0,
-      r.status || "",
-    ]
-      .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-      .join(","),
-  );
+  const lines = [];
+  let prevStatus = null;
+  rows.forEach((r, idx) => {
+    // Blank separator line whenever the status changes (e.g. Absent
+    // -> Late -> Present), so each state is visually grouped instead
+    // of running straight into the next in the exported file.
+    if (idx > 0 && r.status !== prevStatus) {
+      lines.push("");
+    }
+    prevStatus = r.status;
+
+    lines.push(
+      [
+        r.full_name || "",
+        r.employee_code || "",
+        r.department || "",
+        formatDateForExport(r.date),
+        r.check_in_time ? formatTime(r.check_in_time) : "",
+        r.check_out_time ? formatTime(r.check_out_time) : "",
+        r.working_hours ?? 0,
+        r.status || "",
+      ]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(","),
+    );
+  });
   const csv = [headers.join(","), ...lines].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -117,6 +154,7 @@ export default function AttendanceReports() {
   const [report, setReport] = useState({ employees: [], daily_records: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     apiClient
@@ -154,6 +192,48 @@ export default function AttendanceReports() {
       })
       .finally(() => setLoading(false));
   }, [fromDate, toDate, departmentId, employeeId, status]);
+
+  // Any filter/search/tab change invalidates whatever page we were on
+  // (e.g. page 3 of "By employee" can easily not exist anymore once a
+  // department filter is applied) — always land back on page 1 instead
+  // of showing an empty page.
+  useEffect(() => {
+    setPage(1);
+  }, [fromDate, toDate, departmentId, employeeId, status, search, view]);
+
+  const hasActiveFilters =
+    !!search ||
+    !!departmentId ||
+    !!employeeId ||
+    !!status ||
+    fromDate !== firstOfMonthISO() ||
+    toDate !== todayISO();
+
+  function clearFilters() {
+    setSearch("");
+    setFromDate(firstOfMonthISO());
+    setToDate(todayISO());
+    setDepartmentId("");
+    setEmployeeId("");
+    setStatus("");
+  }
+
+  // Clicking a department row in "By department" drills into "By
+  // employee", pre-filtered to that department — so "which employees in
+  // this dept" is one click away instead of re-picking it from the
+  // dropdown. Falls back to just switching tabs (no filter applied) if
+  // the row's department name is "Unassigned" or otherwise has no
+  // matching `departments` row to filter by.
+  function selectDepartment(deptName) {
+    const match = departments.find(
+      (d) =>
+        (d.department_name || "").toLowerCase() ===
+        (deptName || "").toLowerCase(),
+    );
+    setDepartmentId(match ? match.id : "");
+    setEmployeeId("");
+    setView("employee");
+  }
 
   const searchedRecords = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -230,15 +310,74 @@ export default function AttendanceReports() {
       .slice(0, 4);
   }, [searchedEmployeeSummaries]);
 
-  const groupedByDepartment = useMemo(() => {
+  // ---------------- Pagination (8 records/rows per page, per view) ----------------
+  const totalDailyPages = Math.max(
+    1,
+    Math.ceil(searchedRecords.length / PAGE_SIZE),
+  );
+  const pagedDailyRecords = useMemo(
+    () => searchedRecords.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [searchedRecords, page],
+  );
+  const pagedGroupedByDepartment = useMemo(() => {
     const groups = {};
-    searchedRecords.forEach((r) => {
+    pagedDailyRecords.forEach((r) => {
       const key = r.department || "Unassigned";
       groups[key] = groups[key] || [];
       groups[key].push(r);
     });
     return groups;
-  }, [searchedRecords]);
+  }, [pagedDailyRecords]);
+
+  const totalEmployeePages = Math.max(
+    1,
+    Math.ceil(searchedEmployeeSummaries.length / PAGE_SIZE),
+  );
+  const pagedEmployeeSummaries = useMemo(
+    () =>
+      searchedEmployeeSummaries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [searchedEmployeeSummaries, page],
+  );
+
+  // One row per department (aggregated from the employee summaries) —
+  // computed here rather than inside DepartmentSummaryTable so the
+  // resulting row list can be paginated the same way as the other two
+  // views instead of always rendering every department at once.
+  const departmentSummaries = useMemo(() => {
+    const groups = {};
+    searchedEmployeeSummaries.forEach((e) => {
+      const key = e.department || "Unassigned";
+      groups[key] = groups[key] || {
+        dept: key,
+        present: 0,
+        absent: 0,
+        late: 0,
+        leave: 0,
+        count: 0,
+      };
+      groups[key].present += e.present_days || 0;
+      groups[key].absent += e.absent_days || 0;
+      groups[key].late += e.late_days || 0;
+      groups[key].leave += e.leave_days || 0;
+      groups[key].count += 1;
+    });
+    return Object.values(groups);
+  }, [searchedEmployeeSummaries]);
+  const totalDepartmentPages = Math.max(
+    1,
+    Math.ceil(departmentSummaries.length / PAGE_SIZE),
+  );
+  const pagedDepartmentSummaries = useMemo(
+    () => departmentSummaries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [departmentSummaries, page],
+  );
+
+  const activeTotalPages =
+    view === "daily"
+      ? totalDailyPages
+      : view === "employee"
+        ? totalEmployeePages
+        : totalDepartmentPages;
 
   function exportAll() {
     downloadCsv(searchedRecords, `attendance_${fromDate}_to_${toDate}.csv`);
@@ -314,30 +453,33 @@ export default function AttendanceReports() {
             </option>
           ))}
         </select>
-        <select
-          value={employeeId}
-          onChange={(e) => setEmployeeId(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-200 rounded-lg"
-        >
-          <option value="">All employees</option>
-          {employees.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.full_name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-200 rounded-lg"
-        >
-          <option value="">All statuses</option>
-          <option value="Present">Present</option>
-          <option value="Late">Late</option>
-          <option value="Absent">Absent</option>
-          <option value="On Leave">On leave</option>
-          <option value="Half Day">Half day</option>
-        </select>
+
+        {/* Kept together (flex-nowrap) so "All statuses" and "Clear
+            filters" always stay on the same line instead of the pair
+            splitting across two rows when the bar wraps. */}
+        <div className="flex flex-nowrap items-center gap-2">
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="px-3 py-2 text-sm border border-slate-200 rounded-lg"
+          >
+            <option value="">All statuses</option>
+            <option value="Present">Present</option>
+            <option value="Late">Late</option>
+            <option value="Absent">Absent</option>
+            <option value="On Leave">On leave</option>
+            <option value="Half Day">Half day</option>
+          </select>
+          <button
+            type="button"
+            onClick={clearFilters}
+            disabled={!hasActiveFilters}
+            className="flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          >
+            <X size={14} />
+            Clear filters
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit mb-5">
@@ -371,6 +513,7 @@ export default function AttendanceReports() {
             value={summary.present}
             sub={`${summary.presentPct}% of workdays`}
             subColor="text-green-700"
+            divider
           />
           <StatCard
             icon={<XCircle size={14} />}
@@ -379,6 +522,7 @@ export default function AttendanceReports() {
             value={summary.absent}
             sub={`${summary.absentPct}% of workdays`}
             subColor="text-red-700"
+            divider
           />
           <StatCard
             icon={<Clock size={14} />}
@@ -387,6 +531,7 @@ export default function AttendanceReports() {
             value={summary.late}
             sub={`${summary.latePct}% of workdays`}
             subColor="text-amber-700"
+            divider
           />
           <StatCard
             icon={<Calendar size={14} />}
@@ -395,6 +540,7 @@ export default function AttendanceReports() {
             value={summary.leave}
             sub={`${summary.leavePct}% of workdays`}
             subColor="text-blue-700"
+            divider
           />
         </div>
 
@@ -457,55 +603,77 @@ export default function AttendanceReports() {
         <div className="text-sm text-slate-500 py-10 text-center">
           Loading attendance report…
         </div>
-      ) : view === "daily" ? (
-        searchedRecords.length === 0 ? (
-          <EmptyState />
-        ) : (
-          Object.entries(groupedByDepartment).map(([deptName, records]) => (
-            <DepartmentGroup
-              key={deptName}
-              deptName={deptName}
-              records={records}
-              onExportEmployee={exportEmployee}
-            />
-          ))
-        )
-      ) : view === "employee" ? (
-        <EmployeeSummaryTable
-          employees={searchedEmployeeSummaries}
-          onExportEmployee={(emp) =>
-            exportEmployee(
-              searchedRecords.filter((r) => r.employee_id === emp.employee_id),
-              emp.full_name,
-            )
-          }
-        />
       ) : (
-        <DepartmentSummaryTable
-          employees={searchedEmployeeSummaries}
-          onExportDepartment={(deptName) =>
-            downloadCsv(
-              searchedRecords.filter(
-                (r) => (r.department || "Unassigned") === deptName,
-              ),
-              `attendance_${deptName.replace(/\s+/g, "_")}_${fromDate}_to_${toDate}.csv`,
-            )
-          }
-        />
+        <>
+          <div className="max-h-[560px] overflow-y-auto pr-1">
+            {view === "daily" ? (
+              searchedRecords.length === 0 ? (
+                <EmptyState />
+              ) : (
+                Object.entries(pagedGroupedByDepartment).map(
+                  ([deptName, records]) => (
+                    <DepartmentGroup
+                      key={deptName}
+                      deptName={deptName}
+                      records={records}
+                      onExportEmployee={exportEmployee}
+                    />
+                  ),
+                )
+              )
+            ) : view === "employee" ? (
+              <EmployeeSummaryTable
+                employees={pagedEmployeeSummaries}
+                onExportEmployee={(emp) =>
+                  exportEmployee(
+                    searchedRecords.filter(
+                      (r) => r.employee_id === emp.employee_id,
+                    ),
+                    emp.full_name,
+                  )
+                }
+              />
+            ) : (
+              <DepartmentSummaryTable
+                rows={pagedDepartmentSummaries}
+                onSelectDepartment={selectDepartment}
+                onExportDepartment={(deptName) =>
+                  downloadCsv(
+                    searchedRecords.filter(
+                      (r) => (r.department || "Unassigned") === deptName,
+                    ),
+                    `attendance_${deptName.replace(/\s+/g, "_")}_${fromDate}_to_${toDate}.csv`,
+                  )
+                }
+              />
+            )}
+          </div>
+          <Pagination
+            page={page}
+            totalPages={activeTotalPages}
+            onPageChange={setPage}
+          />
+        </>
       )}
     </div>
   );
 }
 
-function StatCard({ icon, iconColor, label, value, sub, subColor }) {
+function StatCard({ icon, iconColor, label, value, sub, subColor, divider }) {
   return (
-    <div className="bg-slate-50 rounded-lg p-3.5">
+    <div className="relative bg-slate-50 rounded-lg p-3.5">
       <div className="flex items-center gap-1.5 text-xs text-slate-500">
         <span className={iconColor}>{icon}</span>
         {label}
       </div>
       <div className="text-xl font-semibold text-slate-800 mt-1.5">{value}</div>
       <div className={`text-[11px] mt-0.5 ${subColor}`}>{sub}</div>
+      {divider && (
+        // Vertical separator between this card and the next one (used
+        // between Present/Absent) so the two are visually distinct at a
+        // glance instead of blending into one continuous row of cards.
+        <div className="absolute top-2 bottom-2 -right-[7px] w-px bg-slate-300" />
+      )}
     </div>
   );
 }
@@ -659,29 +827,12 @@ function EmployeeSummaryTable({ employees, onExportEmployee }) {
   );
 }
 
-function DepartmentSummaryTable({ employees, onExportDepartment }) {
-  const byDept = useMemo(() => {
-    const groups = {};
-    employees.forEach((e) => {
-      const key = e.department || "Unassigned";
-      groups[key] = groups[key] || {
-        present: 0,
-        absent: 0,
-        late: 0,
-        leave: 0,
-        count: 0,
-      };
-      groups[key].present += e.present_days || 0;
-      groups[key].absent += e.absent_days || 0;
-      groups[key].late += e.late_days || 0;
-      groups[key].leave += e.leave_days || 0;
-      groups[key].count += 1;
-    });
-    return groups;
-  }, [employees]);
-
-  const entries = Object.entries(byDept);
-  if (entries.length === 0) return <EmptyState />;
+function DepartmentSummaryTable({
+  rows,
+  onSelectDepartment,
+  onExportDepartment,
+}) {
+  if (rows.length === 0) return <EmptyState />;
 
   return (
     <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
@@ -698,9 +849,18 @@ function DepartmentSummaryTable({ employees, onExportDepartment }) {
           </tr>
         </thead>
         <tbody>
-          {entries.map(([dept, totals]) => (
-            <tr key={dept} className="border-t border-slate-50">
-              <td className="px-4 py-2.5 font-medium text-slate-700">{dept}</td>
+          {rows.map((totals) => (
+            <tr key={totals.dept} className="border-t border-slate-50">
+              <td className="px-4 py-2.5">
+                {/* Click through to "By employee", pre-filtered to this
+                    department — see selectDepartment() in the parent. */}
+                <button
+                  onClick={() => onSelectDepartment(totals.dept)}
+                  className="font-medium text-slate-700 hover:text-orange-600 hover:underline text-left"
+                >
+                  {totals.dept}
+                </button>
+              </td>
               <td className="px-4 py-2.5">{totals.count}</td>
               <td className="px-4 py-2.5 text-green-700">{totals.present}</td>
               <td className="px-4 py-2.5 text-red-700">{totals.absent}</td>
@@ -708,7 +868,7 @@ function DepartmentSummaryTable({ employees, onExportDepartment }) {
               <td className="px-4 py-2.5 text-blue-700">{totals.leave}</td>
               <td className="px-4 py-2.5 text-right">
                 <button
-                  onClick={() => onExportDepartment(dept)}
+                  onClick={() => onExportDepartment(totals.dept)}
                   className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium ml-auto"
                 >
                   <Download size={13} />
@@ -719,6 +879,35 @@ function DepartmentSummaryTable({ employees, onExportDepartment }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function Pagination({ page, totalPages, onPageChange }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between px-1 py-3">
+      <span className="text-xs text-slate-500">
+        Page {page} of {totalPages}
+      </span>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+          disabled={page <= 1}
+          className="text-xs font-medium px-3 py-1.5 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+          disabled={page >= totalPages}
+          className="text-xs font-medium px-3 py-1.5 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 }
