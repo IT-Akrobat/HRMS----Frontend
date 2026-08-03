@@ -111,6 +111,11 @@ function TrailMapModal({ row, onClose }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
+  // Keyed by visit id -> { arrival: marker|null, departure: marker|null }.
+  // Populated once when the markers are first drawn, then used to jump
+  // the map to a specific visit when its row in the list is clicked.
+  const markersByVisitRef = useRef({});
+  const [activeVisitId, setActiveVisitId] = useState(null);
 
   const points = useMemo(() => {
     const pts = [];
@@ -125,6 +130,7 @@ function TrailMapModal({ row, onClose }) {
           label: `Arrived — ${visit.locations?.location_name || "Site"}`,
           time: visit.arrival_time,
           kind: "arrival",
+          visitId: visit.id,
         });
       }
       if (
@@ -137,6 +143,7 @@ function TrailMapModal({ row, onClose }) {
           label: `Departed — ${visit.locations?.location_name || "Site"}`,
           time: visit.departure_time,
           kind: "departure",
+          visitId: visit.id,
         });
       }
     });
@@ -189,6 +196,12 @@ function TrailMapModal({ row, onClose }) {
         marker.bindTooltip(`${p.label}<br/>${timeOnly(p.time)}`, {
           direction: "top",
         });
+
+        if (p.visitId) {
+          markersByVisitRef.current[p.visitId] =
+            markersByVisitRef.current[p.visitId] || {};
+          markersByVisitRef.current[p.visitId][p.kind] = marker;
+        }
       });
 
       // Live ping position — separate from the arrival/departure points
@@ -217,6 +230,7 @@ function TrailMapModal({ row, onClose }) {
           `Live position${row.is_outside_radius ? " — OUT OF RANGE" : ""}<br/>${distanceLabel}`,
           { direction: "top" },
         );
+        markersByVisitRef.current.__live = liveMarker;
         latlngs.push(liveLatLng);
       }
 
@@ -239,6 +253,26 @@ function TrailMapModal({ row, onClose }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // When a row in the list below is clicked, jump the map to that
+  // visit's marker — prefer its departure point (where they left from),
+  // falling back to the arrival point if there's no departure yet (i.e.
+  // "on site now"), and to the live position marker as a last resort.
+  useEffect(() => {
+    if (!activeVisitId || !mapRef.current) return;
+    const markers = markersByVisitRef.current[activeVisitId];
+    const marker =
+      markers?.departure ||
+      markers?.arrival ||
+      markersByVisitRef.current.__live;
+    if (!marker) return;
+
+    const latlng = marker.getLatLng();
+    mapRef.current.flyTo(latlng, Math.max(mapRef.current.getZoom(), 16), {
+      duration: 0.6,
+    });
+    marker.openTooltip();
+  }, [activeVisitId]);
 
   const meta = STATUS_META[row.live_status] || STATUS_META.not_checked_in;
 
@@ -295,9 +329,15 @@ function TrailMapModal({ row, onClose }) {
           {row.trail?.length > 0 && (
             <div className="mt-4 space-y-2">
               {row.trail.map((visit) => (
-                <div
+                <button
                   key={visit.id}
-                  className="flex items-center justify-between text-sm bg-slate-50 rounded-lg px-3 py-2 border border-slate-100"
+                  type="button"
+                  onClick={() => setActiveVisitId(visit.id)}
+                  className={`w-full flex items-center justify-between text-sm rounded-lg px-3 py-2 border text-left transition-colors ${
+                    activeVisitId === visit.id
+                      ? "bg-orange-50 border-orange-200"
+                      : "bg-slate-50 border-slate-100 hover:bg-slate-100"
+                  }`}
                 >
                   <div className="flex items-center gap-2 text-slate-700">
                     <MapPin size={14} className="text-orange-500" />
@@ -311,7 +351,7 @@ function TrailMapModal({ row, onClose }) {
                       ? timeOnly(visit.departure_time)
                       : "on site now"}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}

@@ -464,15 +464,44 @@ export default function SiteVisitCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasOpenVisit]);
 
+  // Grabs a brand-new GPS fix at the exact moment of the action, instead
+  // of trusting the `coords` state (which is only set once on page load
+  // and can be null if that first request was denied/timed out, or
+  // minutes/hours stale if it succeeded long ago). Falls back to
+  // whatever's already in `coords` if this fresh request fails, so a
+  // one-off GPS hiccup doesn't block the action entirely — it just means
+  // that particular point might be missing, same as before.
+  function getFreshCoords() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(coords || null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const fresh = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          };
+          setCoords(fresh);
+          resolve(fresh);
+        },
+        () => resolve(coords || null),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      );
+    });
+  }
+
   async function arrive(locationId) {
     if (!locationId) return;
     setBusy(true);
     setError(null);
     try {
+      const liveCoords = await getFreshCoords();
       await apiClient.post("/attendance/site-visit/arrive", {
         location_id: locationId,
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
+        latitude: liveCoords?.latitude,
+        longitude: liveCoords?.longitude,
       });
       load();
       onActivityChange?.();
@@ -487,9 +516,10 @@ export default function SiteVisitCard({
     setBusy(true);
     setError(null);
     try {
+      const liveCoords = await getFreshCoords();
       await apiClient.post("/attendance/site-visit/depart", {
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
+        latitude: liveCoords?.latitude,
+        longitude: liveCoords?.longitude,
       });
       load();
       onActivityChange?.();
