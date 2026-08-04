@@ -205,9 +205,11 @@ export default function NotificationsPage({
           unreadCount > 0 && (
             <button
               onClick={markAllRead}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 transition-colors"
+              title="Mark All Read"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 text-sm font-medium text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 transition-colors"
             >
-              <CheckCheck size={15} /> Mark All Read
+              <CheckCheck size={15} />{" "}
+              <span className="hidden sm:inline">Mark All Read</span>
             </button>
           )
         }

@@ -223,9 +223,11 @@ export default function Attendance() {
         actions={
           <Link
             to="/employee/attendance/history"
-            className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-lg"
+            title="View History"
+            className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-2.5 sm:px-3.5 py-2 rounded-lg"
           >
-            <History size={15} /> View History
+            <History size={15} />{" "}
+            <span className="hidden sm:inline">View History</span>
           </Link>
         }
       />

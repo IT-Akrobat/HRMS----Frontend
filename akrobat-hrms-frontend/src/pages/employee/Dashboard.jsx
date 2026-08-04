@@ -69,11 +69,65 @@ export default function EmployeeDashboard() {
 
   return (
     <div className="overflow-x-hidden">
-      <PageHeader
-        title={`Good Morning, ${user?.name?.split(" ")[0] || "there"} 👋`}
-        subtitle="Welcome back! Here's what's happening today."
-        actions={<QuoteOfDayCard compact />}
-      />
+      {/* ---------- Desktop/tablet header (lg and up) — unchanged ---------- */}
+      <div className="hidden lg:block">
+        <PageHeader
+          title={`Good Morning, ${user?.name?.split(" ")[0] || "there"} 👋`}
+          subtitle="Welcome back! Here's what's happening today."
+          actions={<QuoteOfDayCard compact />}
+        />
+      </div>
+
+      {/* ---------- Mobile header (below lg) ----------
+          Greeting first, Quote of the Day stacked full-width right below
+          it, then a wrapping (not scrolling) row of at-a-glance chips —
+          today's date, active announcement count, and, for field staff,
+          today's check-in status. All from data this page already
+          fetches, no extra calls. No subtitle line here; the quote card
+          already fills that "what's happening today" role. */}
+      <div className="lg:hidden mb-4">
+        <h1 className="text-2xl font-bold text-slate-800 mb-3">
+          Good Morning, {user?.name?.split(" ")[0] || "there"} 👋
+        </h1>
+
+        <QuoteOfDayCard compact />
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {/* <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-xs font-medium text-slate-600">
+            <CalendarDays size={13} className="text-orange-500" />
+            {new Date().toLocaleDateString(undefined, {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            })}
+          </div> */}
+
+          {/* <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-xs font-medium text-slate-600">
+            <Megaphone size={13} className="text-orange-500" />
+            {announcements.length} announcement
+            {announcements.length === 1 ? "" : "s"}
+          </div> */}
+
+          {/* {isFieldStaff && (
+            <div
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border ${
+                todayStatus.checkedIn && !todayStatus.checkedOut
+                  ? "bg-green-50 border-green-200 text-green-700"
+                  : todayStatus.checkedOut
+                    ? "bg-slate-100 border-slate-200 text-slate-600"
+                    : "bg-orange-50 border-orange-200 text-orange-700"
+              }`}
+            >
+              <CheckCircle2 size={13} />
+              {todayStatus.checkedOut
+                ? "Checked out"
+                : todayStatus.checkedIn
+                  ? "Checked in"
+                  : "Not checked in"}
+            </div>
+          )} */}
+        </div>
+      </div>
 
       {/* ---------- Two-column body ----------
           Left (65%):  Check-in/out -> Site Visits (field staff only)
@@ -83,9 +137,9 @@ export default function EmployeeDashboard() {
                        so extra items scroll inside the card instead of
                        growing the row.
       ---------------------------------------------------------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-[65%_1fr] gap-6 items-start min-w-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[65%_1fr] gap-4 sm:gap-6 items-start min-w-0">
         {/* ================= Left column (65%) ================= */}
-        <div className="flex flex-col gap-6 min-w-0">
+        <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
           <CheckInOutCard compact onActivityChange={loadTodayStatus} />
 
           {isFieldStaff && (
@@ -101,9 +155,9 @@ export default function EmployeeDashboard() {
             Fixed height + its own vertical scroll, so this column never
             grows taller than the viewport / left column — it scrolls
             independently instead of pushing the page down. */}
-        <div className="flex flex-col gap-6 min-w-0 lg:h-[calc(100vh-6rem)] lg:sticky lg:top-4 lg:overflow-y-auto lg:pr-1 scrollbar-hide">
+        <div className="flex flex-col gap-4 sm:gap-6 min-w-0 lg:h-[calc(100vh-6rem)] lg:sticky lg:top-4 lg:overflow-y-auto lg:pr-1 scrollbar-hide">
           {/* ---------- Announcements ---------- */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 h-72 flex flex-col">
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 h-60 sm:h-72 flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                 <Megaphone size={17} className="text-orange-500" />{" "}
@@ -132,17 +186,17 @@ export default function EmployeeDashboard() {
           </div>
 
           {/* ---------- Upcoming Birthdays ---------- */}
-          <div className="h-72">
+          <div className="h-60 sm:h-72">
             <BirthdaysCard />
           </div>
 
           {/* ---------- Upcoming Holidays ---------- */}
-          <div className="h-72">
+          <div className="h-60 sm:h-72">
             <HolidaysCalendarCard />
           </div>
 
           {/* ---------- On Leave Today ---------- */}
-          <div className="h-72">
+          <div className="h-60 sm:h-72">
             <OnLeaveTodayCard />
           </div>
         </div>

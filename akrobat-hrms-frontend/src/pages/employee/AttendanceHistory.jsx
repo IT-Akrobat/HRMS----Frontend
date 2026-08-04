@@ -1727,7 +1727,7 @@ function StatusDropdown({ value, onChange, options }) {
 
 // Export button with a small popover offering Excel / PDF — replaces the
 // old single CSV-only button.
-function ExportMenu({ disabled, onExportExcel, onExportPdf }) {
+function ExportMenu({ disabled, onExportExcel, onExportPdf, compact = false }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -1745,13 +1745,23 @@ function ExportMenu({ disabled, onExportExcel, onExportPdf }) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         disabled={disabled}
-        className="flex items-center gap-1.5 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 px-4 py-2.5 rounded-xl shadow-sm transition-colors"
+        aria-label="Export"
+        className={
+          compact
+            ? "flex items-center justify-center w-9 h-9 text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 rounded-xl shadow-sm transition-colors shrink-0"
+            : "flex items-center gap-1.5 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 px-4 py-2.5 rounded-xl shadow-sm transition-colors"
+        }
       >
-        <Download size={14} /> Export
-        <ChevronDown
-          size={14}
-          className={`transition-transform ${open ? "rotate-180" : ""}`}
-        />
+        <Download size={14} />
+        {!compact && (
+          <>
+            Export
+            <ChevronDown
+              size={14}
+              className={`transition-transform ${open ? "rotate-180" : ""}`}
+            />
+          </>
+        )}
       </button>
 
       {open && !disabled && (
@@ -1996,16 +2006,99 @@ export default function AttendanceHistory() {
             </button>
             <Link
               to="/employee/attendance"
-              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-lg"
+              title="Back to Attendance"
+              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-2.5 sm:px-3.5 py-2 rounded-lg"
             >
-              <ChevronLeft size={15} /> Back to Attendance
+              <ChevronLeft size={15} />{" "}
+              <span className="hidden sm:inline">Back to Attendance</span>
             </Link>
           </div>
         }
       />
 
-      {/* ---------- Filter bar ---------- */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6 flex flex-wrap items-end gap-3.5">
+      {/* ---------- Filter bar: mobile-only redesign ----------
+          Original wrap-everything-in-one-row layout got cramped on small
+          screens (Date Range + Status + Export all fighting for space on
+          one line). This stacks things in a friendlier order for mobile:
+          Search first (most used), then Date Range, then Status paired
+          with compact icon-only Filter/Export buttons. sm: and up renders
+          the original desktop bar unchanged, right below. */}
+      <div className="sm:hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6 flex flex-col gap-3.5">
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1.5">
+            Search
+          </label>
+          <div className="flex items-center gap-2 border border-slate-200 bg-slate-50/60 hover:border-slate-300 focus-within:ring-2 focus-within:ring-orange-200 focus-within:border-orange-400 rounded-xl px-3.5 py-2.5 transition-colors">
+            <Search size={15} className="text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search by date, status, or location..."
+              className="text-sm text-slate-700 outline-none w-full bg-transparent"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1.5">
+            Date Range
+          </label>
+          <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50/60 hover:border-slate-300 transition-colors">
+            <DatePicker
+              value={dateFrom ? new Date(dateFrom + "T00:00:00") : null}
+              max={dateTo || todayIso()}
+              placeholder="From"
+              onSelect={(d) => setDateFrom(toLocalISODate(d))}
+            />
+            <span className="text-slate-300">→</span>
+            <DatePicker
+              value={dateTo ? new Date(dateTo + "T00:00:00") : null}
+              min={dateFrom}
+              max={todayIso()}
+              placeholder="To"
+              onSelect={(d) => setDateTo(toLocalISODate(d))}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-end gap-2">
+          <div className="flex-1 min-w-0">
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">
+              Status
+            </label>
+            <StatusDropdown
+              value={statusFilter}
+              options={STATUS_OPTIONS}
+              onChange={(v) => {
+                setStatusFilter(v);
+                setPage(1);
+              }}
+            />
+          </div>
+          <button
+            onClick={() => {
+              setPage(1);
+              load();
+            }}
+            aria-label="Filter"
+            className="flex items-center justify-center w-9 h-9 shrink-0 text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 rounded-xl transition-colors"
+          >
+            <Filter size={14} />
+          </button>
+          <ExportMenu
+            compact
+            disabled={filtered.length === 0}
+            onExportExcel={exportExcel}
+            onExportPdf={exportPdf}
+          />
+        </div>
+      </div>
+
+      {/* ---------- Filter bar: original desktop layout, untouched ---------- */}
+      <div className="hidden sm:flex bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6 flex-wrap items-end gap-3.5">
         <div>
           <label className="block text-xs font-medium text-slate-500 mb-1.5">
             Date Range

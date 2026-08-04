@@ -60,7 +60,6 @@ import Employees from "../pages/hr-admin/Employees.jsx";
 // import EmployeesAdd from "../pages/hr-admin/EmployeesAdd.jsx";
 // import EmployeesProfile from "../pages/hr-admin/EmployeesProfile.jsx";
 import LeaveBalance from "../pages/hr-admin/LeaveBalance.jsx";
-import LeavePolicies from "../pages/hr-admin/LeavePolicies.jsx";
 import LeaveRequests from "../pages/hr-admin/LeaveRequests.jsx";
 import OrganizationDepartments from "../pages/hr-admin/OrganizationDepartments.jsx";
 import OrganizationDesignations from "../pages/hr-admin/OrganizationDesignations.jsx";
@@ -85,7 +84,7 @@ export const hrAdminRoutes = [
   { path: "attendance/shifts", element: <AttendanceShifts /> },
   { path: "attendance/reports", element: <AttendanceReports /> },
   { path: "leave/requests", element: <LeaveRequests /> },
-  { path: "leave/policies", element: <LeavePolicies /> },
+  // { path: "leave/policies", element: <LeavePolicies /> },
   { path: "leave/balance", element: <LeaveBalance /> },
   { path: "payroll/salary-structure", element: <PayrollSalaryStructure /> },
   { path: "payroll/generate-payslip", element: <PayrollGeneratePayslip /> },

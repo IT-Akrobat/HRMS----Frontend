@@ -83,11 +83,19 @@ function saveStorageCache(cache) {
   }
 }
 
-// Builds a "Building Name, B.No X, Area, City, State" string from
+// Builds a "Building Name, B.No X, Area, City, State, Country" string from
 // Nominatim's address breakdown, skipping parts that aren't present and
 // collapsing consecutive duplicates (e.g. area === city for smaller
 // towns).
-function formatAddress(addr) {
+//
+// `featureName` is Nominatim's top-level `name` field for the resolved
+// feature (passed in separately from `addr` below) — at high zoom this is
+// often the actual named building/POI (e.g. "Rajkamal Apartments") and is
+// frequently more reliable than the `building`/`house_name` address tag,
+// which is sometimes missing or has junk/placeholder text on it. When
+// present and it isn't just a repeat of the road/area name, it's
+// preferred as the building name.
+function formatAddress(addr, featureName) {
   if (!addr) return null;
 
   // Building name + number, when Nominatim has them (mainly for sites
@@ -97,7 +105,14 @@ function formatAddress(addr) {
   // fallback on some records; "house_number" is the street number, shown
   // as "B.No X" to match how site addresses are written elsewhere in the
   // app (see OrganizationLocations.jsx).
-  const buildingName = addr.building || addr.house_name || null;
+  const tagBuildingName = addr.building || addr.house_name || null;
+  const buildingName =
+    featureName &&
+    featureName !== addr.road &&
+    featureName !== addr.neighbourhood &&
+    featureName !== addr.suburb
+      ? featureName
+      : tagBuildingName;
   const buildingNo = addr.house_number ? `B.No ${addr.house_number}` : null;
   const building =
     buildingName && buildingNo
@@ -123,7 +138,9 @@ function formatAddress(addr) {
   // South/Southeast Asia where Nominatim splits state into districts).
   const state = addr.state || addr.state_district || null;
 
-  const parts = [building, area, city, state]
+  const country = addr.country || null;
+
+  const parts = [building, area, city, state, country]
     .filter(Boolean)
     // Drop consecutive duplicates.
     .filter((p, i, arr) => p !== arr[i - 1]);
@@ -160,13 +177,20 @@ export async function reverseGeocode(lat, lon) {
   }
 
   try {
+    // zoom=18 asks Nominatim for building-level resolution (16 is street
+    // level and was rounding to the nearest street/area instead of the
+    // actual building); namedetails=1 surfaces the resolved feature's own
+    // name (see `featureName` in formatAddress above) as an extra,
+    // usually more reliable, source for the building name.
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&namedetails=1`,
       { headers: { Accept: "application/json" } },
     );
     if (!res.ok) throw new Error("reverse geocode failed");
     const data = await res.json();
-    const formatted = formatAddress(data.address) || data.display_name || null;
+    const featureName = data.namedetails?.name || data.name || null;
+    const formatted =
+      formatAddress(data.address, featureName) || data.display_name || null;
 
     memoryCache.set(key, formatted);
     storageCache[key] = formatted;

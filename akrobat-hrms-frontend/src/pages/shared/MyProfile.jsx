@@ -1658,20 +1658,31 @@ export default function MyProfile() {
             <button
               onClick={downloadMyFullReport}
               disabled={downloadingReport}
-              className="flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Download Full Report"
+              className="group relative flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {downloadingReport ? (
                 <Loader2 size={15} className="animate-spin" />
               ) : (
                 <Download size={15} />
               )}
-              Download Full Report
+              <span className="hidden sm:inline">Download Full Report</span>
+              {/* Mobile only: label is hidden above, and instead appears as a
+                  tooltip on hover so the button stays icon-only by default. */}
+              <span className="sm:hidden pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                Download Full Report
+              </span>
             </button>
             <button
               onClick={openEditModal}
-              className="flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50"
+              title="Edit Profile"
+              className="group relative flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 hover:bg-slate-50"
             >
-              <Edit3 size={15} /> Edit Profile
+              <Edit3 size={15} />
+              <span className="hidden sm:inline">Edit Profile</span>
+              <span className="sm:hidden pointer-events-none absolute top-full mt-2 right-0 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                Edit Profile
+              </span>
             </button>
           </div>
         }

@@ -230,16 +230,100 @@ export default function LeaveHistory() {
             </button>
             <Link
               to="/employee/leave/apply"
-              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-lg"
+              title="Back to My Leaves"
+              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-2.5 sm:px-3.5 py-2 rounded-lg"
             >
-              <ChevronLeft size={15} /> Back to My Leaves
+              <ChevronLeft size={15} />{" "}
+              <span className="hidden sm:inline">Back to My Leaves</span>
             </Link>
           </div>
         }
       />
 
-      {/* ---------- Filter bar ---------- */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 flex flex-wrap items-end gap-3">
+      {/* ---------- Filter bar: mobile-only redesign ----------
+          Original wrap-everything-in-one-row layout got cramped on small
+          screens. This stacks things in a friendlier order for mobile:
+          Search first (most used), then Leave Type, then Status paired
+          with compact icon-only Filter/Export buttons. sm: and up renders
+          the original desktop bar unchanged, right below. */}
+      <div className="sm:hidden bg-white rounded-xl border border-slate-200 p-4 mb-6 flex flex-col gap-3">
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">
+            Search by reason
+          </label>
+          <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2">
+            <Search size={15} className="text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search by reason..."
+              className="text-sm text-slate-700 outline-none w-full bg-transparent"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">
+            Leave Type
+          </label>
+          <select
+            value={leaveType}
+            onChange={(e) => {
+              setLeaveType(e.target.value);
+              setPage(1);
+            }}
+            className="w-full text-sm text-slate-700 border border-slate-200 rounded-lg px-3 py-2 outline-none"
+          >
+            {leaveTypeOptions.map((t) => (
+              <option key={t} value={t}>
+                {t === "All" ? "All Leave Types" : t}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-end gap-2">
+          <div className="flex-1 min-w-0">
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Status
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+              className="w-full text-sm text-slate-700 border border-slate-200 rounded-lg px-3 py-2 outline-none"
+            >
+              <option>All</option>
+              <option>Approved</option>
+              <option>Pending</option>
+              <option>Rejected</option>
+            </select>
+          </div>
+          <button
+            onClick={() => setPage(1)}
+            aria-label="Filter"
+            className="flex items-center justify-center w-9 h-9 shrink-0 text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-lg"
+          >
+            <Filter size={14} />
+          </button>
+          <button
+            onClick={exportCsv}
+            disabled={filtered.length === 0}
+            aria-label="Export"
+            className="flex items-center justify-center w-9 h-9 shrink-0 text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 rounded-lg"
+          >
+            <Download size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* ---------- Filter bar: original desktop layout, untouched ---------- */}
+      <div className="hidden sm:flex bg-white rounded-xl border border-slate-200 p-4 mb-6 flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-slate-500 mb-1">
             Leave Type

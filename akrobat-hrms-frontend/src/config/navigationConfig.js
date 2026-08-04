@@ -167,7 +167,7 @@ export const NAVIGATION_CONFIG = {
       icon: Palmtree,
       children: [
         { label: "Leave Requests (View)", path: "/hr-admin/leave/requests" },
-        { label: "Leave Policies", path: "/hr-admin/leave/policies" },
+        // { label: "Leave Policies", path: "/hr-admin/leave/policies" },
         { label: "Leave Balance", path: "/hr-admin/leave/balance" },
       ],
     },
