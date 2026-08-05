@@ -11,6 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import Avatar from "../../components/common/Avatar";
 import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
 import { apiClient } from "../../services/apiClient";
@@ -235,9 +236,10 @@ export default function LeaveRequests() {
                   className="flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-4"
                 >
                   <div className="flex items-center gap-3 sm:w-48 shrink-0">
-                    <div className="w-9 h-9 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold flex items-center justify-center shrink-0">
-                      {initials(leave.employees?.full_name)}
-                    </div>
+                    <Avatar
+                      name={leave.employees?.full_name}
+                      photo={leave.employees?.profile_photo}
+                    />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-slate-800 truncate">
                         {leave.employees?.full_name || "—"}

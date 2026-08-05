@@ -49,14 +49,20 @@ function statusFromPct(pct) {
   return { ring: "#16A34A", bg: "bg-slate-50", text: "text-slate-500" };
 }
 
-function BalanceRing({ pct, label }) {
+function BalanceRing({ pct, label, photo }) {
   const r = 25;
   const c = 2 * Math.PI * r;
   const clamped = Math.max(0, Math.min(100, pct));
   const offset = c - (clamped / 100) * c;
   const style = statusFromPct(pct);
+  const clipId = `balance-ring-clip-${label}`;
   return (
     <svg width="60" height="60" viewBox="0 0 60 60" className="mx-auto">
+      {photo && (
+        <clipPath id={clipId}>
+          <circle cx="30" cy="30" r={r - 3} />
+        </clipPath>
+      )}
       <circle
         cx="30"
         cy="30"
@@ -65,6 +71,17 @@ function BalanceRing({ pct, label }) {
         stroke="#E2E8F0"
         strokeWidth="4.5"
       />
+      {photo && (
+        <image
+          href={photo}
+          x="6"
+          y="6"
+          width="48"
+          height="48"
+          preserveAspectRatio="xMidYMid slice"
+          clipPath={`url(#${clipId})`}
+        />
+      )}
       <circle
         cx="30"
         cy="30"
@@ -77,21 +94,23 @@ function BalanceRing({ pct, label }) {
         strokeDashoffset={offset}
         transform="rotate(-90 30 30)"
       />
-      <text
-        x="30"
-        y="34"
-        textAnchor="middle"
-        fontSize="12"
-        fontWeight="500"
-        fill="#1e293b"
-      >
-        {label}
-      </text>
+      {!photo && (
+        <text
+          x="30"
+          y="34"
+          textAnchor="middle"
+          fontSize="12"
+          fontWeight="500"
+          fill="#1e293b"
+        >
+          {label}
+        </text>
+      )}
     </svg>
   );
 }
 
-function EmployeeTile({ name, department, pct, balanceLabel, onClick }) {
+function EmployeeTile({ name, photo, department, pct, balanceLabel, onClick }) {
   const style = statusFromPct(pct);
   return (
     <button
@@ -99,7 +118,7 @@ function EmployeeTile({ name, department, pct, balanceLabel, onClick }) {
       onClick={onClick}
       className="bg-white border border-slate-100 rounded-xl p-4 text-center hover:border-orange-300 hover:shadow-sm transition-all cursor-pointer"
     >
-      <BalanceRing pct={pct} label={initials(name)} />
+      <BalanceRing pct={pct} label={initials(name)} photo={photo} />
       <p className="text-sm font-medium text-slate-800 mt-2.5 truncate">
         {name}
       </p>
@@ -210,6 +229,7 @@ export default function LeaveBalance() {
       byEmployee[e.id] = {
         id: e.id,
         name: e.full_name,
+        photo: e.profile_photo,
         department: e.departments?.department_name || e.department_name || "—",
         used: {},
       };
@@ -395,6 +415,7 @@ export default function LeaveBalance() {
             <EmployeeTile
               key={emp.id}
               name={emp.name}
+              photo={emp.photo}
               department={emp.department}
               pct={emp.totalPct}
               balanceLabel={`${round1(emp.totalBalance)}/${emp.totalAllocated} left`}
@@ -411,6 +432,7 @@ export default function LeaveBalance() {
               <EmployeeTile
                 key={emp.id}
                 name={emp.name}
+                photo={emp.photo}
                 department={emp.department}
                 pct={t.pct}
                 balanceLabel={`${round1(t.balance)}/${t.allocated} left`}
@@ -434,6 +456,7 @@ export default function LeaveBalance() {
               <BalanceRing
                 pct={selectedEmployee.totalPct}
                 label={initials(selectedEmployee.name)}
+                photo={selectedEmployee.photo}
               />
               <div>
                 <p className="text-sm font-medium text-slate-800">

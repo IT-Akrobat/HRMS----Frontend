@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 // build, not a bug in this file. xlsx-js-style is a drop-in fork (same
 // API, same underlying SheetJS 0.18.5) that actually applies them.
 import * as XLSX from "xlsx-js-style";
+import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import { reportsService } from "../../services/ReportService";
@@ -163,14 +164,10 @@ function StatusPill({ value }) {
   );
 }
 
-function EmployeeCell({ name, empId }) {
+function EmployeeCell({ name, empId, photo }) {
   return (
     <div className="flex items-center gap-3">
-      <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${avatarColor(name)}`}
-      >
-        {initials(name)}
-      </div>
+      <Avatar name={name} photo={photo} size="w-8 h-8" />
       <div className="min-w-0">
         <div className="font-medium text-slate-800 truncate">{name || "—"}</div>
         {empId && (
@@ -188,7 +185,13 @@ const COLUMNS = {
   employees: [
     {
       header: "Employee",
-      render: (r) => <EmployeeCell name={r.full_name} empId={r.email} />,
+      render: (r) => (
+        <EmployeeCell
+          name={r.full_name}
+          empId={r.email}
+          photo={r.profile_photo}
+        />
+      ),
     },
     { header: "Employee ID", render: (r) => r.employee_id || "—" },
     {
@@ -213,6 +216,7 @@ const COLUMNS = {
         <EmployeeCell
           name={r.employees?.full_name}
           empId={r.employees?.employee_id}
+          photo={r.employees?.profile_photo}
         />
       ),
     },
@@ -232,6 +236,7 @@ const COLUMNS = {
         <EmployeeCell
           name={r.employees?.full_name}
           empId={r.employees?.employee_id}
+          photo={r.employees?.profile_photo}
         />
       ),
     },
@@ -258,6 +263,7 @@ const COLUMNS = {
         <EmployeeCell
           name={r.employees?.full_name}
           empId={r.employees?.employee_id}
+          photo={r.employees?.profile_photo}
         />
       ),
     },

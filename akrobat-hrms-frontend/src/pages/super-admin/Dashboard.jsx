@@ -313,8 +313,9 @@ export default function SuperAdminDashboard() {
 
   const [trend, setTrend] = useState(null);
   const [trendLoading, setTrendLoading] = useState(true);
-  // "week" -> days=7, "month" -> days=30 — both within the backend's
-  // allowed range (Query(..., ge=2, le=30), see app/dashboard/routes.py).
+  // "today" -> days=1, "week" -> days=7, "month" -> days=30 — all within
+  // the backend's allowed range (Query(..., ge=1, le=30), see
+  // app/dashboard/routes.py).
   const [trendRange, setTrendRange] = useState("week");
 
   const [deptDistribution, setDeptDistribution] = useState([]);
@@ -583,7 +584,7 @@ export default function SuperAdminDashboard() {
   // refetches this one endpoint instead of everything on the page.
   useEffect(() => {
     setTrendLoading(true);
-    const days = trendRange === "month" ? 30 : 7;
+    const days = trendRange === "month" ? 30 : trendRange === "today" ? 1 : 7;
     apiClient
       .get(`/dashboard/attendance-trend?days=${days}`)
       .then((res) => setTrend(res))

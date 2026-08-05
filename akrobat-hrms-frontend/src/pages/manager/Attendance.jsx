@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import { apiClient } from "../../services/apiClient";
@@ -164,7 +165,11 @@ function FieldStaffRow({ row }) {
         className="w-full flex items-center gap-3 py-3 text-left cursor-pointer"
       >
         <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-semibold text-sm shrink-0">
-          {(row.employee?.full_name || "?").slice(0, 1)}
+          <Avatar
+            name={row.employee?.full_name}
+            photo={row.employee?.profile_photo}
+            size="w-9 h-9"
+          />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -411,7 +416,15 @@ export default function ManagerAttendance() {
               {officeOnly.map((row) => (
                 <tr key={row.id}>
                   <td className="py-2 text-slate-700">
-                    {row.employees?.full_name || "—"}
+                    <div className="flex items-center gap-2.5">
+                      <Avatar
+                        name={row.employees?.full_name}
+                        photo={row.employees?.profile_photo}
+                        size="w-7 h-7"
+                        textSize="text-[10px]"
+                      />
+                      <span>{row.employees?.full_name || "—"}</span>
+                    </div>
                   </td>
                   <td className="py-2 text-slate-500">
                     {formatTime(row.check_in_time)}

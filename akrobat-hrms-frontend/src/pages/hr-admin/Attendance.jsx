@@ -8,6 +8,7 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate, toLocalISODate } from "../../utils/date";
@@ -129,9 +130,11 @@ function AttendanceRow({ record }) {
       className="flex items-center gap-3 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl"
       style={{ borderLeft: `3px solid ${style.dot}` }}
     >
-      <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold shrink-0">
-        {initials(record.employees?.full_name)}
-      </div>
+      <Avatar
+        name={record.employees?.full_name}
+        photo={record.employees?.profile_photo}
+        size="w-8 h-8"
+      />
       <div className="min-w-[130px] max-w-[160px]">
         <div className="text-sm font-medium text-slate-800 truncate">
           {record.employees?.full_name || "—"}

@@ -83,6 +83,27 @@ function avatarColor(seed) {
   return AVATAR_COLORS[hash];
 }
 
+// This screen was rendering initials-only circles everywhere, even when
+// the employee/HR Admin had a stored profile_photo (same field every
+// other screen -- Employees list, dashboard cards, team views -- reads
+// from). Mirrors the Avatar component in super-admin/Employees.jsx so
+// HR Admins actually show their uploaded photo here too.
+function Avatar({ person, className }) {
+  return person?.profile_photo ? (
+    <img
+      src={person.profile_photo}
+      alt={person.full_name}
+      className={`${className} object-cover shrink-0`}
+    />
+  ) : (
+    <div
+      className={`${className} flex items-center justify-center font-semibold shrink-0 ${avatarColor(person?.full_name)}`}
+    >
+      {initials(person?.full_name)}
+    </div>
+  );
+}
+
 function Field({ label, required, error, children }) {
   return (
     <label className="block">
@@ -459,11 +480,7 @@ function EmployeeViewModal({ employee, onClose, onEdit }) {
       <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-xl">
         <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div
-              className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold ${avatarColor(employee.full_name)}`}
-            >
-              {initials(employee.full_name)}
-            </div>
+            <Avatar person={employee} className="w-12 h-12 rounded-full" />
             <div>
               <h2 className="text-base font-bold text-slate-800">
                 {employee.full_name}
@@ -871,11 +888,10 @@ export default function EmployeesHrAdmins() {
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div
-                        className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${avatarColor(emp.full_name)}`}
-                      >
-                        {initials(emp.full_name)}
-                      </div>
+                      <Avatar
+                        person={emp}
+                        className="w-9 h-9 rounded-full text-xs"
+                      />
                       <div className="min-w-0">
                         <div className="font-medium text-slate-800 truncate">
                           {emp.full_name}

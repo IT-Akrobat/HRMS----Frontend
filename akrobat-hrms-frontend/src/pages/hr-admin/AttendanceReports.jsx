@@ -9,6 +9,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import { apiClient } from "../../services/apiClient";
 
@@ -575,17 +576,17 @@ export default function AttendanceReports() {
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             {needsAttention.map((e) => {
-              const color = avatarColor(e.full_name);
               return (
                 <div
                   key={e.employee_id}
                   className="flex items-center gap-2 text-sm"
                 >
-                  <div
-                    className={`w-5 h-5 rounded-full ${color.bg} ${color.text} text-[10px] font-medium flex items-center justify-center`}
-                  >
-                    {initials(e.full_name)}
-                  </div>
+                  <Avatar
+                    name={e.full_name}
+                    photo={e.profile_photo}
+                    size="w-5 h-5"
+                    textSize="text-[10px]"
+                  />
                   <span className="text-slate-700">{e.full_name}</span>
                   <span className="text-xs text-slate-400">
                     {e.absent_days > 0 && `${e.absent_days} absent`}
@@ -686,6 +687,12 @@ function EmptyState() {
   );
 }
 
+// Under each employee we only ever show their two most recent check-ins,
+// regardless of how wide the selected date range is — keeps each profile
+// block short and focused on "what's happening lately" instead of listing
+// out every day in the range.
+const RECENT_DAYS_PER_EMPLOYEE = 2;
+
 function DepartmentGroup({ deptName, records, onExportEmployee }) {
   const byEmployee = useMemo(() => {
     const groups = {};
@@ -694,9 +701,18 @@ function DepartmentGroup({ deptName, records, onExportEmployee }) {
       groups[key] = groups[key] || {
         name: r.full_name,
         code: r.employee_code,
+        photo: r.profile_photo,
         rows: [],
       };
       groups[key].rows.push(r);
+    });
+    // Sort each employee's rows by date (ascending). `rows` keeps the full
+    // set (used for the "Download" export), while `displayRows` is trimmed
+    // to just the most recent RECENT_DAYS_PER_EMPLOYEE entries for the
+    // on-screen table.
+    Object.values(groups).forEach((emp) => {
+      emp.rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+      emp.displayRows = emp.rows.slice(-RECENT_DAYS_PER_EMPLOYEE);
     });
     return groups;
   }, [records]);
@@ -709,16 +725,16 @@ function DepartmentGroup({ deptName, records, onExportEmployee }) {
       </div>
 
       {Object.values(byEmployee).map((emp) => {
-        const color = avatarColor(emp.name);
         return (
           <div key={emp.code || emp.name}>
             <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50/50">
               <div className="flex items-center gap-2">
-                <div
-                  className={`w-7 h-7 rounded-full ${color.bg} ${color.text} text-[11px] font-medium flex items-center justify-center`}
-                >
-                  {initials(emp.name)}
-                </div>
+                <Avatar
+                  name={emp.name}
+                  photo={emp.photo}
+                  size="w-7 h-7"
+                  textSize="text-[11px]"
+                />
                 <span className="text-sm font-medium text-slate-700">
                   {emp.name}
                 </span>
@@ -735,7 +751,7 @@ function DepartmentGroup({ deptName, records, onExportEmployee }) {
 
             <table className="w-full text-sm">
               <tbody>
-                {emp.rows.map((r) => (
+                {emp.displayRows.map((r) => (
                   <tr key={r.date} className="border-t border-slate-50">
                     <td className="px-4 py-2 text-slate-500 w-24">
                       {formatDateLabel(r.date)}
@@ -784,16 +800,16 @@ function EmployeeSummaryTable({ employees, onExportEmployee }) {
         </thead>
         <tbody>
           {employees.map((e) => {
-            const color = avatarColor(e.full_name);
             return (
               <tr key={e.employee_id} className="border-t border-slate-50">
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2">
-                    <div
-                      className={`w-7 h-7 rounded-full ${color.bg} ${color.text} text-[11px] font-medium flex items-center justify-center`}
-                    >
-                      {initials(e.full_name)}
-                    </div>
+                    <Avatar
+                      name={e.full_name}
+                      photo={e.profile_photo}
+                      size="w-7 h-7"
+                      textSize="text-[11px]"
+                    />
                     <div>
                       <div className="font-medium text-slate-700">
                         {e.full_name}
