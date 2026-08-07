@@ -9,16 +9,16 @@ const TOKEN_KEY = "akrobat_token";
 const REFRESH_KEY = "akrobat_refresh_token";
 
 function getToken() {
-  return sessionStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 function getRefreshToken() {
-  return sessionStorage.getItem(REFRESH_KEY);
+  return localStorage.getItem(REFRESH_KEY);
 }
 
 // Supabase access tokens are short-lived (~1hr, see app/core/security.py ->
 // supabase.auth.get_user). Previously the refresh_token from login just sat
-// unused in sessionStorage, so every request started failing with "Invalid
+// unused in localStorage, so every request started failing with "Invalid
 // or expired token." the moment the access token expired — the user had to
 // fully log out and back in. This calls the new POST /auth/refresh once,
 // swaps in the fresh tokens, and lets the caller retry.
@@ -41,9 +41,9 @@ async function refreshAccessToken() {
         if (!res.ok) return false;
         const data = await res.json().catch(() => null);
         if (!data?.access_token) return false;
-        sessionStorage.setItem(TOKEN_KEY, data.access_token);
+        localStorage.setItem(TOKEN_KEY, data.access_token);
         if (data.refresh_token) {
-          sessionStorage.setItem(REFRESH_KEY, data.refresh_token);
+          localStorage.setItem(REFRESH_KEY, data.refresh_token);
         }
         return true;
       })
@@ -57,9 +57,9 @@ async function refreshAccessToken() {
 }
 
 function clearSession() {
-  sessionStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(REFRESH_KEY);
-  sessionStorage.removeItem("akrobat_user");
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem("akrobat_user");
 }
 
 async function request(

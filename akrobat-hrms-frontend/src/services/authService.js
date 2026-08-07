@@ -20,9 +20,9 @@ export const authService = {
     );
     // loginData: { access_token, refresh_token, user_id }
 
-    sessionStorage.setItem(TOKEN_KEY, loginData.access_token);
+    localStorage.setItem(TOKEN_KEY, loginData.access_token);
     if (loginData.refresh_token) {
-      sessionStorage.setItem("akrobat_refresh_token", loginData.refresh_token);
+      localStorage.setItem("akrobat_refresh_token", loginData.refresh_token);
     }
 
     const meEnvelope = await apiClient.get("/auth/me");
@@ -47,27 +47,27 @@ export const authService = {
       passwordExpired: loginData.password_expired,
     };
 
-    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
 
     return { token: loginData.access_token, user };
   },
 
   logout() {
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem("akrobat_refresh_token");
-    sessionStorage.removeItem(USER_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem("akrobat_refresh_token");
+    localStorage.removeItem(USER_KEY);
   },
 
   getStoredUser() {
-    const raw = sessionStorage.getItem(USER_KEY);
+    const raw = localStorage.getItem(USER_KEY);
     return raw ? JSON.parse(raw) : null;
   },
 
   setStoredUser(user) {
-    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
   },
 
   getToken() {
-    return sessionStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(TOKEN_KEY);
   },
 };
