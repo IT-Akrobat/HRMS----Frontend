@@ -524,6 +524,33 @@ function playNotificationSound() {
   }
 }
 
+// Native OS/browser notification — this is what shows up even when the
+// person has switched to another tab or app (like WhatsApp Web), as long
+// as this tab is still open somewhere in the browser. It needs the
+// person to have granted the browser's notification permission once
+// (requested below on first load); if they never grant it, or the
+// browser doesn't support the API, this just silently no-ops and the
+// in-app toast + bell badge are still there as the fallback.
+function showBrowserNotification(n, onOpen) {
+  if (typeof Notification === "undefined") return;
+  if (Notification.permission !== "granted") return;
+  try {
+    const popup = new Notification(n.title || "New notification", {
+      body: n.message || "",
+      icon: "/akrobat-logo.png",
+      tag: `akrobat-notification-${n.id}`,
+    });
+    popup.onclick = () => {
+      window.focus();
+      onOpen?.();
+      popup.close();
+    };
+  } catch {
+    // Some mobile browsers only support ServiceWorkerRegistration
+    // .showNotification, not the plain Notification constructor — non-fatal.
+  }
+}
+
 function timeAgo(dateStr) {
   if (!dateStr) return "";
   const parsed = parseServerDate(dateStr);
@@ -586,12 +613,6 @@ function NotificationBell() {
             setOpen(false);
             navigate(`${ROLE_BASE_PATH[role] || ""}/notifications`);
           };
-          // In-app toast only. The OS-level popup for this same event is
-          // handled by the service worker's "push" listener (see
-          // public/sw.js), fed by the real Web Push subscription in
-          // pushService.js. Firing a second native Notification() here
-          // used to duplicate that — same event, two OS popups with
-          // different tags that couldn't dedupe against each other.
           showToast({
             title: n.title,
             message: n.message,
@@ -599,6 +620,13 @@ function NotificationBell() {
             iconClassName: className,
             onClick: openNotifications,
           });
+          // Only fire the OS-level popup when this tab isn't the one the
+          // person is actually looking at — if they're already on the
+          // site, the toast above is enough and a native popup on top
+          // would just be noisy.
+          if (document.hidden) {
+            showBrowserNotification(n, openNotifications);
+          }
         }
       })
       .catch(() => setNotifications([]))
@@ -645,10 +673,21 @@ function NotificationBell() {
     return () => clearInterval(reminderInterval);
   }, []);
 
-  // Permission for OS notifications is requested by
-  // pushService.enablePushNotifications() (called from AuthContext on
-  // login/mount) as part of the real push subscription flow — no need
-  // to ask again independently here.
+  // Ask once for permission to show native browser/OS notifications —
+  // this is what lets a new notification reach the person even when
+  // they've switched away to another tab or app (as long as this tab is
+  // still open somewhere), similar to how WhatsApp Web pings you. If they
+  // dismiss/deny the prompt, everything still works via the in-app toast
+  // and bell badge — this is a bonus channel, not a requirement.
+  useEffect(() => {
+    if (
+      typeof Notification !== "undefined" &&
+      Notification.permission === "default"
+    ) {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
