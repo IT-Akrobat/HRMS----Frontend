@@ -469,6 +469,7 @@ import { useNavigate } from "react-router-dom";
 import { ROLE_BASE_PATH, ROLE_LABELS } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
+import { useNotificationLiveUpdates } from "../../hooks/useNotificationLiveUpdates";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 
@@ -580,54 +581,21 @@ function NotificationBell() {
   const [loading, setLoading] = useState(true);
 
   // Tracks notification ids we've already shown (in the list or as a
-  // toast), so a poll only toasts genuinely *new* arrivals — not every
-  // pre-existing unread notification on first page load, and not the
-  // same notification twice on the next poll.
-  const seenIdsRef = useRef(null);
+  // toast), so the live-updates socket (or a reconnect replaying a row
+  // that arrived just before it dropped) never toasts the same
+  // notification twice.
+  const seenIdsRef = useRef(new Set());
 
+  // One-time fetch to populate the list + badge on mount/login. After
+  // this, new arrivals come from the /ws/notifications push below, not
+  // from calling this again — see useNotificationLiveUpdates.
   function load() {
     apiClient
       .get("/notifications/my")
       .then((res) => {
         const rows = res?.data || [];
         setNotifications(rows);
-
-        if (seenIdsRef.current === null) {
-          // First load this session — just record what's already there,
-          // don't toast for it (that's what the bell badge is for).
-          seenIdsRef.current = new Set(rows.map((n) => n.id));
-          return;
-        }
-
-        const newOnes = rows.filter((n) => !seenIdsRef.current.has(n.id));
-        if (newOnes.length > 0) {
-          // One sound per poll (not one per notification) even if several
-          // arrived at once — matches how WhatsApp etc. only ping once
-          // for a burst of messages rather than a machine-gun of beeps.
-          playNotificationSound();
-        }
-        for (const n of newOnes) {
-          seenIdsRef.current.add(n.id);
-          const { icon: Icon, className } = typeStyle(n.notification_type);
-          const openNotifications = () => {
-            setOpen(false);
-            navigate(`${ROLE_BASE_PATH[role] || ""}/notifications`);
-          };
-          showToast({
-            title: n.title,
-            message: n.message,
-            icon: Icon,
-            iconClassName: className,
-            onClick: openNotifications,
-          });
-          // Only fire the OS-level popup when this tab isn't the one the
-          // person is actually looking at — if they're already on the
-          // site, the toast above is enough and a native popup on top
-          // would just be noisy.
-          if (document.hidden) {
-            showBrowserNotification(n, openNotifications);
-          }
-        }
+        for (const n of rows) seenIdsRef.current.add(n.id);
       })
       .catch(() => setNotifications([]))
       .finally(() => setLoading(false));
@@ -635,13 +603,40 @@ function NotificationBell() {
 
   useEffect(() => {
     load();
-    // Polling (not a real-time push channel) — short enough that a new
-    // notification (leave approved/rejected, a Super Admin's late
-    // check-in alert, etc.) shows up as a toast + updated badge within
-    // ~20s on its own, without the user needing to refresh the page.
-    const interval = setInterval(load, 20000);
-    return () => clearInterval(interval);
   }, []);
+
+  function openNotifications() {
+    setOpen(false);
+    navigate(`${ROLE_BASE_PATH[role] || ""}/notifications`);
+  }
+
+  // Real-time push (see app/notifications/services.py::notify_employee()
+  // -> app/core/realtime.py::broadcast_to_employee_threadsafe()) instead
+  // of polling on a timer — a new notification shows up as a toast the
+  // instant it's written, with no delay to wait out.
+  useNotificationLiveUpdates((n) => {
+    if (seenIdsRef.current.has(n.id)) return;
+    seenIdsRef.current.add(n.id);
+
+    setNotifications((prev) => [n, ...prev]);
+    playNotificationSound();
+
+    const { icon: Icon, className } = typeStyle(n.notification_type);
+    showToast({
+      title: n.title,
+      message: n.message,
+      icon: Icon,
+      iconClassName: className,
+      onClick: openNotifications,
+    });
+    // Only fire the OS-level popup when this tab isn't the one the
+    // person is actually looking at — if they're already on the site,
+    // the toast above is enough and a native popup on top would just be
+    // noisy.
+    if (document.hidden) {
+      showBrowserNotification(n, openNotifications);
+    }
+  });
 
   // "Have I forgotten to check in?" — GET /attendance/reminder-check
   // (see app/attendance/services.py::get_attendance_reminder_status()).
