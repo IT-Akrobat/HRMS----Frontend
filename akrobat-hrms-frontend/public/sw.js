@@ -19,6 +19,15 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+// No offline caching strategy yet -- this handler exists purely to
+// satisfy Chromium's installability criteria, which still requires a
+// registered fetch handler before it will fire beforeinstallprompt /
+// offer "Add to Home Screen", even when the manifest is otherwise
+// valid. See https://developer.chrome.com/blog/update-install-criteria.
+self.addEventListener("fetch", (event) => {
+  event.respondWith(fetch(event.request));
+});
+
 // Fired when a push message arrives from the browser's push service
 // (Chrome/Firefox's servers), which the backend sent via
 // app/core/push.py::send_push(). Payload shape matches what that
