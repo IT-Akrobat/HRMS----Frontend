@@ -188,6 +188,7 @@ export default function Settings() {
         new_password: pwd.next,
       });
       setPwdMsg({ type: "success", text: "Password updated successfully." });
+      setTimeout(() => setPwdMsg({ type: "", text: "" }), 30000);
       setPwd({ current: "", next: "", confirm: "" });
       // Clears the Access Control expiry banner in DashboardLayout right
       // away instead of leaving it up until the next login.

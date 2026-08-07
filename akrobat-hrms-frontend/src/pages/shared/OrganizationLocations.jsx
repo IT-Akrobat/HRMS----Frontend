@@ -49,7 +49,11 @@ const inputCls =
 // adding a new site, defaulting to Singapore if that isn't available).
 // ==========================================================================
 
-function LocationFormModal({ mode, location, onClose, onSaved }) {
+// Exported (not just used internally) so other pages -- e.g. the Super
+// Admin / HR Admin dashboards' "Create Site" quick action -- can open
+// this exact same form in a popup instead of only reachable by
+// navigating to the Organization Locations page.
+export function LocationFormModal({ mode, location, onClose, onSaved }) {
   const isEdit = mode === "edit";
 
   const [form, setForm] = useState(() => ({

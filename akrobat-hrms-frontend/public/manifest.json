@@ -1,0 +1,23 @@
+{
+  "name": "Akrobat HR Management System",
+  "short_name": "Akrobat HRMS",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b1f45",
+  "theme_color": "#0b1f45",
+  "icons": [
+    {
+      "src": "/akrobat-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/akrobat-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

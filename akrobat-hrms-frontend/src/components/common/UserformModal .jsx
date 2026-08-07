@@ -127,21 +127,28 @@ export function FilterDropdown({
   );
 }
 
-// If no real email was ever set for this employee, the backend fills in
-// a placeholder login email built from the employee code itself (e.g.
-// "akr-ins-cw-0002@akrobat.com.sg" — see create_employee() in
-// app/employees/services.py). It should never be prefilled into this
-// editable field as if it were real -- saving the form unchanged would
-// just resubmit the same placeholder, and it reads as "the employee
-// code got appended into my email" to whoever opens Edit. Same rule
-// Employees.jsx's isSystemGeneratedEmail() already applies for the
-// HR/Super-Admin employee list; this modal (Users.jsx / Dashboard.jsx)
-// just never had it.
+// Previously, if no real email was ever set for this employee, the
+// backend filled in a placeholder login email built from the employee
+// code itself (e.g. "akr-ins-cw-0002@akrobat.com.sg"). That's been
+// removed -- email is now required on create (see
+// app/employees/schemas.py EmployeeCreate / create_employee() in
+// app/employees/services.py), so the backend never appends the
+// employee code into the email field.
+//
+// isSystemGeneratedEmail() is kept for older records that still carry
+// one of those legacy code-based addresses from before this change --
+// it's treated as blank when prefilling Edit so it isn't resubmitted
+// as if it were real.
 function isSystemGeneratedEmail(candidateUser) {
   if (!candidateUser?.email || !candidateUser?.employee_id) return false;
   const localPart = candidateUser.email.split("@")[0]?.toLowerCase();
   return localPart === candidateUser.employee_id.toLowerCase();
 }
+
+// Roles that should never appear in the "Reporting Manager" picker --
+// only managerial/admin-type roles belong there (see managerCandidates
+// below). Matches the role_name values seeded in sql/001_schema.sql.
+const NON_MANAGER_ROLES = ["EMPLOYEE", "VIEWER"];
 
 // ==========================================================================
 // Add / Edit modal
@@ -156,6 +163,20 @@ export default function UserFormModal({
 }) {
   const isEdit = mode === "edit";
   const { departments, designations, shifts, roles, users } = refData;
+
+  // SUPER ADMIN is deliberately excluded from the *assignable* role
+  // list on create -- it's not selectable here even for a Super Admin
+  // caller. The one fixed Super Admin login (IT@akrobat.com.sg) is
+  // bootstrapped exclusively via scripts/create_super_admin.py, run
+  // from the backend terminal. `roles` itself (unfiltered) is still
+  // used elsewhere in this app -- e.g. the Users list's filter-by-role
+  // dropdown -- since existing Super Admin accounts still need to be
+  // filterable/visible there. The backend also rejects
+  // role_id=SUPER ADMIN on POST /employees/ regardless of this list, so
+  // this is UX, not the actual guard.
+  const assignableRoles = roles.filter(
+    (r) => r.role_name?.trim().toUpperCase() !== "SUPER ADMIN",
+  );
 
   const [form, setForm] = useState(() => ({
     full_name: user?.full_name || "",
@@ -216,6 +237,23 @@ export default function UserFormModal({
       cancelled = true;
     };
   }, [form.department_id, form.designation_id, isEdit]);
+
+  // Reporting Manager should only offer people who actually manage
+  // others -- SUPER ADMIN / HR / MANAGER-type roles -- not regular
+  // Employee or read-only Viewer accounts. `users` entries only carry
+  // role_name when they came from a per-role fetch (see Users.jsx's
+  // loadUsers() and the Dashboard "Create User" quick action) --
+  // callers that don't tag it will just see an empty list here rather
+  // than silently falling back to "everyone".
+  const managerCandidates = useMemo(
+    () =>
+      users.filter(
+        (u) =>
+          u.id !== user?.id &&
+          !NON_MANAGER_ROLES.includes((u.role_name || "").trim().toUpperCase()),
+      ),
+    [users, user?.id],
+  );
 
   // Designations belong to exactly one department (designations.department_id),
   // so once a department is picked, only show designations under it.
@@ -298,7 +336,7 @@ export default function UserFormModal({
       if (isEdit) {
         const payload = {
           full_name: form.full_name.trim(),
-          email: orUndefined(form.email.trim()),
+          email: form.email.trim(),
           phone: form.phone.trim() || undefined,
           department_id: orUndefined(form.department_id),
           designation_id: orUndefined(form.designation_id),
@@ -317,7 +355,7 @@ export default function UserFormModal({
         // below).
         const payload = {
           full_name: form.full_name.trim(),
-          email: orUndefined(form.email.trim()),
+          email: form.email.trim(),
           phone: form.phone.trim() || undefined,
           department_id: orUndefined(form.department_id),
           designation_id: orUndefined(form.designation_id),
@@ -422,6 +460,52 @@ export default function UserFormModal({
 
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+              Role & Access
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              {!isEdit ? (
+                <Field label="Role" required>
+                  <FilterDropdown
+                    fullWidth
+                    showAllOption={false}
+                    allLabel="Select role"
+                    value={form.role_id}
+                    onChange={(v) => set("role_id", v)}
+                    options={assignableRoles}
+                    getKey={(r) => r.id}
+                    getLabel={(r) => r.role_name}
+                  />
+                </Field>
+              ) : (
+                <Field label="Role">
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                    <Shield size={14} className="text-slate-400 shrink-0" />
+                    <span className="text-sm text-slate-600">
+                      {user?.role_name || "—"}
+                    </span>
+                  </div>
+                  <span className="text-xs text-slate-400 mt-1 block">
+                    Role can only be set when the account is created.
+                  </span>
+                </Field>
+              )}
+              <Field label="Employment Status">
+                <FilterDropdown
+                  fullWidth
+                  showAllOption={false}
+                  allLabel="Select status"
+                  value={form.employment_status}
+                  onChange={(v) => set("employment_status", v)}
+                  options={["Active", "Inactive"]}
+                  getKey={(s) => s}
+                  getLabel={(s) => s}
+                />
+              </Field>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Department & Designation
             </h3>
             <div className="grid grid-cols-2 gap-4">
@@ -486,7 +570,7 @@ export default function UserFormModal({
                   className={inputCls}
                   value={form.email}
                   onChange={(e) => set("email", e.target.value)}
-                  placeholder="john.doe@akrobat.com.sg (optional)"
+                  placeholder="Optional"
                 />
               </Field>
               <Field label="Phone Number">
@@ -515,52 +599,6 @@ export default function UserFormModal({
 
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
-              Role & Access
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              {!isEdit ? (
-                <Field label="Role" required>
-                  <FilterDropdown
-                    fullWidth
-                    showAllOption={false}
-                    allLabel="Select role"
-                    value={form.role_id}
-                    onChange={(v) => set("role_id", v)}
-                    options={roles}
-                    getKey={(r) => r.id}
-                    getLabel={(r) => r.role_name}
-                  />
-                </Field>
-              ) : (
-                <Field label="Role">
-                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                    <Shield size={14} className="text-slate-400 shrink-0" />
-                    <span className="text-sm text-slate-600">
-                      {user?.role_name || "—"}
-                    </span>
-                  </div>
-                  <span className="text-xs text-slate-400 mt-1 block">
-                    Role can only be set when the account is created.
-                  </span>
-                </Field>
-              )}
-              <Field label="Employment Status">
-                <FilterDropdown
-                  fullWidth
-                  showAllOption={false}
-                  allLabel="Select status"
-                  value={form.employment_status}
-                  onChange={(v) => set("employment_status", v)}
-                  options={["Active", "Inactive"]}
-                  getKey={(s) => s}
-                  getLabel={(s) => s}
-                />
-              </Field>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Work Details
             </h3>
             <div className="grid grid-cols-2 gap-4">
@@ -570,7 +608,7 @@ export default function UserFormModal({
                   allLabel="None"
                   value={form.manager_id}
                   onChange={(v) => set("manager_id", v)}
-                  options={users.filter((u) => u.id !== user?.id)}
+                  options={managerCandidates}
                   getKey={(u) => u.id}
                   getLabel={(u) => `${u.full_name} (${u.employee_id})`}
                 />

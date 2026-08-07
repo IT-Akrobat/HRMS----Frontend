@@ -140,15 +140,19 @@ function Field({ label, required, error, children }) {
 const inputCls =
   "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400";
 
-// If HR left "Email" blank when creating an employee, the backend fills
-// in a placeholder login email built from the employee code itself
-// (e.g. "akr-hr-0002@akrobat.com.sg" — see create_employee() in
-// app/employees/services.py). That's fine for Supabase auth, but it
-// should never look like a real email on this form — otherwise it
-// reads as "the employee code auto-appends into the Email field"
-// whenever HR opens Edit on one of these employees. Treat it as blank
-// here instead so HR notices there's no real email on file and can add
-// one, rather than silently keeping the generated code-based address.
+// Previously, if HR left "Email" blank when creating an employee, the
+// backend filled in a placeholder login email built from the employee
+// code itself (e.g. "akr-hr-0002@akrobat.com.sg"). That's been removed
+// -- email is now a required field on create (see
+// app/employees/schemas.py EmployeeCreate / create_employee() in
+// app/employees/services.py), so the backend never appends the
+// employee code into the email field.
+//
+// isSystemGeneratedEmail() is kept for older records that still carry
+// one of those legacy code-based addresses from before this change --
+// it's treated as blank on Edit so HR notices there's no real email on
+// file and can add one, rather than silently keeping the generated
+// code-based address.
 function isSystemGeneratedEmail(employee) {
   if (!employee?.email || !employee?.employee_id) return false;
   const localPart = employee.email.split("@")[0]?.toLowerCase();
@@ -239,6 +243,12 @@ function EmployeeFormModal({
       setError("Please select a role for this employee.");
       return;
     }
+    if (!isEdit && !form.email.trim()) {
+      // Email is required on create now -- the backend no longer
+      // generates a placeholder login email from the employee code.
+      setError("Please enter an email address for this employee.");
+      return;
+    }
 
     const orUndefined = (v) => (v ? v : undefined);
 
@@ -263,9 +273,10 @@ function EmployeeFormModal({
         // No `password` field anymore -- the employee code (based on
         // department) and login password are both generated
         // server-side. See app/employees/services.py create_employee().
+        // `email` is required on create -- validated above.
         const payload = {
           full_name: form.full_name.trim(),
-          email: orUndefined(form.email.trim()),
+          email: form.email.trim(),
           phone: form.phone.trim() || undefined,
           department_id: orUndefined(form.department_id),
           designation_id: orUndefined(form.designation_id),
@@ -418,6 +429,22 @@ function EmployeeFormModal({
               Basic Information
             </h3>
             <div className="grid grid-cols-2 gap-4">
+              {!isEdit && (
+                <Field label="Role" required>
+                  <select
+                    className={inputCls}
+                    value={form.role_id}
+                    onChange={(e) => set("role_id", e.target.value)}
+                  >
+                    <option value="">Select role</option>
+                    {roles.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.role_name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               <Field label="Full Name" required>
                 <input
                   className={inputCls}
@@ -426,13 +453,14 @@ function EmployeeFormModal({
                   placeholder="John Doe"
                 />
               </Field>
-              <Field label="Email Address">
+              <Field label="Email Address" required={!isEdit}>
                 <input
                   type="email"
                   className={inputCls}
                   value={form.email}
                   onChange={(e) => set("email", e.target.value)}
-                  placeholder="john.doe@akrobat.com.sg"
+                  placeholder="john.doe@example.com"
+                  required={!isEdit}
                 />
                 {isEdit && isSystemGeneratedEmail(employee) && (
                   <span className="text-xs text-slate-400 mt-1 block">
@@ -459,22 +487,6 @@ function EmployeeFormModal({
                     them on the next screen to share with the employee.
                   </span>
                 </div>
-              )}
-              {!isEdit && (
-                <Field label="Role" required>
-                  <select
-                    className={inputCls}
-                    value={form.role_id}
-                    onChange={(e) => set("role_id", e.target.value)}
-                  >
-                    <option value="">Select role</option>
-                    {roles.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.role_name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
               )}
             </div>
           </div>
@@ -906,7 +918,20 @@ export default function EmployeesHrAdmin() {
       .catch(() => setShifts([]));
     apiClient
       .get("/roles/")
-      .then((res) => setRoles(asList(res)))
+      .then((res) =>
+        // SUPER ADMIN is deliberately left off this list -- it's not an
+        // assignable role from the Add Employee form. The one fixed Super
+        // Admin login (IT@akrobat.com.sg) is bootstrapped separately via
+        // scripts/create_super_admin.py, run from the backend terminal.
+        // The backend also rejects role_id=SUPER ADMIN on POST /employees/
+        // regardless of what this dropdown offers, so this is UX, not the
+        // actual guard.
+        setRoles(
+          asList(res).filter(
+            (r) => r.role_name?.trim().toUpperCase() !== "SUPER ADMIN",
+          ),
+        ),
+      )
       .catch(() => setRoles([]));
 
     loadEmployees();

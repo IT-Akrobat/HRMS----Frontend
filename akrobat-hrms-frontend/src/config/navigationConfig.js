@@ -140,8 +140,8 @@ export const NAVIGATION_CONFIG = {
       icon: Users,
       children: [
         { label: "Employee List", path: "/hr-admin/employees" },
-        { label: "Add Employee", path: "/hr-admin/employees/add" },
-        { label: "Employee Profile", path: "/hr-admin/employees/profile" },
+        // { label: "Add Employee", path: "/hr-admin/employees/add" },
+        // { label: "Employee Profile", path: "/hr-admin/employees/profile" },
       ],
     },
     {

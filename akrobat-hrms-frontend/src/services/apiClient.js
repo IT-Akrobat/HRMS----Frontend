@@ -129,4 +129,16 @@ export const apiClient = {
   delete: (path, opts) => request(path, { ...opts, method: "DELETE" }),
 };
 
+// For WebSocket connections (see Dashboard.jsx's live-updates socket) —
+// the browser WebSocket API can't attach an Authorization header to the
+// handshake the way fetch() can, so the caller appends this token as a
+// query param instead: `${wsUrl("/ws/dashboard")}?token=${getAuthToken()}`.
+export function getAuthToken() {
+  return getToken();
+}
+
+export function wsUrl(path) {
+  return `${BASE_URL.replace(/^http/, "ws")}${path}`;
+}
+
 export { BASE_URL };

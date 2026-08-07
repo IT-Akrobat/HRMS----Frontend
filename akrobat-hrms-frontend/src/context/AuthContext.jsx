@@ -1,5 +1,9 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { authService } from "../services/authService";
+import {
+  disablePushNotifications,
+  enablePushNotifications,
+} from "../services/pushService";
 
 const AuthContext = createContext(null);
 
@@ -13,6 +17,11 @@ export function AuthProvider({ children }) {
     const token = authService.getToken();
     if (storedUser && token) {
       setUser(storedUser);
+      // Covers reopening the app on a device that granted permission
+      // before but doesn't have an active subscription anymore (e.g.
+      // browser data was cleared) -- enablePushNotifications() itself
+      // no-ops quickly if a subscription already exists.
+      enablePushNotifications();
     }
     setLoading(false);
   }, []);
@@ -23,10 +32,16 @@ export function AuthProvider({ children }) {
       password,
     );
     setUser(loggedInUser);
+    // Fire-and-forget: prompts for notification permission and registers
+    // this device for push (see src/services/pushService.js). Never
+    // blocks or fails the login itself -- a denied prompt or
+    // unsupported browser just means no push, not a broken sign-in.
+    enablePushNotifications();
     return loggedInUser;
   };
 
   const logout = () => {
+    disablePushNotifications();
     authService.logout();
     setUser(null);
   };
