@@ -328,6 +328,16 @@ export default function UserFormModal({
       setError("Please select a role.");
       return;
     }
+    // The backend requires email on create (EmployeeCreate.email is a
+    // mandatory EmailStr — the old "auto-generate a placeholder login
+    // email from the employee code when left blank" flow was removed).
+    // This form never enforced that client-side, so a blank email used
+    // to sail past this point, get submitted as "", and bounce off the
+    // backend's required-email validation with a confusing error.
+    if (!isEdit && !form.email.trim()) {
+      setError("Email is required.");
+      return;
+    }
 
     const orUndefined = (v) => (v ? v : undefined);
 
@@ -336,7 +346,14 @@ export default function UserFormModal({
       if (isEdit) {
         const payload = {
           full_name: form.full_name.trim(),
-          email: form.email.trim(),
+          // Unlike every other optional field below, this used to send
+          // "" instead of omitting the key. On edit, email is optional
+          // (EmployeeUpdate.email is Optional[EmailStr]) — but "" isn't
+          // a valid email either, so leaving this blank (e.g. after the
+          // isSystemGeneratedEmail() reset above) meant Save silently
+          // failed backend validation instead of just leaving the
+          // existing email untouched.
+          email: orUndefined(form.email.trim()),
           phone: form.phone.trim() || undefined,
           department_id: orUndefined(form.department_id),
           designation_id: orUndefined(form.designation_id),
@@ -564,13 +581,13 @@ export default function UserFormModal({
                   placeholder="John Doe"
                 />
               </Field>
-              <Field label="Email Address">
+              <Field label="Email Address" required={!isEdit}>
                 <input
                   type="email"
                   className={inputCls}
                   value={form.email}
                   onChange={(e) => set("email", e.target.value)}
-                  placeholder="Optional"
+                  placeholder="you@company.com"
                 />
               </Field>
               <Field label="Phone Number">

@@ -1336,7 +1336,22 @@ export default function HrAdminDashboard() {
           mode="add"
           refData={addUserRefData}
           onClose={() => setAddUserOpen(false)}
-          onSaved={() => setAddUserOpen(false)}
+          onSaved={() => {
+            setAddUserOpen(false);
+            // Previously this only closed the modal, so "Total Employees"
+            // and the department distribution card kept showing stale
+            // numbers until a full page refresh. Re-pull both, and drop
+            // the cached refData so the next time this modal opens it
+            // re-fetches departments/designations/roles/users fresh
+            // (picking up the just-created user as a possible Reporting
+            // Manager, and any org-data changes made elsewhere).
+            loadStats();
+            apiClient
+              .get("/dashboard/department-distribution")
+              .then((res) => setDeptDistribution(res.departments || []))
+              .catch(() => {});
+            setAddUserRefData(null);
+          }}
         />
       )}
 
@@ -1346,7 +1361,17 @@ export default function HrAdminDashboard() {
         <LocationFormModal
           mode="add"
           onClose={() => setAddSiteOpen(false)}
-          onSaved={() => setAddSiteOpen(false)}
+          onSaved={() => {
+            setAddSiteOpen(false);
+            // Same staleness issue as Create User above: refresh the
+            // "Locations" stat and the locations list immediately instead
+            // of waiting for a manual page refresh.
+            loadStats();
+            apiClient
+              .get("/locations/")
+              .then((res) => setLocations(res.data || []))
+              .catch(() => {});
+          }}
         />
       )}
     </div>
