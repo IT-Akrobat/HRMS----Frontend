@@ -71,7 +71,7 @@ const STATUS_STYLES = {
 // Records/rows-per-page for every view (Daily log / By employee /
 // By department) below the summary cards — keeps the list a fixed,
 // predictable height instead of growing unbounded with the date range.
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 20;
 
 // Excel auto-detects the raw ISO date string ("2026-08-03") and
 // re-parses it as a date/number, which is what was producing the

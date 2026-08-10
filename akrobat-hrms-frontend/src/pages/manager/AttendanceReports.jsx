@@ -6,9 +6,9 @@ import {
   TrendingUp,
   UserX,
   Users,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import { apiClient } from "../../services/apiClient";
@@ -156,6 +156,7 @@ function EmployeeDrilldown({ employee, fromDate, toDate, onClose }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [show, setShow] = useState(false);
 
   useEffect(() => {
     if (!employee) return;
@@ -175,73 +176,133 @@ function EmployeeDrilldown({ employee, fromDate, toDate, onClose }) {
       .finally(() => setLoading(false));
   }, [employee, fromDate, toDate]);
 
+  useEffect(() => {
+    if (!employee) return;
+    const raf = requestAnimationFrame(() => setShow(true));
+    return () => {
+      cancelAnimationFrame(raf);
+      setShow(false);
+    };
+  }, [employee]);
+
+  useEffect(() => {
+    if (!employee) return;
+    function onKeyDown(e) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [employee, onClose]);
+
+  if (!employee) return null;
+
   return (
-    <Modal
-      open={!!employee}
-      onClose={onClose}
-      title={employee?.full_name}
-      subtitle={`Daily attendance · ${formatDate(fromDate)} – ${formatDate(toDate)}`}
-      width="max-w-lg"
-    >
-      {loading ? (
-        <div className="space-y-2">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-10 bg-slate-100 rounded animate-pulse" />
-          ))}
-        </div>
-      ) : error ? (
-        <div className="text-sm text-orange-500 flex items-center gap-2">
-          <AlertTriangle size={14} /> {error}
-        </div>
-      ) : records.length === 0 ? (
-        <p className="text-sm text-slate-400 text-center py-6">
-          No check-in activity recorded in this range.
-        </p>
-      ) : (
-        <div className="space-y-1.5">
-          {records.map((r) => (
-            <div
-              key={r.id}
-              className="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-3 py-2"
-            >
-              <span className="font-medium text-slate-600 w-24 shrink-0">
-                {formatDate(r.attendance_date)}
-              </span>
-              <span
-                className={`shrink-0 font-medium px-2 py-0.5 rounded-full ${
-                  r.status === "Half Day"
-                    ? "text-orange-600 bg-orange-50"
-                    : "text-green-600 bg-green-50"
-                }`}
-              >
-                {r.status}
-              </span>
-              <span className="text-slate-500">
-                {r.check_in_time
-                  ? parseServerDate(r.check_in_time)?.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : "--:--"}{" "}
-                –{" "}
-                {r.check_out_time
-                  ? parseServerDate(r.check_out_time)?.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : "--:--"}
-              </span>
-              <span className="text-slate-400">
-                {formatMinutes(r.working_minutes)}
-              </span>
-              {r.late_minutes > 0 && (
-                <span className="text-orange-500">+{r.late_minutes}m late</span>
-              )}
+    <div className="fixed inset-0 z-50">
+      <div
+        onClick={onClose}
+        className={`absolute inset-0 bg-slate-900/50 transition-opacity duration-200 ${
+          show ? "opacity-100" : "opacity-0"
+        }`}
+      />
+
+      <div
+        className={`absolute inset-y-0 right-0 w-full max-w-lg bg-white shadow-2xl flex flex-col transition-transform duration-200 ease-out ${
+          show ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar person={employee} className="w-12 h-12 rounded-full" />
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-slate-800 truncate">
+                {employee?.full_name}
+              </h2>
+              <p className="text-xs text-slate-500">
+                Daily attendance · {formatDate(fromDate)} – {formatDate(toDate)}
+              </p>
             </div>
-          ))}
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 shrink-0"
+          >
+            <X size={18} />
+          </button>
         </div>
-      )}
-    </Modal>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {loading ? (
+            <div className="space-y-2">
+              {[...Array(4)].map((_, i) => (
+                <div
+                  key={i}
+                  className="h-10 bg-slate-100 rounded animate-pulse"
+                />
+              ))}
+            </div>
+          ) : error ? (
+            <div className="text-sm text-orange-500 flex items-center gap-2">
+              <AlertTriangle size={14} /> {error}
+            </div>
+          ) : records.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6">
+              No check-in activity recorded in this range.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {records.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-3 py-2"
+                >
+                  <span className="font-medium text-slate-600 w-24 shrink-0">
+                    {formatDate(r.attendance_date)}
+                  </span>
+                  <span
+                    className={`shrink-0 font-medium px-2 py-0.5 rounded-full ${
+                      r.status === "Half Day"
+                        ? "text-orange-600 bg-orange-50"
+                        : "text-green-600 bg-green-50"
+                    }`}
+                  >
+                    {r.status}
+                  </span>
+                  <span className="text-slate-500">
+                    {r.check_in_time
+                      ? parseServerDate(r.check_in_time)?.toLocaleTimeString(
+                          [],
+                          {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )
+                      : "--:--"}{" "}
+                    –{" "}
+                    {r.check_out_time
+                      ? parseServerDate(r.check_out_time)?.toLocaleTimeString(
+                          [],
+                          {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )
+                      : "--:--"}
+                  </span>
+                  <span className="text-slate-400">
+                    {formatMinutes(r.working_minutes)}
+                  </span>
+                  {r.late_minutes > 0 && (
+                    <span className="text-orange-500">
+                      +{r.late_minutes}m late
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -46,7 +46,7 @@ function statusFromPct(pct) {
     return { ring: "#DC2626", bg: "bg-red-50", text: "text-red-700" };
   if (pct <= 40)
     return { ring: "#D97706", bg: "bg-amber-50", text: "text-amber-700" };
-  return { ring: "#16A34A", bg: "bg-slate-50", text: "text-slate-500" };
+  return { ring: "#e8eef8", bg: "bg-slate-50", text: "text-slate-500" };
 }
 
 function BalanceRing({ pct, label, photo }) {

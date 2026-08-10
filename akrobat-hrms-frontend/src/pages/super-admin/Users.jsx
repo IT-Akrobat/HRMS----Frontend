@@ -4,7 +4,6 @@ import {
   Building2,
   Calendar,
   Clock,
-  Eye,
   Loader2,
   Mail,
   MapPin,
@@ -18,7 +17,7 @@ import {
   UserCheck,
   Users as UsersIcon,
   UserX,
-  X,
+  X
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
@@ -710,7 +709,7 @@ export default function Users() {
                           title="View"
                           className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                         >
-                          <Eye size={15} />
+                          {/* <Eye size={15} /> */}
                         </button>
                         <button
                           onClick={() =>

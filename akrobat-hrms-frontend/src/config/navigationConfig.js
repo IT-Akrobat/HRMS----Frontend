@@ -158,7 +158,7 @@ export const NAVIGATION_CONFIG = {
       icon: Clock,
       children: [
         { label: "Attendance Overview", path: "/hr-admin/attendance" },
-        { label: "Shift Management", path: "/hr-admin/attendance/shifts" },
+        // { label: "Shift Management", path: "/hr-admin/attendance/shifts" },
         { label: "Attendance Reports", path: "/hr-admin/attendance/reports" },
       ],
     },

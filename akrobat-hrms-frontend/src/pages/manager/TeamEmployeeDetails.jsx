@@ -9,9 +9,9 @@ import {
   Phone,
   Search,
   Users,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import { apiClient } from "../../services/apiClient";
@@ -112,71 +112,119 @@ function DetailRow({ icon: Icon, label, value }) {
 }
 
 function EmployeeDetailModal({ employee, onClose }) {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (!employee) return;
+    const raf = requestAnimationFrame(() => setShow(true));
+    return () => {
+      cancelAnimationFrame(raf);
+      setShow(false);
+    };
+  }, [employee]);
+
+  useEffect(() => {
+    if (!employee) return;
+    function onKeyDown(e) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [employee, onClose]);
+
   if (!employee) return null;
   const statusClass =
     STATUS_STYLE[employee.employment_status] || "bg-slate-100 text-slate-500";
 
   return (
-    <Modal
-      open={!!employee}
-      onClose={onClose}
-      title="Employee Details"
-      width="max-w-xl"
-    >
-      <div className="flex items-center gap-4 pb-4 mb-2 border-b border-slate-100">
-        <Avatar person={employee} className="w-14 h-14 rounded-full text-lg" />
-        <div className="min-w-0">
-          <h4 className="text-base font-semibold text-slate-800 truncate">
-            {employee.full_name}
-          </h4>
-          <p className="text-xs text-slate-400">{employee.employee_id}</p>
+    <div className="fixed inset-0 z-50">
+      <div
+        onClick={onClose}
+        className={`absolute inset-0 bg-slate-900/50 transition-opacity duration-200 ${
+          show ? "opacity-100" : "opacity-0"
+        }`}
+      />
+
+      <div
+        className={`absolute inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl flex flex-col transition-transform duration-200 ease-out ${
+          show ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar person={employee} className="w-12 h-12 rounded-full" />
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-slate-800 truncate">
+                {employee.full_name}
+              </h2>
+              <p className="text-xs text-slate-500">{employee.employee_id}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 shrink-0"
+          >
+            <X size={18} />
+          </button>
         </div>
-        <span
-          className={`ml-auto shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${statusClass}`}
-        >
-          {employee.employment_status || "Active"}
-        </span>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <span
+            className={`inline-flex shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${statusClass}`}
+          >
+            {employee.employment_status || "Active"}
+          </span>
+
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mt-5 mb-1">
+            Contact
+          </p>
+          <DetailRow icon={Mail} label="Email" value={employee.email} />
+          <DetailRow icon={Phone} label="Phone" value={employee.phone} />
+
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mt-4 mb-1">
+            Employment
+          </p>
+          <DetailRow
+            icon={Building2}
+            label="Department"
+            value={employee.departments?.department_name}
+          />
+          <DetailRow
+            icon={Briefcase}
+            label="Designation"
+            value={employee.designations?.designation_name}
+          />
+          <DetailRow
+            icon={Clock}
+            label="Shift"
+            value={employee.shifts?.shift_name}
+          />
+          <DetailRow
+            icon={MapPin}
+            label="Work Location"
+            value={employee.work_location}
+          />
+          <DetailRow
+            icon={Calendar}
+            label="Joining Date"
+            value={
+              employee.joining_date
+                ? `${formatDate(employee.joining_date)} · ${tenure(employee.joining_date)}`
+                : "—"
+            }
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 shrink-0">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
       </div>
-
-      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
-        Contact
-      </p>
-      <DetailRow icon={Mail} label="Email" value={employee.email} />
-      <DetailRow icon={Phone} label="Phone" value={employee.phone} />
-
-      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mt-4 mb-1">
-        Employment
-      </p>
-      <DetailRow
-        icon={Building2}
-        label="Department"
-        value={employee.departments?.department_name}
-      />
-      <DetailRow
-        icon={Briefcase}
-        label="Designation"
-        value={employee.designations?.designation_name}
-      />
-      <DetailRow
-        icon={Clock}
-        label="Shift"
-        value={employee.shifts?.shift_name}
-      />
-      <DetailRow
-        icon={MapPin}
-        label="Work Location"
-        value={employee.work_location}
-      />
-      <DetailRow
-        icon={Calendar}
-        label="Joining Date"
-        value={
-          employee.joining_date
-            ? `${formatDate(employee.joining_date)} · ${tenure(employee.joining_date)}`
-            : "—"
-        }
-      />
-    </Modal>
+    </div>
   );
 }
 
