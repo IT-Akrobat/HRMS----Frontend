@@ -1174,6 +1174,7 @@ import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx-js-style";
 import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
+import { ROLES } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
 import {
@@ -1639,7 +1640,12 @@ export default function MyProfile() {
   }
 
   // ---------------- Upload Document popup ----------------
-  const isSuperAdmin = (role || "").trim().toUpperCase() === "SUPER ADMIN";
+  // `role` here is the frontend-normalized key from AuthContext (e.g.
+  // "super_admin"), not the raw backend role_name ("SUPER ADMIN") — see
+  // normalizeRole() in config/roles.js. Comparing against ROLES.SUPER_ADMIN
+  // (rather than a hardcoded string) keeps this in sync with that file
+  // even if the internal key ever changes.
+  const isSuperAdmin = (role || "").trim().toLowerCase() === ROLES.SUPER_ADMIN;
 
   function openUploadModal() {
     setUploadDraft({
@@ -2175,13 +2181,8 @@ export default function MyProfile() {
             )}
           </div>
 
-          {/* Documents Summary — Employee / Manager / HR Admin only.
-              Super Admin doesn't hold documents of their own, so this
-              card is hidden entirely on their own profile; Super Admin
-              instead views/downloads each user's documents from a
-              dedicated "Documents" section on the User Management >
-              Users view drawer (see UserViewModal in
-              pages/super-admin/Users.jsx). */}
+          {/* Documents Summary card — hidden for Super Admin (see
+              isSuperAdmin above); everyone else still sees it. */}
           {!isSuperAdmin && (
             <div className="bg-white rounded-xl border border-slate-200 p-5">
               <div className="flex items-center justify-between mb-4">

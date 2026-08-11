@@ -1054,6 +1054,7 @@
 // }
 import {
   AlertTriangle,
+  ArrowRight,
   Building2,
   Clock3,
   Loader2,
@@ -1061,10 +1062,14 @@ import {
   LogOut,
   MapPin,
   Megaphone,
+  Pencil,
+  Plus,
   ShieldCheck,
+  Trash2,
   UserCheck,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -1241,6 +1246,16 @@ function formatTime(value) {
   return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
 
+// An announcement is "expired" once today is past its end_date. The
+// Announcements panel keeps showing these (greyed out) instead of hiding
+// them the moment /announcements/active would stop returning them, so
+// Super Admin can still find/edit/delete something that already ended.
+function isAnnouncementExpired(a) {
+  if (!a?.end_date) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return a.end_date < today;
+}
+
 // Colored-circle icon per activity type: check-in = light green,
 // check-out = dark blue, login = blue, logout = orange.
 function LogIcon({ kind }) {
@@ -1292,7 +1307,7 @@ function QuickActionCircle({ to, label, icon: Icon }) {
 // Non-Singapore coordinates fall back to Nominatim automatically, same
 // as before — no behavior change outside Singapore.
 
-export default function HrAdminDashboard() {
+export default function SuperAdminDashboard() {
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -1383,6 +1398,142 @@ export default function HrAdminDashboard() {
   // preload, so this can just toggle straight open.
   const [addSiteOpen, setAddSiteOpen] = useState(false);
 
+  // Create / Edit / Delete Announcement — Super Admin only (this button
+  // and the hover edit/delete controls intentionally don't exist on the
+  // HR Admin / Manager / Employee dashboards, which only read
+  // /announcements/active read-only). Whatever's created/edited/deleted
+  // here shows up for every role automatically since they all hit that
+  // same endpoint — no per-role wiring needed beyond keeping these
+  // controls out of their dashboards.
+  const [announceOpen, setAnnounceOpen] = useState(false);
+  const [announceForm, setAnnounceForm] = useState({
+    title: "",
+    description: "",
+    start_date: "",
+    end_date: "",
+  });
+  const [announceSaving, setAnnounceSaving] = useState(false);
+  const [announceError, setAnnounceError] = useState(null);
+  // null => create mode; an announcement id => editing that announcement.
+  const [editingAnnounceId, setEditingAnnounceId] = useState(null);
+  // id currently mid-delete, so its row can show a spinner/disabled state
+  // instead of letting a double-click fire two DELETE requests.
+  const [deletingAnnounceId, setDeletingAnnounceId] = useState(null);
+
+  function openAnnounce() {
+    // Default start_date to today so the common case (announcement starts
+    // now) doesn't force an extra click — end_date is left blank since it
+    // depends on the announcement.
+    const today = new Date().toISOString().slice(0, 10);
+    setEditingAnnounceId(null);
+    setAnnounceForm({
+      title: "",
+      description: "",
+      start_date: today,
+      end_date: "",
+    });
+    setAnnounceError(null);
+    setAnnounceOpen(true);
+  }
+
+  function openEditAnnounce(a) {
+    setEditingAnnounceId(a.id);
+    setAnnounceForm({
+      title: a.title || "",
+      description: a.description || "",
+      // start_date/end_date come back as "YYYY-MM-DD" from the API, which
+      // is exactly what <input type="date"> expects.
+      start_date: a.start_date || "",
+      end_date: a.end_date || "",
+    });
+    setAnnounceError(null);
+    setAnnounceOpen(true);
+  }
+
+  function refreshAnnouncements() {
+    // Same reasoning as the mount-effect fetch above: fetch every
+    // announcement (not just /active) so expired ones stay visible here,
+    // greyed out, instead of vanishing the moment their end_date passes.
+    return apiClient
+      .get("/announcements/")
+      .then((res) => setAnnouncements(res?.data || []));
+  }
+
+  function submitAnnounce(e) {
+    e.preventDefault();
+    if (!announceForm.title.trim()) {
+      setAnnounceError("Title is required.");
+      return;
+    }
+    // Backend requires both start_date and end_date (see 422 on POST
+    // /announcements/ — "Field required" for both), so validate here
+    // before hitting the API.
+    if (!announceForm.start_date) {
+      setAnnounceError("Start date is required.");
+      return;
+    }
+    if (!announceForm.end_date) {
+      setAnnounceError("End date is required.");
+      return;
+    }
+    if (announceForm.end_date < announceForm.start_date) {
+      setAnnounceError("End date cannot be before start date.");
+      return;
+    }
+    setAnnounceSaving(true);
+    setAnnounceError(null);
+
+    const payload = {
+      title: announceForm.title.trim(),
+      // Backend's description field is required (non-optional str, see
+      // CreateAnnouncementRequest in app/announcements/schemas.py) — a
+      // blank field here used to send `undefined`, which JSON.stringify
+      // drops from the request body entirely, causing a 422 "Field
+      // required" for description. Always send a string, even empty.
+      description: announceForm.description.trim(),
+      start_date: announceForm.start_date,
+      end_date: announceForm.end_date,
+    };
+
+    const request = editingAnnounceId
+      ? apiClient.put(`/announcements/${editingAnnounceId}`, payload)
+      : apiClient.post("/announcements/", payload);
+
+    request
+      .then(() => {
+        setAnnounceOpen(false);
+        setEditingAnnounceId(null);
+        // Re-fetch rather than optimistically prepending/patching in place
+        // — /announcements/active may apply its own filtering/ordering
+        // (e.g. active-date windows), so this keeps the panel consistent
+        // with what other roles will see.
+        return refreshAnnouncements();
+      })
+      .catch((err) => {
+        setAnnounceError(
+          err.message ||
+            (editingAnnounceId
+              ? "Could not update the announcement."
+              : "Could not create the announcement."),
+        );
+      })
+      .finally(() => setAnnounceSaving(false));
+  }
+
+  function deleteAnnounceItem(a) {
+    if (deletingAnnounceId) return;
+    if (!window.confirm(`Delete the announcement "${a.title}"?`)) return;
+
+    setDeletingAnnounceId(a.id);
+    apiClient
+      .delete(`/announcements/${a.id}`)
+      .then(() => refreshAnnouncements())
+      .catch((err) => {
+        window.alert(err.message || "Could not delete the announcement.");
+      })
+      .finally(() => setDeletingAnnounceId(null));
+  }
+
   // Pulled out of the mount effect so it can also be called right after a
   // check-in/out/break action (via CheckInOutCard's onActivityChange) —
   // otherwise Recent Activity only ever reflected whatever was on the page
@@ -1449,8 +1600,12 @@ export default function HrAdminDashboard() {
     loadStats();
     loadLogs();
 
+    // Super Admin sees every announcement here, not just currently-active
+    // ones (see /announcements/active filtering in get_active_announcements)
+    // — expired ones are rendered greyed-out below instead of disappearing,
+    // so admins can still find/edit/delete something that already ended.
     apiClient
-      .get("/announcements/active")
+      .get("/announcements/")
       .then((res) => setAnnouncements(res.data || []))
       .catch(() => setAnnouncements([]));
 
@@ -1604,10 +1759,12 @@ export default function HrAdminDashboard() {
                 <ShieldCheck size={17} className="text-orange-500" /> Recent
                 Activity
               </h3>
-              {/* No "View Audit Logs" link here — that page lives under
-                  /super-admin/security/audit-logs and hr-admin has no
-                  equivalent route (see routes/hrAdminRoutes.jsx), so
-                  linking there would 404 for HR Admins. */}
+              <Link
+                to="/super-admin/security/audit-logs"
+                className="text-xs font-medium text-orange-500 hover:text-orange-600 flex items-center gap-1 shrink-0"
+              >
+                View Audit Logs <ArrowRight size={12} />
+              </Link>
             </div>
 
             {logsLoading ? (
@@ -1711,26 +1868,99 @@ export default function HrAdminDashboard() {
 
           {/* ---------- Announcements ---------- */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 h-72 flex flex-col">
-            <h3 className="font-semibold text-slate-800 flex items-center gap-2 mb-3">
-              <Megaphone size={17} className="text-orange-500" /> Announcements
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <Megaphone size={17} className="text-orange-500" />{" "}
+                Announcements
+              </h3>
+              {/* Create — Super Admin only; this dashboard file is
+                  Super Admin only, so no extra role check is needed here. */}
+              <button
+                onClick={openAnnounce}
+                title="Create announcement"
+                aria-label="Create announcement"
+                className="w-7 h-7 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
             {announcements.length === 0 ? (
-              <p className="text-sm text-slate-400">No active announcements.</p>
+              <p className="text-sm text-slate-400">No announcements yet.</p>
             ) : (
               <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
-                {announcements.slice(0, 3).map((a) => (
-                  <div
-                    key={a.id}
-                    className="bg-orange-50 border border-orange-100 rounded-lg p-2.5"
-                  >
-                    <p className="text-sm font-medium text-slate-800 truncate">
-                      {a.title}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
-                      {a.description}
-                    </p>
-                  </div>
-                ))}
+                {/* Active announcements first, then expired ones (most
+                    recently ended first) — expired stay visible, just
+                    styled differently, instead of disappearing. */}
+                {[...announcements]
+                  .sort((a, b) => {
+                    const aExpired = isAnnouncementExpired(a);
+                    const bExpired = isAnnouncementExpired(b);
+                    if (aExpired !== bExpired) return aExpired ? 1 : -1;
+                    return (b.end_date || "").localeCompare(a.end_date || "");
+                  })
+                  .map((a) => {
+                    const expired = isAnnouncementExpired(a);
+                    return (
+                      <div
+                        key={a.id}
+                        className={
+                          "group relative rounded-lg p-2.5 pr-16 border " +
+                          (expired
+                            ? "bg-slate-50 border-slate-200 opacity-60"
+                            : "bg-orange-50 border-orange-100")
+                        }
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <p
+                            className={
+                              "text-sm font-medium truncate " +
+                              (expired ? "text-slate-500" : "text-slate-800")
+                            }
+                          >
+                            {a.title}
+                          </p>
+                          {expired && (
+                            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
+                              Expired
+                            </span>
+                          )}
+                        </div>
+                        <p
+                          className={
+                            "text-xs mt-0.5 line-clamp-2 " +
+                            (expired ? "text-slate-400" : "text-slate-500")
+                          }
+                        >
+                          {a.description}
+                        </p>
+
+                        {/* Edit / Delete — only appear on hover, Super Admin
+                            only (this whole dashboard file is Super Admin
+                            only). */}
+                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => openEditAnnounce(a)}
+                            title="Edit announcement"
+                            aria-label="Edit announcement"
+                            className="w-6 h-6 rounded-md bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteAnnounceItem(a)}
+                            disabled={deletingAnnounceId === a.id}
+                            title="Delete announcement"
+                            aria-label="Delete announcement"
+                            className="w-6 h-6 rounded-md bg-white border border-red-200 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors shrink-0 disabled:opacity-50"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -1827,6 +2057,140 @@ export default function HrAdminDashboard() {
               .catch(() => {});
           }}
         />
+      )}
+
+      {/* ---------- Create / Edit Announcement modal (Super Admin only) ---------- */}
+      {announceOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">
+                  {editingAnnounceId
+                    ? "Edit Announcement"
+                    : "Create Announcement"}
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Visible to every role on their dashboard.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setAnnounceOpen(false);
+                  setEditingAnnounceId(null);
+                }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={submitAnnounce} className="px-6 py-5 space-y-4">
+              {announceError && (
+                <div className="flex items-start gap-2 rounded-lg bg-orange-50 border border-orange-100 text-orange-600 text-sm px-3 py-2">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                  <span>{announceError}</span>
+                </div>
+              )}
+
+              <label className="block">
+                <span className="text-xs font-medium text-slate-600 mb-1 block">
+                  Title <span className="text-orange-500">*</span>
+                </span>
+                <input
+                  autoFocus
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                  value={announceForm.title}
+                  onChange={(e) =>
+                    setAnnounceForm((f) => ({ ...f, title: e.target.value }))
+                  }
+                  placeholder="Office closed on Aug 15"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-medium text-slate-600 mb-1 block">
+                  Description
+                </span>
+                <textarea
+                  rows={4}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 resize-none"
+                  value={announceForm.description}
+                  onChange={(e) =>
+                    setAnnounceForm((f) => ({
+                      ...f,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="Details for this announcement..."
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-600 mb-1 block">
+                    Start date <span className="text-orange-500">*</span>
+                  </span>
+                  <input
+                    type="date"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                    value={announceForm.start_date}
+                    onChange={(e) =>
+                      setAnnounceForm((f) => ({
+                        ...f,
+                        start_date: e.target.value,
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-600 mb-1 block">
+                    End date <span className="text-orange-500">*</span>
+                  </span>
+                  <input
+                    type="date"
+                    min={announceForm.start_date || undefined}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                    value={announceForm.end_date}
+                    onChange={(e) =>
+                      setAnnounceForm((f) => ({
+                        ...f,
+                        end_date: e.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAnnounceOpen(false);
+                    setEditingAnnounceId(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={announceSaving}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-60"
+                >
+                  {announceSaving
+                    ? editingAnnounceId
+                      ? "Saving…"
+                      : "Publishing…"
+                    : editingAnnounceId
+                      ? "Save changes"
+                      : "Publish"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

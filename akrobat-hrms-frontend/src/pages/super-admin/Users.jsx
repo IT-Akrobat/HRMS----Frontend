@@ -371,9 +371,7 @@ function UserViewModal({ user, users, onClose, onEdit }) {
             </>
           ) : (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-5 mb-1">
-                Documents
-              </h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-5 mb-1"></h3>
 
               {downloadError && (
                 <div className="mt-2 mb-1 text-xs text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2 flex items-center justify-between">
