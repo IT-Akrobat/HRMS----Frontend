@@ -1,121 +1,86 @@
 import {
-  ArrowLeft,
-  Baby,
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
-  HeartHandshake,
-  HeartPulse,
-  Info,
-  Loader2,
-  RefreshCcw,
-  Send,
-  ShieldAlert,
-  ShieldCheck,
-  Umbrella,
-  XCircle,
+    ArrowLeft,
+    Baby,
+    CalendarDays,
+    CheckCircle2,
+    Clock3,
+    HeartHandshake,
+    HeartPulse,
+    Info,
+    Loader2,
+    RefreshCcw,
+    Send,
+    ShieldAlert,
+    ShieldCheck,
+    Umbrella,
+    XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 import DatePicker from "../../components/layout/DatePicker";
+import { ROLE_BASE_PATH } from "../../config/roles";
+import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
 import { toLocalISODate } from "../../utils/date";
 
 // ---------------------------------------------------------------------------
-// Leave types
+// Leave type display metadata (icon / color only — NOT day counts)
 // ---------------------------------------------------------------------------
-// There's no GET /leave-types endpoint exposed yet — only the seeded rows in
-// leave_types (sql/001_schema.sql). CreateLeaveRequest.leave_type is matched
-// server-side via `.strip().upper()` against leave_name, so sending the
-// nicely-cased label below resolves fine without a lookup call. If a
-// /leave-types endpoint gets added later, swap this constant for a fetch.
-const LEAVE_TYPES = [
-  {
-    value: "Casual Leave",
-    label: "Casual Leave",
-    days: 12,
-    icon: Umbrella,
-    color: "text-blue-500 bg-blue-50",
-  },
-  {
-    value: "Sick Leave",
-    label: "Sick Leave",
-    days: 14,
-    icon: ShieldAlert,
-    color: "text-blue-500 bg-blue-50",
-  },
-  {
-    value: "Annual Leave",
-    label: "Annual Leave",
-    days: 18,
-    icon: CalendarDays,
-    color: "text-blue-500 bg-blue-50",
-  },
-  {
-    value: "Emergency Leave",
-    label: "Emergency Leave",
-    days: 5,
-    icon: Clock3,
-    color: "text-orange-500 bg-orange-50",
-  },
-  {
-    value: "Unpaid Leave",
-    label: "Unpaid Leave",
-    days: 0,
-    icon: Info,
-    color: "text-slate-500 bg-slate-100",
-  },
-  {
-    value: "Hospitalisation Leave",
-    label: "Hospitalisation Leave",
-    days: 46,
+// This used to be a single hardcoded LEAVE_TYPES array with a fixed `days`
+// value that was shown to every employee regardless of who they were —
+// which is exactly why Maternity Leave (112 days) used to render for male
+// employees and Paternity Leave for female employees: the UI never asked
+// the backend "is this person even eligible for this leave type, and how
+// many days do THEY specifically have". Eligibility (gender / marital
+// status / nationality / office-vs-field) and entitlement (tier / balance
+// / replacement credits) are per-employee facts that live in the backend
+// policy engine (app/leaves/policy_services.py), so they can only be
+// known after fetching GET /leaves/my-entitlements for the logged-in
+// employee. This map is now purely cosmetic — which icon/color to use for
+// a given leave_name — never which types to show or how many days.
+const LEAVE_TYPE_DISPLAY = {
+  "CASUAL LEAVE": { icon: Umbrella, color: "text-blue-500 bg-blue-50" },
+  "SICK LEAVE": { icon: ShieldAlert, color: "text-blue-500 bg-blue-50" },
+  "ANNUAL LEAVE": { icon: CalendarDays, color: "text-blue-500 bg-blue-50" },
+  "EMERGENCY LEAVE": { icon: Clock3, color: "text-orange-500 bg-orange-50" },
+  "UNPAID LEAVE": { icon: Info, color: "text-slate-500 bg-slate-100" },
+  "HOSPITALISATION LEAVE": {
     icon: HeartPulse,
     color: "text-red-500 bg-red-50",
   },
-  {
-    value: "Replacement Leave",
-    label: "Replacement Leave",
-    days: 0,
-    icon: RefreshCcw,
-    color: "text-teal-500 bg-teal-50",
-  },
-  {
-    value: "Children Leave",
-    label: "Children Leave",
-    days: 6,
-    icon: Baby,
-    color: "text-pink-500 bg-pink-50",
-  },
-  {
-    value: "Compassionate Leave",
-    label: "Compassionate Leave",
-    days: 0,
+  "REPLACEMENT LEAVE": { icon: RefreshCcw, color: "text-teal-500 bg-teal-50" },
+  "CHILDCARE LEAVE": { icon: Baby, color: "text-pink-500 bg-pink-50" },
+  "CHILDREN LEAVE": { icon: Baby, color: "text-pink-500 bg-pink-50" },
+  "COMPASSIONATE LEAVE": {
     icon: HeartHandshake,
     color: "text-purple-500 bg-purple-50",
   },
-  {
-    value: "National Service Leave",
-    label: "National Service Leave",
-    days: 0,
+  "NATIONAL SERVICE LEAVE": {
     icon: ShieldCheck,
     color: "text-green-600 bg-green-50",
   },
-  {
-    value: "Paternity Leave",
-    label: "Paternity Leave",
-    days: 20,
-    icon: Baby,
-    color: "text-blue-500 bg-blue-50",
-  },
-  {
-    value: "Maternity Leave",
-    label: "Maternity Leave",
-    days: 112,
-    icon: Baby,
-    color: "text-pink-500 bg-pink-50",
-  },
-];
+  "PATERNITY LEAVE": { icon: Baby, color: "text-blue-500 bg-blue-50" },
+  "MATERNITY LEAVE": { icon: Baby, color: "text-pink-500 bg-pink-50" },
+};
+
+const DEFAULT_DISPLAY = {
+  icon: CalendarDays,
+  color: "text-slate-500 bg-slate-100",
+};
+
+function displayFor(leaveName) {
+  return LEAVE_TYPE_DISPLAY[(leaveName || "").toUpperCase()] || DEFAULT_DISPLAY;
+}
+
+// Turns "MATERNITY LEAVE" into "Maternity Leave" for the dropdown/labels.
+function toTitleCase(name) {
+  return (name || "")
+    .toLowerCase()
+    .split(" ")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
 
 const STATUS_STYLES = {
   Approved: "bg-blue-50 text-blue-600",
@@ -135,8 +100,16 @@ export default function LeaveApply() {
   const navigate = useNavigate();
   const today = toLocalISODate();
 
+  // This page is mounted once (src/routes/commonRoutes.jsx) and shared by
+  // every role -- Employee, Manager, HR Admin, Super Admin all apply for
+  // their own leave the same way. "Leave History" always means MY leave
+  // history though, which lives under the current role's own base path
+  // (e.g. /manager/leave/history), never a hardcoded /employee/... link.
+  const { role } = useAuth();
+  const leaveHistoryPath = `${ROLE_BASE_PATH[role] || "/employee"}/leave/history`;
+
   const [form, setForm] = useState({
-    leave_type: LEAVE_TYPES[0].value,
+    leave_type: "",
     from_date: "",
     to_date: "",
     reason: "",
@@ -149,11 +122,40 @@ export default function LeaveApply() {
 
   const [allLeaves, setAllLeaves] = useState(null); // null = loading
 
+  // The leave types THIS employee is actually eligible for, each with
+  // their own real total/used/remaining days — fetched fresh from
+  // GET /leaves/my-entitlements (app/leaves/policy_services.py
+  // get_my_leave_entitlements), which runs the eligibility rules
+  // (gender / marital_status / nationality / office-vs-field) before
+  // returning anything. A male employee simply never gets a Maternity
+  // Leave entry back, and vice versa for Paternity Leave — this is
+  // enforced server-side, not filtered/guessed in the UI.
+  const [entitlements, setEntitlements] = useState(null); // null = loading
+  const [entitlementsError, setEntitlementsError] = useState("");
+
   useEffect(() => {
     apiClient
       .get("/leaves/my")
       .then((res) => setAllLeaves(res.data || []))
       .catch(() => setAllLeaves([]));
+
+    apiClient
+      .get("/leaves/my-entitlements")
+      .then((res) => {
+        const data = res.data || [];
+        setEntitlements(data);
+        setForm((prev) =>
+          prev.leave_type
+            ? prev
+            : { ...prev, leave_type: data[0]?.leave_name || "" },
+        );
+      })
+      .catch(() => {
+        setEntitlements([]);
+        setEntitlementsError(
+          "Unable to load your leave entitlements right now.",
+        );
+      });
   }, []);
 
   const recent = useMemo(
@@ -161,35 +163,25 @@ export default function LeaveApply() {
     [allLeaves],
   );
 
-  // Real balance, computed client-side from this employee's own approved
-  // requests this year — there's no GET /leaves/balance endpoint yet (see
-  // note above LEAVE_TYPES), so "remaining" here is Entitlement (the
-  // default_days seeded per leave type) minus days already Approved in
-  // the current calendar year. Pending requests aren't subtracted since
-  // they may still be rejected.
-  const balanceByType = useMemo(() => {
-    const map = {};
-    LEAVE_TYPES.forEach((t) => {
-      map[t.value.toUpperCase()] = 0;
-    });
-    if (allLeaves) {
-      const currentYear = new Date().getFullYear();
-      allLeaves.forEach((r) => {
-        if (r.status !== "Approved") return;
-        if (new Date(r.start_date).getFullYear() !== currentYear) return;
-        const name = (r.leave_types?.leave_name || "").toUpperCase();
-        if (map[name] !== undefined) map[name] += r.total_days || 0;
-      });
-    }
-    return map;
-  }, [allLeaves]);
-
   const totalDays = useMemo(
     () => toDays(form.from_date, form.to_date),
     [form.from_date, form.to_date],
   );
 
-  const selectedType = LEAVE_TYPES.find((t) => t.value === form.leave_type);
+  const selectedType = (entitlements || []).find(
+    (t) => t.leave_name === form.leave_type,
+  );
+
+  // Replacement Leave is credited by HR (one day per public holiday
+  // that fell on a Saturday, see app/leaves/policy_services.py
+  // credit_replacement_leave) and expires 1 year after it's credited.
+  // It already shows up in the leave type dropdown/entitlements panel
+  // like any other type -- this just surfaces it a bit more so the
+  // employee notices it's there and how many days they actually have.
+  const replacementEntitlement = (entitlements || []).find(
+    (t) => t.leave_name === "REPLACEMENT LEAVE",
+  );
+  const replacementDaysAvailable = replacementEntitlement?.remaining_days ?? 0;
 
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -227,16 +219,21 @@ export default function LeaveApply() {
 
       setSuccess(res?.message || "Leave request submitted successfully.");
       setForm({
-        leave_type: LEAVE_TYPES[0].value,
+        leave_type: entitlements?.[0]?.leave_name || "",
         from_date: "",
         to_date: "",
         reason: "",
       });
 
-      // Refresh so "Recent Requests" and the balance card reflect the new one.
+      // Refresh so "Recent Requests" and the entitlements panel reflect
+      // the new (Pending) request's future effect on balances.
       apiClient
         .get("/leaves/my")
         .then((r) => setAllLeaves(r.data || []))
+        .catch(() => {});
+      apiClient
+        .get("/leaves/my-entitlements")
+        .then((r) => setEntitlements(r.data || []))
         .catch(() => {});
     } catch (err) {
       setError(
@@ -254,7 +251,7 @@ export default function LeaveApply() {
         subtitle="Fill in the details below to apply for leave."
         actions={
           <Link
-            to="/employee/leave/history"
+            to={leaveHistoryPath}
             title="Back to My Leaves"
             className="flex items-center gap-1.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 hover:bg-slate-50 transition-colors"
           >
@@ -267,6 +264,27 @@ export default function LeaveApply() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* ---------------- Form ---------------- */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6">
+          {replacementDaysAvailable > 0 &&
+            form.leave_type !== "REPLACEMENT LEAVE" && (
+              <div className="mb-5 flex items-center gap-2.5 bg-teal-50 border border-teal-100 rounded-lg px-3 py-2.5">
+                <RefreshCcw size={16} className="text-teal-600 shrink-0" />
+                <p className="flex-1 text-xs text-teal-700">
+                  <span className="font-semibold">
+                    {replacementDaysAvailable}{" "}
+                    {replacementDaysAvailable === 1 ? "day" : "days"} of
+                    Replacement Leave
+                  </span>{" "}
+                  available to use.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => update("leave_type", "REPLACEMENT LEAVE")}
+                  className="shrink-0 text-xs font-medium text-teal-700 border border-teal-200 rounded-md px-2.5 py-1 hover:bg-teal-100 transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
           {success && (
             <div className="mb-5 flex items-start gap-2 bg-blue-50 border border-blue-100 text-blue-700 text-sm rounded-lg p-3">
               <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
@@ -294,17 +312,38 @@ export default function LeaveApply() {
                   <select
                     value={form.leave_type}
                     onChange={(e) => update("leave_type", e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                    disabled={!entitlements || entitlements.length === 0}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 disabled:bg-slate-50 disabled:text-slate-400"
                   >
-                    {LEAVE_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
+                    {entitlements === null && (
+                      <option value="">Loading leave types…</option>
+                    )}
+                    {entitlements?.length === 0 && (
+                      <option value="">No leave types available</option>
+                    )}
+                    {/* Only leave types this employee is eligible for
+                        appear here — e.g. Maternity Leave is simply
+                        absent from the list for a male employee, rather
+                        than shown and silently ignored. */}
+                    {entitlements?.map((t) => (
+                      <option key={t.leave_type_id} value={t.leave_name}>
+                        {toTitleCase(t.leave_name)}
+                        {t.leave_name === "REPLACEMENT LEAVE"
+                          ? ` — ${t.remaining_days ?? 0} day${
+                              (t.remaining_days ?? 0) === 1 ? "" : "s"
+                            } available`
+                          : ""}
                       </option>
                     ))}
                   </select>
                   {fieldErrors.leave_type && (
                     <p className="text-xs text-orange-500 mt-1">
                       {fieldErrors.leave_type}
+                    </p>
+                  )}
+                  {entitlementsError && (
+                    <p className="text-xs text-orange-500 mt-1">
+                      {entitlementsError}
                     </p>
                   )}
                 </div>
@@ -356,7 +395,7 @@ export default function LeaveApply() {
                 <div className="mt-3 inline-flex items-center gap-2 bg-orange-50 text-orange-700 text-xs font-medium rounded-lg px-3 py-1.5">
                   <CalendarDays size={13} />
                   {totalDays} {totalDays === 1 ? "day" : "days"} of{" "}
-                  {selectedType?.label}
+                  {toTitleCase(selectedType?.leave_name) || form.leave_type}
                 </div>
               )}
             </div>
@@ -394,7 +433,7 @@ export default function LeaveApply() {
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => navigate("/employee/leave/history")}
+                onClick={() => navigate(leaveHistoryPath)}
                 className="px-4 py-2.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Cancel
@@ -420,11 +459,13 @@ export default function LeaveApply() {
 
         {/* ---------------- Sidebar ---------------- */}
         <div className="space-y-6">
-          {/* Leave balance — Entitlement is the leave_types.default_days
-              seed; Used is summed client-side from this employee's own
-              Approved requests this year (see balanceByType above). There's
-              no GET /leaves/balance endpoint yet, so this is the closest
-              real signal available without new backend work. */}
+          {/* Leave entitlements — sourced from GET /leaves/my-entitlements,
+              which only returns leave types this employee is eligible for
+              (see app/leaves/policy_services.py get_my_leave_entitlements).
+              total/used/remaining come from this employee's own
+              leave_balances / tier / replacement-credit rows, never a
+              shared constant, so two employees never see the same numbers
+              here unless their actual entitlement really is the same. */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
             <h3 className="font-semibold text-slate-800 mb-4 text-sm">
               Leave Type Entitlements
@@ -433,34 +474,54 @@ export default function LeaveApply() {
               Used / entitled days, this year
             </p>
             <div className="space-y-3 max-h-64 overflow-y-auto pr-1 scrollbar-hide">
-              {LEAVE_TYPES.map((t) => {
-                const Icon = t.icon;
-                const used = balanceByType[t.value.toUpperCase()] || 0;
-                const remaining = Math.max(t.days - used, 0);
+              {entitlements === null && (
+                <div className="space-y-2">
+                  <div className="h-9 bg-slate-100 rounded animate-pulse" />
+                  <div className="h-9 bg-slate-100 rounded animate-pulse" />
+                  <div className="h-9 bg-slate-100 rounded animate-pulse" />
+                </div>
+              )}
+              {entitlements?.length === 0 && !entitlementsError && (
+                <p className="text-sm text-slate-400">
+                  No leave types configured for your profile yet.
+                </p>
+              )}
+              {entitlements?.map((t) => {
+                const { icon: Icon, color } = displayFor(t.leave_name);
+                const remaining = t.remaining_days ?? 0;
+                const used = t.used_days ?? 0;
                 return (
                   <div
-                    key={t.value}
+                    key={t.leave_type_id}
                     className="flex items-center justify-between gap-2"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${t.color}`}
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${color}`}
                       >
                         <Icon size={15} />
                       </div>
                       <span className="text-sm text-slate-600 truncate">
-                        {t.label}
+                        {toTitleCase(t.leave_name)}
                       </span>
                     </div>
                     <div className="text-right shrink-0">
-                      {t.days > 0 ? (
+                      {t.unlimited ? (
+                        <span className="text-sm font-semibold text-slate-800">
+                          —
+                        </span>
+                      ) : t.tier_not_assigned ? (
+                        <span className="text-[11px] text-slate-400">
+                          Tier not assigned
+                        </span>
+                      ) : (
                         <>
                           <span className="text-sm font-semibold text-slate-800">
-                            {remaining}
+                            {Math.max(remaining, 0)}
                           </span>
                           <span className="text-xs text-slate-400">
                             {" "}
-                            / {t.days} left
+                            / {t.total_days ?? 0} left
                           </span>
                           {used > 0 && (
                             <p className="text-[11px] text-slate-400">
@@ -468,10 +529,6 @@ export default function LeaveApply() {
                             </p>
                           )}
                         </>
-                      ) : (
-                        <span className="text-sm font-semibold text-slate-800">
-                          —
-                        </span>
                       )}
                     </div>
                   </div>
@@ -487,7 +544,7 @@ export default function LeaveApply() {
                 Recent Requests
               </h3>
               <Link
-                to="/employee/leave/history"
+                to={leaveHistoryPath}
                 className="text-xs text-orange-600 font-medium"
               >
                 View All
@@ -543,10 +600,7 @@ export default function LeaveApply() {
             <p className="text-xs text-blue-700">
               All leave requests are subject to your manager's approval. You can
               track the status of this request in{" "}
-              <Link
-                to="/employee/leave/history"
-                className="font-medium underline"
-              >
+              <Link to={leaveHistoryPath} className="font-medium underline">
                 Leave History
               </Link>
               .

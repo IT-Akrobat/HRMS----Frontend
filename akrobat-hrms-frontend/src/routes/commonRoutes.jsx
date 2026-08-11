@@ -19,6 +19,7 @@
 // Add a page here: create the component in ../pages/shared/, import it,
 // add a { path, element } entry — it will automatically be available
 // under /employee, /manager, /hr-admin AND /super-admin.
+import LeaveApply from "../pages/shared/LeaveApply.jsx";
 import MyProfile from "../pages/shared/MyProfile.jsx";
 import Notifications from "../pages/shared/Notifications.jsx";
 import Settings from "../pages/shared/Settings.jsx";
@@ -28,9 +29,17 @@ import Settings from "../pages/shared/Settings.jsx";
 // — account settings and the notification inbox work the same way for any
 // logged-in user — so they're defined once here, same as My Profile, and
 // mounted under every role automatically.
+//
+// Apply Leave moved here for the same reason: HR Admin and Manager users
+// are employees too and previously had no self-service way to apply for
+// their own leave (Replacement Leave included) -- only view/approve
+// pages for their team. It now lives at ../pages/shared/LeaveApply.jsx
+// and builds its own role-aware "back to Leave History" link instead of
+// assuming /employee.
 export const commonRoutes = [
   { path: "profile/personal", element: <MyProfile /> },
   { path: "profile/my-profile", element: <MyProfile /> },
   { path: "settings", element: <Settings /> },
   { path: "notifications", element: <Notifications /> },
+  { path: "leave/apply", element: <LeaveApply /> },
 ];

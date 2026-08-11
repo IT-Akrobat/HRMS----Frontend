@@ -42,7 +42,6 @@ import AttendanceHistory from "../pages/employee/AttendanceHistory.jsx";
 import Dashboard from "../pages/employee/Dashboard.jsx";
 import Documents from "../pages/employee/Documents.jsx";
 import DocumentsDownload from "../pages/employee/DocumentsDownload.jsx";
-import LeaveApply from "../pages/employee/LeaveApply.jsx";
 import LeaveHistory from "../pages/employee/LeaveHistory.jsx";
 import PayrollPayslips from "../pages/employee/PayrollPayslips.jsx";
 import PayrollSalaryDetails from "../pages/employee/PayrollSalaryDetails.jsx";
@@ -65,7 +64,6 @@ export const employeeRoutes = [
   { path: "profile/sites", element: <ProfileSites /> },
   { path: "attendance", element: <Attendance /> },
   { path: "attendance/history", element: <AttendanceHistory /> },
-  { path: "leave/apply", element: <LeaveApply /> },
   { path: "leave/history", element: <LeaveHistory /> },
   // { path: "leave/balance", element: <LeaveBalance /> },
   { path: "documents", element: <Documents /> },

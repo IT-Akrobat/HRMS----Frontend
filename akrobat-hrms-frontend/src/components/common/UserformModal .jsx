@@ -145,7 +145,215 @@ function isSystemGeneratedEmail(candidateUser) {
   return localPart === candidateUser.employee_id.toLowerCase();
 }
 
-// Roles that should never appear in the "Reporting Manager" picker --
+// Full country list for the Nationality field. Only "Singapore" maps
+// to NS Leave eligibility -- every other value here is normalized to
+// "Foreigner" server-side for the leave_eligibility_rules check (see
+// app/leaves/policy_services.py _employee_field_value()), so this can
+// safely be a real country picker instead of a Singaporean/Foreigner
+// binary choice.
+export const COUNTRIES = [
+  "Singapore",
+  "Afghanistan",
+  "Albania",
+  "Algeria",
+  "Andorra",
+  "Angola",
+  "Antigua and Barbuda",
+  "Argentina",
+  "Armenia",
+  "Australia",
+  "Austria",
+  "Azerbaijan",
+  "Bahamas",
+  "Bahrain",
+  "Bangladesh",
+  "Barbados",
+  "Belarus",
+  "Belgium",
+  "Belize",
+  "Benin",
+  "Bhutan",
+  "Bolivia",
+  "Bosnia and Herzegovina",
+  "Botswana",
+  "Brazil",
+  "Brunei",
+  "Bulgaria",
+  "Burkina Faso",
+  "Burundi",
+  "Cabo Verde",
+  "Cambodia",
+  "Cameroon",
+  "Canada",
+  "Central African Republic",
+  "Chad",
+  "Chile",
+  "China",
+  "Colombia",
+  "Comoros",
+  "Congo (Republic of the)",
+  "Congo (DR)",
+  "Costa Rica",
+  "Croatia",
+  "Cuba",
+  "Cyprus",
+  "Czech Republic",
+  "Denmark",
+  "Djibouti",
+  "Dominica",
+  "Dominican Republic",
+  "Ecuador",
+  "Egypt",
+  "El Salvador",
+  "Equatorial Guinea",
+  "Eritrea",
+  "Estonia",
+  "Eswatini",
+  "Ethiopia",
+  "Fiji",
+  "Finland",
+  "France",
+  "Gabon",
+  "Gambia",
+  "Georgia",
+  "Germany",
+  "Ghana",
+  "Greece",
+  "Grenada",
+  "Guatemala",
+  "Guinea",
+  "Guinea-Bissau",
+  "Guyana",
+  "Haiti",
+  "Honduras",
+  "Hong Kong",
+  "Hungary",
+  "Iceland",
+  "India",
+  "Indonesia",
+  "Iran",
+  "Iraq",
+  "Ireland",
+  "Israel",
+  "Italy",
+  "Ivory Coast",
+  "Jamaica",
+  "Japan",
+  "Jordan",
+  "Kazakhstan",
+  "Kenya",
+  "Kiribati",
+  "Kosovo",
+  "Kuwait",
+  "Kyrgyzstan",
+  "Laos",
+  "Latvia",
+  "Lebanon",
+  "Lesotho",
+  "Liberia",
+  "Libya",
+  "Liechtenstein",
+  "Lithuania",
+  "Luxembourg",
+  "Macau",
+  "Madagascar",
+  "Malawi",
+  "Malaysia",
+  "Maldives",
+  "Mali",
+  "Malta",
+  "Marshall Islands",
+  "Mauritania",
+  "Mauritius",
+  "Mexico",
+  "Micronesia",
+  "Moldova",
+  "Monaco",
+  "Mongolia",
+  "Montenegro",
+  "Morocco",
+  "Mozambique",
+  "Myanmar",
+  "Namibia",
+  "Nauru",
+  "Nepal",
+  "Netherlands",
+  "New Zealand",
+  "Nicaragua",
+  "Niger",
+  "Nigeria",
+  "North Korea",
+  "North Macedonia",
+  "Norway",
+  "Oman",
+  "Pakistan",
+  "Palau",
+  "Palestine",
+  "Panama",
+  "Papua New Guinea",
+  "Paraguay",
+  "Peru",
+  "Philippines",
+  "Poland",
+  "Portugal",
+  "Qatar",
+  "Romania",
+  "Russia",
+  "Rwanda",
+  "Saint Kitts and Nevis",
+  "Saint Lucia",
+  "Saint Vincent and the Grenadines",
+  "Samoa",
+  "San Marino",
+  "Sao Tome and Principe",
+  "Saudi Arabia",
+  "Senegal",
+  "Serbia",
+  "Seychelles",
+  "Sierra Leone",
+  "Slovakia",
+  "Slovenia",
+  "Solomon Islands",
+  "Somalia",
+  "South Africa",
+  "South Korea",
+  "South Sudan",
+  "Spain",
+  "Sri Lanka",
+  "Sudan",
+  "Suriname",
+  "Sweden",
+  "Switzerland",
+  "Syria",
+  "Taiwan",
+  "Tajikistan",
+  "Tanzania",
+  "Thailand",
+  "Timor-Leste",
+  "Togo",
+  "Tonga",
+  "Trinidad and Tobago",
+  "Tunisia",
+  "Turkey",
+  "Turkmenistan",
+  "Tuvalu",
+  "Uganda",
+  "Ukraine",
+  "United Arab Emirates",
+  "United Kingdom",
+  "United States",
+  "Uruguay",
+  "Uzbekistan",
+  "Vanuatu",
+  "Vatican City",
+  "Venezuela",
+  "Vietnam",
+  "Yemen",
+  "Zambia",
+  "Zimbabwe",
+  "Other",
+];
+
 // only managerial/admin-type roles belong there (see managerCandidates
 // below). Matches the role_name values seeded in sql/001_schema.sql.
 const NON_MANAGER_ROLES = ["EMPLOYEE", "VIEWER"];
@@ -190,9 +398,139 @@ export default function UserFormModal({
     joining_date: user?.joining_date || "",
     employment_status: user?.employment_status || "Active",
     work_location: user?.work_location || "",
+    // Leave policy engine fields (see app/leaves/policy_services.py).
+    // Annual Leave tier is required for every user/employee; Childcare
+    // Leave tier only matters for those who pass the CHILDCARE LEAVE
+    // eligibility rule (married). Neither comes back from GET
+    // /employees/ (they live in employee_leave_tier, not on the
+    // employees row), so on Edit these always start blank -- leaving
+    // them blank leaves the existing assignment untouched.
+    annual_leave_tier_id: "",
+    childcare_leave_tier_id: "",
+    working_days_per_week: user?.working_days_per_week || 5,
+    // Eligibility inputs for the leave policy engine (see
+    // app/leaves/policy_services.py evaluate_leave_eligibility() /
+    // leave_eligibility_rules seed). These used to only be settable
+    // later from the employee's own "My Profile", which meant HR had
+    // no way to see Paternity/Maternity/Childcare eligibility (or set
+    // Nationality correctly for the NS Leave rule) at the point the
+    // account is actually created. Prefilled from `user` on Edit since
+    // GET /employees/ returns these columns directly (employees.*).
+    gender: user?.gender || "",
+    marital_status: user?.marital_status || "",
+    // Free-text country names used to be a problem here because the
+    // eligibility rule is seeded as field=nationality, value='Foreigner'
+    // (an exact, case-insensitive string match -- see
+    // _employee_field_value() / evaluate_leave_eligibility()). This is
+    // now a full country picker (see COUNTRIES below); the backend
+    // normalizes anything other than "Singapore" to "Foreigner" before
+    // running that match, so only Singapore nationals are eligible for
+    // National Service Leave.
+    nationality: user?.nationality || "",
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  // Tier options for the Annual Leave / Childcare Leave dropdowns --
+  // see app/leaves/policy_services.py get_tiers_for_leave_type() /
+  // leave_policy_tiers seed (Annual: 21/20/14/11/10, Childcare: 6/2).
+  // Fetched here (rather than expected on refData) so every caller of
+  // this shared modal -- Users.jsx, and the "Add New User" quick
+  // actions on the Super Admin / HR Admin dashboards -- gets it for
+  // free without having to fetch and thread it through separately.
+  const [annualLeaveTiers, setAnnualLeaveTiers] = useState([]);
+  const [childcareLeaveTiers, setChildcareLeaveTiers] = useState([]);
+  // Previously a failed fetch here (wrong/missing auth, migration
+  // 026.sql not yet applied so ANNUAL LEAVE has no rows in
+  // leave_policy_tiers, etc.) was swallowed by `.catch(() => [])` --
+  // the dropdown just rendered with a "Select tier" placeholder and no
+  // options, which is indistinguishable from "still loading" or "there
+  // are genuinely no tiers." This surfaces which one it actually is.
+  const [tiersError, setTiersError] = useState(null);
+  const [tiersLoading, setTiersLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTiersLoading(true);
+    setTiersError(null);
+
+    Promise.all([
+      apiClient.get(
+        `/leaves/policy/tiers/${encodeURIComponent("ANNUAL LEAVE")}`,
+      ),
+      apiClient.get(
+        `/leaves/policy/tiers/${encodeURIComponent("CHILDCARE LEAVE")}`,
+      ),
+    ])
+      .then(([annualRes, childcareRes]) => {
+        if (cancelled) return;
+        setAnnualLeaveTiers(annualRes?.data || []);
+        setChildcareLeaveTiers(childcareRes?.data || []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setAnnualLeaveTiers([]);
+        setChildcareLeaveTiers([]);
+        setTiersError(
+          err?.message ||
+            "Could not load leave tiers. Confirm migration 026.sql has run and try again.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setTiersLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Childcare Leave tier is only shown once we know the user is
+  // eligible (married) -- see leave_eligibility_rules seed: CHILDCARE
+  // LEAVE -> marital_status=Single -> false.
+  //
+  // Marital Status is now a field on this form itself (see form state
+  // above), so eligibility can be computed live the moment HR picks
+  // it -- on Create *and* Edit -- instead of waiting on a server round
+  // trip that (on Create) had no employee_id to check against yet.
+  // `apiChildcareEligible` is kept purely as a fallback for Edit: an
+  // existing employee record that predates this field and has no
+  // marital_status saved yet still gets the real answer from the
+  // eligibility endpoint until HR fills the field in on this form.
+  const [apiChildcareEligible, setApiChildcareEligible] = useState(
+    isEdit ? null : true,
+  );
+
+  useEffect(() => {
+    if (!isEdit || !user?.id) return;
+    let cancelled = false;
+    apiClient
+      .get(
+        `/leaves/policy/eligibility/${user.id}/${encodeURIComponent("CHILDCARE LEAVE")}`,
+      )
+      .then((res) => {
+        if (!cancelled) setApiChildcareEligible(!!res?.data?.eligible);
+      })
+      .catch(() => {
+        if (!cancelled) setApiChildcareEligible(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, user?.id]);
+
+  // Real eligibility used by the render below. Marital Status is now a
+  // closed Single/Married choice (see options below), so this is a
+  // direct check rather than "not Single" -- Childcare Leave tier only
+  // shows once Married is actually picked, not by default while
+  // nothing's been chosen yet. Falls back to the server check only on
+  // Edit, for an existing record that predates this field and has no
+  // marital_status saved yet.
+  const childcareEligible = form.marital_status
+    ? form.marital_status === "Married"
+    : isEdit
+      ? apiChildcareEligible
+      : false;
 
   // Password and employee code are both auto-generated by the backend
   // (see app/employees/services.py create_employee) — never typed in by
@@ -338,6 +676,29 @@ export default function UserFormModal({
       setError("Email is required.");
       return;
     }
+    if (!isEdit && !form.annual_leave_tier_id) {
+      // Every employee must be on one of the Annual Leave tiers
+      // (21/20/14/11/10 days) -- required on EmployeeCreate.
+      setError("Please select an Annual Leave tier for this user.");
+      return;
+    }
+    // Gender / Marital Status / Nationality feed the leave eligibility
+    // engine (Paternity, Maternity, Childcare, National Service Leave)
+    // -- required up front on create so eligibility is correct from
+    // day one instead of depending on the employee filling in "My
+    // Profile" later.
+    if (!isEdit && !form.gender) {
+      setError("Please select a gender for this user.");
+      return;
+    }
+    if (!isEdit && !form.marital_status) {
+      setError("Please select a marital status for this user.");
+      return;
+    }
+    if (!isEdit && !form.nationality) {
+      setError("Please select a nationality for this user.");
+      return;
+    }
 
     const orUndefined = (v) => (v ? v : undefined);
 
@@ -362,6 +723,16 @@ export default function UserFormModal({
           joining_date: orUndefined(form.joining_date),
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
+          // Only sent if something was actually picked -- omitting
+          // these leaves the user's existing tier assignment untouched
+          // rather than clearing it (see app/employees/services.py
+          // update_employee()).
+          annual_leave_tier_id: orUndefined(form.annual_leave_tier_id),
+          childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
+          working_days_per_week: form.working_days_per_week,
+          gender: orUndefined(form.gender),
+          marital_status: orUndefined(form.marital_status),
+          nationality: orUndefined(form.nationality),
         };
         await apiClient.put(`/employees/${user.id}`, payload);
         onSaved();
@@ -382,6 +753,12 @@ export default function UserFormModal({
           joining_date: orUndefined(form.joining_date),
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
+          annual_leave_tier_id: form.annual_leave_tier_id,
+          childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
+          working_days_per_week: form.working_days_per_week,
+          gender: form.gender,
+          marital_status: form.marital_status,
+          nationality: form.nationality,
         };
         const res = await apiClient.post("/employees/", payload);
         setCredentials({
@@ -616,6 +993,57 @@ export default function UserFormModal({
 
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+              Personal Details
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Gender" required={!isEdit}>
+                <FilterDropdown
+                  fullWidth
+                  showAllOption={false}
+                  allLabel="Select gender"
+                  value={form.gender}
+                  onChange={(v) => set("gender", v)}
+                  options={["Male", "Female", "Other"]}
+                  getKey={(g) => g}
+                  getLabel={(g) => g}
+                />
+              </Field>
+              <Field label="Marital Status" required={!isEdit}>
+                <FilterDropdown
+                  fullWidth
+                  showAllOption={false}
+                  allLabel="Select marital status"
+                  value={form.marital_status}
+                  onChange={(v) => set("marital_status", v)}
+                  options={["Single", "Married"]}
+                  getKey={(m) => m}
+                  getLabel={(m) => m}
+                />
+                <span className="text-xs text-slate-400 mt-1 block">
+                  Drives Paternity / Maternity / Childcare Leave eligibility —
+                  Single is not eligible for any of them.
+                </span>
+              </Field>
+              <Field label="Nationality" required={!isEdit}>
+                <FilterDropdown
+                  fullWidth
+                  showAllOption={false}
+                  allLabel="Select nationality"
+                  value={form.nationality}
+                  onChange={(v) => set("nationality", v)}
+                  options={COUNTRIES}
+                  getKey={(n) => n}
+                  getLabel={(n) => n}
+                />
+                <span className="text-xs text-slate-400 mt-1 block">
+                  Foreigners are not eligible for National Service Leave.
+                </span>
+              </Field>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Work Details
             </h3>
             <div className="grid grid-cols-2 gap-4">
@@ -667,6 +1095,92 @@ export default function UserFormModal({
                   placeholder="Singapore Office"
                 />
               </Field>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+              Leave Policy
+            </h3>
+            {tiersError && (
+              <div className="mb-3 flex items-start gap-2 rounded-lg bg-orange-50 border border-orange-100 text-orange-600 text-xs px-3 py-2">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <span>{tiersError}</span>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Annual Leave Tier" required={!isEdit}>
+                {tiersLoading ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400">
+                    <Loader2 size={14} className="animate-spin shrink-0" />
+                    Loading tiers…
+                  </div>
+                ) : (
+                  <FilterDropdown
+                    fullWidth
+                    showAllOption={false}
+                    allLabel={
+                      isEdit
+                        ? "Keep current tier"
+                        : annualLeaveTiers.length
+                          ? "Select tier"
+                          : "No tiers available"
+                    }
+                    value={form.annual_leave_tier_id}
+                    onChange={(v) => set("annual_leave_tier_id", v)}
+                    options={annualLeaveTiers}
+                    getKey={(t) => t.id}
+                    getLabel={(t) => `${t.tier_name} (${t.days} days)`}
+                  />
+                )}
+              </Field>
+              <Field label="Working Days / Week">
+                <FilterDropdown
+                  fullWidth
+                  showAllOption={false}
+                  allLabel="Select"
+                  value={form.working_days_per_week}
+                  onChange={(v) => set("working_days_per_week", Number(v))}
+                  options={[5, 5.5, 6]}
+                  getKey={(d) => d}
+                  getLabel={(d) => `${d} days`}
+                />
+                <span className="text-xs text-slate-400 mt-1 block">
+                  Used by payroll to calculate the Unpaid Leave deduction.
+                </span>
+              </Field>
+              {childcareEligible !== false && (
+                <Field label="Childcare Leave Tier">
+                  {tiersLoading ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400">
+                      <Loader2 size={14} className="animate-spin shrink-0" />
+                      Loading tiers…
+                    </div>
+                  ) : (
+                    <FilterDropdown
+                      fullWidth
+                      showAllOption={false}
+                      allLabel={isEdit ? "Keep current tier" : "Not applicable"}
+                      value={form.childcare_leave_tier_id}
+                      onChange={(v) => set("childcare_leave_tier_id", v)}
+                      options={childcareLeaveTiers}
+                      getKey={(t) => t.id}
+                      getLabel={(t) => `${t.tier_name} (${t.days} days)`}
+                    />
+                  )}
+                  <span className="text-xs text-slate-400 mt-1 block">
+                    {isEdit
+                      ? "Only applied if the user is married."
+                      : "Only applies to married employees — leave blank otherwise, it's silently ignored if they're not eligible."}
+                  </span>
+                </Field>
+              )}
+              {childcareEligible === false && (
+                <div className="col-span-2 text-xs text-slate-400">
+                  Childcare Leave tier hidden — this user isn't eligible (must
+                  be married).
+                </div>
+              )}
             </div>
           </div>
         </form>

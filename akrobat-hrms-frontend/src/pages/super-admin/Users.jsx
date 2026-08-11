@@ -4,6 +4,8 @@ import {
   Building2,
   Calendar,
   Clock,
+  Download,
+  FileText,
   Loader2,
   Mail,
   MapPin,
@@ -17,7 +19,7 @@ import {
   UserCheck,
   Users as UsersIcon,
   UserX,
-  X
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
@@ -26,6 +28,7 @@ import UserFormModal, {
   FilterDropdown,
 } from "../../components/common/UserformModal ";
 import { apiClient } from "../../services/apiClient";
+import { documentsService } from "../../services/documentsService";
 
 // ---------------------------------------------------------------------
 // Master account list across EVERY role (Super Admin, HR Admin, HR
@@ -162,6 +165,52 @@ function DetailRow({ icon: Icon, label, value }) {
 
 function UserViewModal({ user, users, onClose, onEdit }) {
   const [show, setShow] = useState(false);
+  const [activeSection, setActiveSection] = useState("details");
+
+  // ---- Documents uploaded by this user (Super Admin view only) ----
+  // GET /documents/employee/{employee_id} — Super Admin always has
+  // VIEW_DOCUMENTS implicitly, so this returns every document this
+  // specific employee has uploaded, regardless of who's viewing.
+  const [documents, setDocuments] = useState([]);
+  const [docsLoading, setDocsLoading] = useState(true);
+  const [docsError, setDocsError] = useState("");
+  const [downloadingDocId, setDownloadingDocId] = useState(null);
+  const [downloadError, setDownloadError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setDocsLoading(true);
+    setDocsError("");
+    documentsService
+      .getForEmployee(user.id)
+      .then((docs) => {
+        if (!cancelled) setDocuments(docs || []);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setDocuments([]);
+          setDocsError(err.message || "Could not load documents.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDocsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user.id]);
+
+  async function handleDownloadDocument(doc) {
+    setDownloadError("");
+    setDownloadingDocId(doc.id);
+    try {
+      await documentsService.downloadFile(doc.id, doc.document_name);
+    } catch (err) {
+      setDownloadError(err.message || "Could not download that document.");
+    } finally {
+      setDownloadingDocId(null);
+    }
+  }
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setShow(true));
@@ -202,12 +251,21 @@ function UserViewModal({ user, users, onClose, onEdit }) {
               <p className="text-xs text-slate-500">{user.employee_id}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 shrink-0"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={onEdit}
+              title="Edit"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-orange-50 hover:text-orange-500"
+            >
+              <Pencil size={16} />
+            </button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -226,75 +284,150 @@ function UserViewModal({ user, users, onClose, onEdit }) {
             >
               {user.employment_status}
             </span>
+            {/* Clicking this switches the drawer body to a dedicated
+                Documents section instead of navigating away — see
+                activeSection below. */}
+            <button
+              onClick={() =>
+                setActiveSection((s) =>
+                  s === "documents" ? "details" : "documents",
+                )
+              }
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                activeSection === "documents"
+                  ? "bg-orange-500 border-orange-500 text-white"
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <FileText size={12} />
+              Documents
+              {!docsLoading && documents.length > 0 && (
+                <span
+                  className={`ml-0.5 text-[10px] font-semibold ${
+                    activeSection === "documents"
+                      ? "text-white/90"
+                      : "text-slate-400"
+                  }`}
+                >
+                  {documents.length}
+                </span>
+              )}
+            </button>
           </div>
 
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-5 mb-1">
-              Contact
-            </h3>
-            <div className="divide-y divide-slate-50">
-              <DetailRow icon={Mail} label="Email" value={user.email} />
-              <DetailRow icon={Phone} label="Phone" value={user.phone} />
+          {activeSection === "details" ? (
+            <>
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-5 mb-1">
+                  Contact
+                </h3>
+                <div className="divide-y divide-slate-50">
+                  <DetailRow icon={Mail} label="Email" value={user.email} />
+                  <DetailRow icon={Phone} label="Phone" value={user.phone} />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-5 mb-1">
+                  Work Details
+                </h3>
+                <div className="divide-y divide-slate-50">
+                  <DetailRow
+                    icon={Building2}
+                    label="Department"
+                    value={user.departments?.department_name}
+                  />
+                  <DetailRow
+                    icon={Briefcase}
+                    label="Designation"
+                    value={user.designations?.designation_name}
+                  />
+                  <DetailRow
+                    icon={UserCheck}
+                    label="Reporting Manager"
+                    value={
+                      manager
+                        ? `${manager.full_name} (${manager.employee_id})`
+                        : "—"
+                    }
+                  />
+                  <DetailRow
+                    icon={Clock}
+                    label="Shift"
+                    value={user.shifts?.shift_name}
+                  />
+                  <DetailRow
+                    icon={MapPin}
+                    label="Work Location"
+                    value={user.work_location}
+                  />
+                  <DetailRow
+                    icon={Calendar}
+                    label="Joining Date"
+                    value={formatDate(user.joining_date)}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-5 mb-1">
+                Documents
+              </h3>
+
+              {downloadError && (
+                <div className="mt-2 mb-1 text-xs text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2 flex items-center justify-between">
+                  <span>{downloadError}</span>
+                  <button
+                    onClick={() => setDownloadError("")}
+                    className="text-orange-400 hover:text-orange-600"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+
+              {docsLoading ? (
+                <div className="h-14 mt-2 bg-slate-50 rounded-lg animate-pulse" />
+              ) : docsError ? (
+                <p className="text-sm text-slate-400 py-2">{docsError}</p>
+              ) : documents.length === 0 ? (
+                <p className="text-sm text-slate-400 py-2">
+                  No documents uploaded yet.
+                </p>
+              ) : (
+                <ul className="divide-y divide-slate-50">
+                  {documents.map((doc) => (
+                    <li key={doc.id} className="flex items-center gap-3 py-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
+                        <FileText size={14} className="text-slate-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm text-slate-700 truncate">
+                          {doc.document_name}
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {doc.document_type}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDownloadDocument(doc)}
+                        disabled={downloadingDocId === doc.id}
+                        title="Download"
+                        className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-60"
+                      >
+                        {downloadingDocId === doc.id ? (
+                          <Loader2 size={15} className="animate-spin" />
+                        ) : (
+                          <Download size={15} />
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          </div>
-
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-5 mb-1">
-              Work Details
-            </h3>
-            <div className="divide-y divide-slate-50">
-              <DetailRow
-                icon={Building2}
-                label="Department"
-                value={user.departments?.department_name}
-              />
-              <DetailRow
-                icon={Briefcase}
-                label="Designation"
-                value={user.designations?.designation_name}
-              />
-              <DetailRow
-                icon={UserCheck}
-                label="Reporting Manager"
-                value={
-                  manager
-                    ? `${manager.full_name} (${manager.employee_id})`
-                    : "—"
-                }
-              />
-              <DetailRow
-                icon={Clock}
-                label="Shift"
-                value={user.shifts?.shift_name}
-              />
-              <DetailRow
-                icon={MapPin}
-                label="Work Location"
-                value={user.work_location}
-              />
-              <DetailRow
-                icon={Calendar}
-                label="Joining Date"
-                value={formatDate(user.joining_date)}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 shrink-0">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-          >
-            Close
-          </button>
-          <button
-            onClick={onEdit}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 flex items-center gap-2"
-          >
-            <Pencil size={14} />
-            Edit
-          </button>
+          )}
         </div>
       </div>
     </div>
@@ -769,6 +902,23 @@ export default function Users() {
         )}
       </div>
 
+      {viewing && (
+        <UserViewModal
+          user={viewing}
+          users={users}
+          onClose={() => setViewing(null)}
+          onEdit={() => {
+            // Keep the view drawer open behind the edit popup — only
+            // the edit form should appear on top, not replace it.
+            setFormState({ mode: "edit", user: viewing });
+          }}
+        />
+      )}
+
+      {/* Rendered AFTER the view drawer so that when both are open
+          (editing from within the view drawer) the edit popup stacks
+          on top of it — both share the same z-50, and later markup
+          wins the stacking order. */}
       {formState && (
         <UserFormModal
           mode={formState.mode}
@@ -778,19 +928,6 @@ export default function Users() {
           onSaved={() => {
             setFormState(null);
             loadUsers(roles);
-          }}
-        />
-      )}
-
-      {viewing && (
-        <UserViewModal
-          user={viewing}
-          users={users}
-          onClose={() => setViewing(null)}
-          onEdit={() => {
-            const u = viewing;
-            setViewing(null);
-            setFormState({ mode: "edit", user: u });
           }}
         />
       )}

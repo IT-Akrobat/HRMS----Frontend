@@ -134,7 +134,14 @@ function EmployeeFormModal({
   onSaved,
 }) {
   const isEdit = mode === "edit";
-  const { departments, designations, shifts, employees } = refData;
+  const {
+    departments,
+    designations,
+    shifts,
+    employees,
+    annualLeaveTiers,
+    childcareLeaveTiers,
+  } = refData;
 
   const [form, setForm] = useState(() => ({
     full_name: employee?.full_name || "",
@@ -148,9 +155,47 @@ function EmployeeFormModal({
     joining_date: employee?.joining_date || "",
     employment_status: employee?.employment_status || "Active",
     work_location: employee?.work_location || "",
+    // Leave policy engine fields (see app/leaves/policy_services.py).
+    // Annual Leave tier is required for every employee; Childcare Leave
+    // tier only matters for employees who pass the CHILDCARE LEAVE
+    // eligibility rule (married). Neither is returned by GET
+    // /employees/ (they live in employee_leave_tier, not on the
+    // employees row), so on Edit these always start blank -- leaving
+    // them blank leaves the existing assignment untouched.
+    annual_leave_tier_id: "",
+    childcare_leave_tier_id: "",
+    working_days_per_week: employee?.working_days_per_week || 5,
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  // Childcare Leave tier is only shown once we know the employee is
+  // eligible (married) -- see leave_eligibility_rules seed:
+  // CHILDCARE LEAVE -> marital_status=Single -> false. On Edit we can
+  // check the real rule via the API since the employee already exists.
+  // On Create there's no employee_id yet to check against, so the
+  // field is shown as optional with a note instead of being hidden.
+  const [childcareEligible, setChildcareEligible] = useState(
+    isEdit ? null : true,
+  );
+
+  useEffect(() => {
+    if (!isEdit || !employee?.id) return;
+    let cancelled = false;
+    apiClient
+      .get(
+        `/leaves/policy/eligibility/${employee.id}/${encodeURIComponent("CHILDCARE LEAVE")}`,
+      )
+      .then((res) => {
+        if (!cancelled) setChildcareEligible(!!res?.data?.eligible);
+      })
+      .catch(() => {
+        if (!cancelled) setChildcareEligible(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, employee?.id]);
 
   function set(key, value) {
     setForm((f) => {
@@ -219,6 +264,12 @@ function EmployeeFormModal({
       );
       return;
     }
+    if (!isEdit && !form.annual_leave_tier_id) {
+      // Every employee must be on one of the Annual Leave tiers
+      // (21/20/14/11/10 days) -- required on EmployeeCreate.
+      setError("Please select an Annual Leave tier for this employee.");
+      return;
+    }
 
     const orUndefined = (v) => (v ? v : undefined);
 
@@ -236,6 +287,13 @@ function EmployeeFormModal({
           joining_date: orUndefined(form.joining_date),
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
+          // Only sent if something was actually picked -- omitting
+          // these leaves the employee's existing tier assignment
+          // untouched rather than clearing it (see
+          // app/employees/services.py update_employee()).
+          annual_leave_tier_id: orUndefined(form.annual_leave_tier_id),
+          childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
+          working_days_per_week: form.working_days_per_week,
         };
         await apiClient.put(`/employees/${employee.id}`, payload);
       } else {
@@ -252,6 +310,9 @@ function EmployeeFormModal({
           joining_date: orUndefined(form.joining_date),
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
+          annual_leave_tier_id: form.annual_leave_tier_id,
+          childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
+          working_days_per_week: form.working_days_per_week,
         };
         await apiClient.post("/employees/", payload);
       }
@@ -447,6 +508,77 @@ function EmployeeFormModal({
               </p>
             )}
           </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+              Leave Policy
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Annual Leave Tier" required={!isEdit}>
+                <select
+                  className={inputCls}
+                  value={form.annual_leave_tier_id}
+                  onChange={(e) => set("annual_leave_tier_id", e.target.value)}
+                >
+                  <option value="">
+                    {isEdit ? "Keep current tier" : "Select tier"}
+                  </option>
+                  {annualLeaveTiers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.tier_name} ({t.days} days)
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Working Days / Week">
+                <select
+                  className={inputCls}
+                  value={form.working_days_per_week}
+                  onChange={(e) =>
+                    set("working_days_per_week", Number(e.target.value))
+                  }
+                >
+                  <option value={5}>5 days</option>
+                  <option value={5.5}>5.5 days</option>
+                  <option value={6}>6 days</option>
+                </select>
+                <span className="text-xs text-slate-400 mt-1 block">
+                  Used by payroll to calculate the Unpaid Leave deduction.
+                </span>
+              </Field>
+              {childcareEligible !== false && (
+                <Field label="Childcare Leave Tier">
+                  <select
+                    className={inputCls}
+                    value={form.childcare_leave_tier_id}
+                    onChange={(e) =>
+                      set("childcare_leave_tier_id", e.target.value)
+                    }
+                  >
+                    <option value="">
+                      {isEdit ? "Keep current tier" : "Not applicable"}
+                    </option>
+                    {childcareLeaveTiers.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.tier_name} ({t.days} days)
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-xs text-slate-400 mt-1 block">
+                    {isEdit
+                      ? "Only applied if the employee is married."
+                      : "Only applies to married employees — leave blank otherwise, it's silently ignored if they're not eligible."}
+                  </span>
+                </Field>
+              )}
+              {childcareEligible === false && (
+                <div className="col-span-2 text-xs text-slate-400">
+                  Childcare Leave tier hidden — this employee isn't eligible
+                  (must be married).
+                </div>
+              )}
+            </div>
+          </div>
         </form>
 
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100">
@@ -613,6 +745,8 @@ export default function EmployeesHrAdmins() {
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [shifts, setShifts] = useState([]);
+  const [annualLeaveTiers, setAnnualLeaveTiers] = useState([]);
+  const [childcareLeaveTiers, setChildcareLeaveTiers] = useState([]);
 
   // Roles aren't shown as a picker here (this page only ever deals with
   // the HR ADMIN role), but we still need the role's id to scope the
@@ -660,6 +794,18 @@ export default function EmployeesHrAdmins() {
       .get("/shifts/")
       .then((res) => setShifts(res || []))
       .catch(() => setShifts([]));
+
+    // Tier options for the Annual Leave / Childcare Leave dropdowns --
+    // see app/leaves/policy_services.py get_tiers_for_leave_type() /
+    // leave_policy_tiers seed (Annual: 21/20/14/11/10, Childcare: 6/2).
+    apiClient
+      .get(`/leaves/policy/tiers/${encodeURIComponent("ANNUAL LEAVE")}`)
+      .then((res) => setAnnualLeaveTiers(res?.data || []))
+      .catch(() => setAnnualLeaveTiers([]));
+    apiClient
+      .get(`/leaves/policy/tiers/${encodeURIComponent("CHILDCARE LEAVE")}`)
+      .then((res) => setChildcareLeaveTiers(res?.data || []))
+      .catch(() => setChildcareLeaveTiers([]));
 
     setRoleLoading(true);
     apiClient
@@ -715,7 +861,14 @@ export default function EmployeesHrAdmins() {
     return { total: employees.length, active, inactive, deptCount };
   }, [employees]);
 
-  const refData = { departments, designations, shifts, employees };
+  const refData = {
+    departments,
+    designations,
+    shifts,
+    employees,
+    annualLeaveTiers,
+    childcareLeaveTiers,
+  };
 
   async function handleDelete() {
     if (!deleteTarget) return;

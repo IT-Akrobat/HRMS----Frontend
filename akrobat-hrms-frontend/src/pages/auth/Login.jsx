@@ -145,20 +145,13 @@ export default function Login() {
 
       {/* RIGHT -- form */}
       <div className="flex-1 flex flex-col px-6 sm:px-12 lg:px-20 py-6 overflow-hidden">
-        {/* Mobile-only brand header — the rotating slide panel above is
-            `hidden lg:flex`, so below the lg breakpoint the logo/name
-            never appeared anywhere on the page. Pinned near the top of
-            the screen (pulled out of the centered form wrapper below,
-            which would otherwise center it together with the form). */}
-        <div className="lg:hidden flex flex-col items-center text-center pt-14 pb-6 gap-4">
-          <img src={logo} alt="Akrobat" className="h-24" />
-          <p className="text-sm font-semibold tracking-wide text-[#0b1f45]">
-            AKROBAT HR MANAGEMENT SYSTEM
-          </p>
-        </div>
+        {/* Mobile-only brand header removed — the AKROBAT HR MANAGEMENT
+            SYSTEM logo and title only show in the desktop slide panel
+            (`hidden lg:flex` above); no equivalent shown below the
+            `lg` breakpoint. */}
 
         <div className="flex-1 flex flex-col justify-start lg:justify-center lg:items-center">
-          <div className="w-full max-w-md mx-auto py-12">
+          <div className="w-full max-w-md mx-auto pt-20 pb-12 lg:py-12">
             <h2 className="text-2xl font-bold text-[#0b1f45]">Welcome Back!</h2>
             <p className="text-gray-500 mt-1">
               Sign in to continue to your Akrobat HRMS account
@@ -253,7 +246,8 @@ export default function Login() {
                 {loading ? "Signing in..." : "Sign In"}
               </button>
 
-              <p className="text-center text-sm text-gray-600 pt-2">
+              {/* Desktop only — hidden on mobile per design. */}
+              <p className="hidden lg:block text-center text-sm text-gray-600 pt-2">
                 Don't have an account?{" "}
                 <a
                   href="#"

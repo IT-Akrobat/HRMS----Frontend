@@ -1165,6 +1165,7 @@ import {
   RotateCcw,
   Save,
   Shield,
+  Trash2,
   Upload,
   User,
   X,
@@ -1175,6 +1176,11 @@ import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
+import {
+  ACCEPTED_DOCUMENT_TYPES,
+  DOCUMENT_TYPE_OPTIONS,
+  documentsService,
+} from "../../services/documentsService";
 import { reportsService } from "../../services/ReportService";
 
 // ============================================================================
@@ -1307,7 +1313,7 @@ const EXTRA_FIELDS = [
 const EMPTY_CONTACT = { name: "", relation: "", phone: "" };
 
 export default function MyProfile() {
-  const { user, updateUser } = useAuth();
+  const { user, role, updateUser } = useAuth();
 
   const [profile, setProfile] = useState(null); // MeResponse from /auth/me
   const [loading, setLoading] = useState(true);
@@ -1347,6 +1353,42 @@ export default function MyProfile() {
   const [editingContactId, setEditingContactId] = useState(null);
   const [contactDraft, setContactDraft] = useState(EMPTY_CONTACT);
 
+  // ---- Upload Document popup ("+" on Documents Summary) ----
+  // Any authenticated role (Employee / Manager / HR Admin / Super Admin)
+  // can use this — it always uploads against the caller's OWN employee
+  // record (POST /documents/my), never someone else's.
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadDraft, setUploadDraft] = useState({
+    file: null,
+    document_name: "",
+    document_type: "",
+    expiry_date: "",
+    remarks: "",
+  });
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  // ---- "Download All" on Documents Summary — SUPER ADMIN only ----
+  const [downloadingAllDocs, setDownloadingAllDocs] = useState(false);
+  const [downloadAllError, setDownloadAllError] = useState("");
+  const [downloadingDocId, setDownloadingDocId] = useState(null);
+
+  // ---- Delete own document — HR Manager / Employee only (Super Admin
+  // gets Download instead; see isSuperAdmin below) ----
+  const [deletingDocId, setDeletingDocId] = useState(null);
+
+  // Pulled out of the mount effect so the Upload Document modal can call
+  // it again on success and refresh the Documents Summary card without a
+  // full page reload.
+  function loadMyDocuments() {
+    setDocsLoading(true);
+    return apiClient
+      .get("/documents/my")
+      .then((res) => setDocuments(res.data || res || []))
+      .catch(() => setDocuments([]))
+      .finally(() => setDocsLoading(false));
+  }
+
   useEffect(() => {
     apiClient
       .get("/auth/me")
@@ -1357,11 +1399,7 @@ export default function MyProfile() {
       .catch((err) => setError(err.message || "Could not load your profile."))
       .finally(() => setLoading(false));
 
-    apiClient
-      .get("/documents/my")
-      .then((res) => setDocuments(res.data || res || []))
-      .catch(() => setDocuments([]))
-      .finally(() => setDocsLoading(false));
+    loadMyDocuments();
 
     apiClient
       .get("/site-assignments/my")
@@ -1598,6 +1636,123 @@ export default function MyProfile() {
     const updated = contacts.filter((c) => c.id !== id);
     setContacts(updated);
     if (empId) saveLocalJSON(`${LOCAL_CONTACTS_PREFIX}${empId}`, updated);
+  }
+
+  // ---------------- Upload Document popup ----------------
+  const isSuperAdmin = (role || "").trim().toUpperCase() === "SUPER ADMIN";
+
+  function openUploadModal() {
+    setUploadDraft({
+      file: null,
+      document_name: "",
+      document_type: "",
+      expiry_date: "",
+      remarks: "",
+    });
+    setUploadError("");
+    setUploadModalOpen(true);
+  }
+
+  function handleUploadFileChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file later
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError("File is too large — please choose one under 10MB.");
+      return;
+    }
+
+    setUploadError("");
+    setUploadDraft((d) => ({
+      ...d,
+      file,
+      // Pre-fill a friendly name from the filename if the user hasn't
+      // typed one yet, without overwriting anything they already typed.
+      document_name: d.document_name || file.name.replace(/\.[^/.]+$/, ""),
+    }));
+  }
+
+  async function handleUploadSubmit(e) {
+    e.preventDefault();
+
+    if (!uploadDraft.file) {
+      setUploadError("Please choose a file to upload.");
+      return;
+    }
+    if (!uploadDraft.document_name.trim()) {
+      setUploadError("Please give the document a name.");
+      return;
+    }
+    if (!uploadDraft.document_type) {
+      setUploadError("Please choose a document type.");
+      return;
+    }
+
+    setUploading(true);
+    setUploadError("");
+    try {
+      await documentsService.uploadMy({
+        file: uploadDraft.file,
+        documentName: uploadDraft.document_name.trim(),
+        documentType: uploadDraft.document_type,
+        expiryDate: uploadDraft.expiry_date || undefined,
+        remarks: uploadDraft.remarks || undefined,
+      });
+      setUploadModalOpen(false);
+      loadMyDocuments();
+    } catch (err) {
+      setUploadError(err.message || "Could not upload that document.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDownloadDocument(doc) {
+    setDownloadingDocId(doc.id);
+    setDownloadAllError("");
+    try {
+      await documentsService.downloadFile(doc.id, doc.document_name);
+    } catch (err) {
+      setDownloadAllError(err.message || "Could not download that document.");
+    } finally {
+      setDownloadingDocId(null);
+    }
+  }
+
+  // HR Manager / Employee only — delete one of their own uploaded
+  // documents (Super Admin doesn't get this button; see isSuperAdmin
+  // gating on the Documents Summary card below).
+  async function handleDeleteDocument(doc) {
+    if (
+      !window.confirm(`Delete "${doc.document_name}"? This can't be undone.`)
+    ) {
+      return;
+    }
+    setDeletingDocId(doc.id);
+    setDownloadAllError("");
+    try {
+      await documentsService.deleteMy(doc.id);
+      await loadMyDocuments();
+    } catch (err) {
+      setDownloadAllError(err.message || "Could not delete that document.");
+    } finally {
+      setDeletingDocId(null);
+    }
+  }
+
+  // SUPER ADMIN only — every employee's uploaded documents as one zip
+  // (GET /documents/download-all, gated server-side too).
+  async function handleDownloadAllDocuments() {
+    setDownloadingAllDocs(true);
+    setDownloadAllError("");
+    try {
+      await documentsService.downloadAll();
+    } catch (err) {
+      setDownloadAllError(err.message || "Could not download documents.");
+    } finally {
+      setDownloadingAllDocs(false);
+    }
   }
 
   const docSummary = {
@@ -2020,32 +2175,105 @@ export default function MyProfile() {
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                <FileText size={16} className="text-orange-500" /> Documents
-                Summary
-              </h3>
-            </div>
-            {docsLoading ? (
-              <div className="h-16 bg-slate-100 rounded animate-pulse" />
-            ) : (
-              <div className="grid grid-cols-2 gap-3 text-center">
-                <div>
-                  <div className="text-xl font-bold text-slate-700">
-                    {docSummary.total}
-                  </div>
-                  <div className="text-xs text-slate-400">Total Documents</div>
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-orange-500">
-                    {docSummary.expiringSoon}
-                  </div>
-                  <div className="text-xs text-slate-400">Expiring Soon</div>
+          {/* Documents Summary — Employee / Manager / HR Admin only.
+              Super Admin doesn't hold documents of their own, so this
+              card is hidden entirely on their own profile; Super Admin
+              instead views/downloads each user's documents from a
+              dedicated "Documents" section on the User Management >
+              Users view drawer (see UserViewModal in
+              pages/super-admin/Users.jsx). */}
+          {!isSuperAdmin && (
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                  <FileText size={16} className="text-orange-500" /> Documents
+                  Summary
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={openUploadModal}
+                    title="Upload a document"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-orange-500 text-white hover:bg-orange-600"
+                  >
+                    <Plus size={15} />
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
+
+              {downloadAllError && (
+                <div className="mb-3 text-xs text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2 flex items-center justify-between">
+                  <span>{downloadAllError}</span>
+                  <button
+                    onClick={() => setDownloadAllError("")}
+                    className="text-orange-400 hover:text-orange-600"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+
+              {docsLoading ? (
+                <div className="h-16 bg-slate-100 rounded animate-pulse" />
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 text-center mb-4">
+                    <div>
+                      <div className="text-xl font-bold text-slate-700">
+                        {docSummary.total}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        Total Documents
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold text-orange-500">
+                        {docSummary.expiringSoon}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        Expiring Soon
+                      </div>
+                    </div>
+                  </div>
+
+                  {documents.length === 0 ? (
+                    <p className="text-sm text-slate-400">
+                      No documents uploaded yet.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {documents.slice(0, 4).map((doc) => (
+                        <li
+                          key={doc.id}
+                          className="flex items-center justify-between gap-2 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-700 truncate">
+                              {doc.document_name}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {doc.document_type}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteDocument(doc)}
+                            disabled={deletingDocId === doc.id}
+                            title="Delete"
+                            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-60"
+                          >
+                            {deletingDocId === doc.id ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={14} />
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -2225,6 +2453,144 @@ export default function MyProfile() {
               }
               className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
               placeholder="e.g. +91 98765 43210"
+            />
+          </div>
+        </form>
+      </Modal>
+
+      {/* ---------------- Upload Document popup ---------------- */}
+      {/* Employee / Manager / HR Admin / Super Admin — any authenticated
+          role can open this from the "+" on Documents Summary above.
+          It always uploads against the caller's OWN record
+          (POST /documents/my); it is not a way to add documents for
+          someone else. */}
+      <Modal
+        open={uploadModalOpen}
+        onClose={() => !uploading && setUploadModalOpen(false)}
+        title="Upload Document"
+        subtitle="PDF, Word, Excel, or JPG/PNG — up to 10MB."
+        footer={
+          <>
+            <button
+              onClick={() => setUploadModalOpen(false)}
+              disabled={uploading}
+              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50"
+            >
+              <X size={15} /> Cancel
+            </button>
+            <button
+              form="upload-document-form"
+              type="submit"
+              disabled={uploading}
+              className="flex items-center gap-1.5 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-60 rounded-lg px-3 py-2"
+            >
+              {uploading ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Upload size={15} />
+              )}
+              {uploading ? "Uploading..." : "Upload"}
+            </button>
+          </>
+        }
+      >
+        {uploadError && (
+          <div className="mb-4 flex items-start gap-2 text-sm text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            {uploadError}
+          </div>
+        )}
+
+        <form
+          id="upload-document-form"
+          onSubmit={handleUploadSubmit}
+          className="grid grid-cols-1 gap-3"
+        >
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">File</label>
+            <input
+              type="file"
+              accept={ACCEPTED_DOCUMENT_TYPES}
+              onChange={handleUploadFileChange}
+              className="w-full text-sm border border-slate-200 rounded-md px-3 py-2 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-orange-50 file:text-orange-600 file:text-xs"
+            />
+            {uploadDraft.file && (
+              <p className="text-xs text-slate-400 mt-1 truncate">
+                Selected: {uploadDraft.file.name}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">
+              Document Name
+            </label>
+            <input
+              required
+              value={uploadDraft.document_name}
+              onChange={(e) =>
+                setUploadDraft((d) => ({
+                  ...d,
+                  document_name: e.target.value,
+                }))
+              }
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
+              placeholder="e.g. Passport Copy"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">
+              Document Type
+            </label>
+            <select
+              required
+              value={uploadDraft.document_type}
+              onChange={(e) =>
+                setUploadDraft((d) => ({
+                  ...d,
+                  document_type: e.target.value,
+                }))
+              }
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Select type</option>
+              {DOCUMENT_TYPE_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">
+              Expiry Date (optional)
+            </label>
+            <input
+              type="date"
+              value={uploadDraft.expiry_date}
+              onChange={(e) =>
+                setUploadDraft((d) => ({
+                  ...d,
+                  expiry_date: e.target.value,
+                }))
+              }
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">
+              Remarks (optional)
+            </label>
+            <textarea
+              value={uploadDraft.remarks}
+              onChange={(e) =>
+                setUploadDraft((d) => ({ ...d, remarks: e.target.value }))
+              }
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
+              rows={2}
             />
           </div>
         </form>

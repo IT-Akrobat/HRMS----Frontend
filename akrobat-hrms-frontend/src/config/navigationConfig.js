@@ -108,6 +108,7 @@ export const NAVIGATION_CONFIG = {
       label: "Leave Management",
       icon: Palmtree,
       children: [
+        { label: "Apply Leave", path: "/manager/leave/apply" },
         { label: "Team Leave Requests", path: "/manager/leave/pending" },
         { label: "Leave History", path: "/manager/leave/history" },
       ],
@@ -166,6 +167,7 @@ export const NAVIGATION_CONFIG = {
       label: "Leave Management",
       icon: Palmtree,
       children: [
+        { label: "Apply Leave", path: "/hr-admin/leave/apply" },
         { label: "Leave Requests (View)", path: "/hr-admin/leave/requests" },
         // { label: "Leave Policies", path: "/hr-admin/leave/policies" },
         { label: "Leave Balance", path: "/hr-admin/leave/balance" },
