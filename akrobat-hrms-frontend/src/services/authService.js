@@ -1,5 +1,5 @@
 import { normalizeRole } from "../config/roles";
-import { apiClient } from "./apiClient";
+import { apiClient, clearCsrfToken } from "./apiClient";
 
 // Real backend wiring for POST /auth/login + GET /auth/me.
 // /auth/login sets the access/refresh tokens as httpOnly cookies (see
@@ -54,6 +54,8 @@ export const authService = {
       await apiClient.post("/auth/logout", {});
     } catch (e) {
       console.warn("Logout request failed:", e);
+    } finally {
+      clearCsrfToken();
     }
   },
 
@@ -61,9 +63,23 @@ export const authService = {
   // token to check anymore, so this just asks the backend "is the
   // cookie on this request still valid?" -- a 401 means no (or expired,
   // or force-logged-out), which the caller treats as logged-out.
+  //
+  // Also re-primes the in-memory CSRF token (see apiClient.js) by
+  // calling GET /auth/csrf alongside /auth/me: a page reload wipes that
+  // in-memory value, and it can't be recovered from document.cookie
+  // (frontend and backend are on separate domains). Without this, the
+  // session would still restore fine via the httpOnly cookie, but the
+  // very next check-in / leave request would 403 with "CSRF token
+  // missing" until something else happened to refresh it.
   async restoreSession() {
     try {
-      const meEnvelope = await apiClient.get("/auth/me");
+      const [meEnvelope] = await Promise.all([
+        apiClient.get("/auth/me"),
+        apiClient.get("/auth/csrf").catch((e) => {
+          console.warn("Could not refresh CSRF token:", e);
+          return null;
+        }),
+      ]);
       const me = meEnvelope.data;
       return {
         id: me.id,

@@ -12,19 +12,58 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 // Double-submit CSRF cookie (see app/core/csrf.py). It's deliberately
-// NOT httpOnly -- that's the whole point of the pattern -- so reading it
-// here with document.cookie is expected, not a bug. It only protects
-// against forged cross-site requests; it does nothing for XSS (an XSS
-// payload running on this page could read it too), which is a separate
-// problem httpOnly cookies for the *auth* tokens are there to limit.
+// NOT httpOnly -- that's the whole point of the pattern -- reading it
+// with document.cookie would be fine for XSS purposes (an XSS payload on
+// this page could read it too either way).
+//
+// BUT: frontend and backend here are deployed on separate domains
+// (Vercel/localhost + onrender.com -- see VITE_API_BASE_URL). A cookie
+// set by the backend's Set-Cookie header is stored under the backend's
+// domain; document.cookie on *this* page only ever exposes cookies set
+// for this page's own domain, regardless of SameSite/Secure. So reading
+// the CSRF cookie via document.cookie silently returns nothing for that
+// deployment shape -- every mutating request goes out with no
+// X-CSRF-Token header and the backend 403s with "CSRF token missing".
+//
+// Fix: the backend also returns the token in the JSON body of
+// POST /auth/login, POST /auth/refresh, and GET /auth/csrf (see
+// app/auth/routes.py). We cache it here in memory instead. It resets on
+// a full page reload, which is why AuthContext calls GET /auth/csrf
+// alongside GET /auth/me on app start -- see authService.restoreSession.
 const CSRF_COOKIE_NAME = "akrobat_csrf_token";
 const CSRF_HEADER_NAME = "X-CSRF-Token";
 
-function getCsrfToken() {
+let inMemoryCsrfToken = null;
+
+export function setCsrfToken(token) {
+  inMemoryCsrfToken = token || null;
+}
+
+export function clearCsrfToken() {
+  inMemoryCsrfToken = null;
+}
+
+function readCsrfCookie() {
+  // Kept as a fallback for same-domain / same-origin deployments (e.g.
+  // frontend and backend both on localhost, or proxied behind one
+  // domain in production) where the cookie read still works fine.
   const match = document.cookie.match(
     new RegExp(`(?:^|; )${CSRF_COOKIE_NAME}=([^;]*)`),
   );
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+function getCsrfToken() {
+  return inMemoryCsrfToken || readCsrfCookie();
+}
+
+// Any JSON response can carry a fresh csrf_token (login/refresh/csrf
+// endpoints do) -- pick it up automatically wherever it appears instead
+// of every caller having to remember to do it.
+function captureCsrfToken(data) {
+  if (data && typeof data === "object" && typeof data.csrf_token === "string") {
+    inMemoryCsrfToken = data.csrf_token;
+  }
 }
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -48,7 +87,15 @@ async function refreshAccessToken() {
       // parses one, even though there's nothing to put in it now.
       body: JSON.stringify({}),
     })
-      .then((res) => res.ok)
+      .then(async (res) => {
+        // Supabase rotates the refresh token (and this route re-issues
+        // the CSRF cookie) on every call -- pick up the new csrf_token
+        // here too, or every request after a silent refresh would go
+        // out with the stale one and get 403'd.
+        const data = await res.json().catch(() => null);
+        captureCsrfToken(data);
+        return res.ok;
+      })
       .catch(() => false)
       .finally(() => {
         refreshInFlight = null;
@@ -59,11 +106,12 @@ async function refreshAccessToken() {
 }
 
 function clearSession() {
-  // Nothing client-side left to clear -- the cookies are httpOnly, so
-  // only the server can remove them (see authService.logout(), which
-  // calls POST /auth/refresh's sibling POST /auth/logout). This exists
-  // as a hook for callers that just need to know "the session is dead,
-  // update the UI" without necessarily hitting the network again.
+  // Cookies are httpOnly, so only the server can remove those (see
+  // authService.logout(), which calls POST /auth/logout). The in-memory
+  // CSRF token is the one thing that *does* live here, so drop it too --
+  // otherwise a stale token could linger and get echoed on a future
+  // request for a different session.
+  clearCsrfToken();
 }
 
 async function request(
@@ -96,6 +144,11 @@ async function request(
     .get("content-type")
     ?.includes("application/json");
   const data = isJson ? await response.json().catch(() => null) : null;
+
+  // Picks up csrf_token wherever it appears (login, refresh-via-retry,
+  // GET /auth/csrf) so nothing has to special-case which call it came
+  // from -- see the comment on captureCsrfToken above.
+  captureCsrfToken(data);
 
   if (!response.ok) {
     // Only ever attempt the refresh-and-retry dance once per call, and
