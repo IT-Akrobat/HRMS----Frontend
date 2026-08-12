@@ -560,7 +560,7 @@ function attendanceExportRow(r) {
   ];
 }
 
-function downloadAttendanceExcel(rows) {
+function downloadAttendanceExcel(rows, monthLabel) {
   const sheet = XLSX.utils.aoa_to_sheet([
     ATTENDANCE_EXPORT_HEADER,
     ...rows.map(attendanceExportRow),
@@ -580,9 +580,14 @@ function downloadAttendanceExcel(rows) {
   styleHeaderRow(sheet, ATTENDANCE_EXPORT_HEADER.length);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Attendance");
+  // Month-only download (no employee picked) gets a filename tagged
+  // with that month instead of today's date, so it reads as "August
+  // 2026's attendance" rather than "today's export".
   XLSX.writeFile(
     workbook,
-    `attendance-report-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    monthLabel
+      ? `attendance-report-${monthLabel}.xlsx`
+      : `attendance-report-${new Date().toISOString().slice(0, 10)}.xlsx`,
   );
 }
 
@@ -678,7 +683,11 @@ function EmployeeSearchSelect({ options, value, onChange, placeholder }) {
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState("employees");
-  const [search, setSearch] = useState("");
+  // Each tab keeps its own search text so typing in the Employees tab
+  // (say) doesn't also filter Attendance/Payroll/etc when you switch
+  // tabs — { employees: "...", payroll: "...", ... }. Attendance never
+  // gets a key here since its search box is hidden (see below).
+  const [searchByTab, setSearchByTab] = useState({});
   const [page, setPage] = useState(1);
 
   const [stats, setStats] = useState(null);
@@ -753,6 +762,12 @@ export default function Reports() {
       });
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Current tab's search text (Attendance intentionally has no search
+  // box, so this is always "" there — see the search bar below).
+  const search = searchByTab[activeTab] || "";
+  const setSearch = (value) =>
+    setSearchByTab((prev) => ({ ...prev, [activeTab]: value }));
+
   useEffect(() => {
     setPage(1);
   }, [activeTab, search]);
@@ -762,7 +777,9 @@ export default function Reports() {
   const error = errorTabs[activeTab];
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return rows;
+    // Attendance has no search box — the visible table (and its
+    // "current view" export) is always the full, unfiltered dataset.
+    if (activeTab === "attendance" || !search.trim()) return rows;
     const q = search.trim().toLowerCase();
     return rows.filter((r) =>
       searchText(activeTab, r).toLowerCase().includes(q),
@@ -779,7 +796,10 @@ export default function Reports() {
       return;
     }
     if (activeTab === "attendance") {
-      downloadAttendanceExcel(filtered);
+      // No search box on this tab, so "current view" is always the
+      // full dataset anyway — export `rows` explicitly (not `filtered`)
+      // so this stays true even if that ever changes.
+      downloadAttendanceExcel(rows);
       return;
     }
     const csv = toCsv(activeTab, filtered);
@@ -925,12 +945,26 @@ export default function Reports() {
   // .xlsx: every day's record, plus a totals row (working/break/overtime
   // hours, late minutes, present/half/absent day counts).
   function downloadMonthlyAttendance() {
-    if (!monthlyEmployeeId || !monthlyMonth) {
-      setMonthlyError("Pick an employee and a month first.");
+    if (!monthlyMonth) {
+      setMonthlyError("Pick a month first.");
       return;
     }
-    setMonthlyDownloading(true);
     setMonthlyError(null);
+
+    // Month only, no employee picked — every employee's attendance for
+    // that month, filtered client-side from the already-loaded
+    // Attendance tab rows (no extra API call needed).
+    if (!monthlyEmployeeId) {
+      setMonthlyDownloading(true);
+      const monthRows = (reportData.attendance || []).filter((r) =>
+        (r.attendance_date || "").startsWith(monthlyMonth),
+      );
+      downloadAttendanceExcel(monthRows, monthlyMonth);
+      setMonthlyDownloading(false);
+      return;
+    }
+
+    setMonthlyDownloading(true);
     reportsService
       .employeeMonthlyAttendance(monthlyEmployeeId, monthlyMonth)
       .then((res) => {
@@ -1098,7 +1132,7 @@ export default function Reports() {
                 options={employeeOptions}
                 value={monthlyEmployeeId}
                 onChange={setMonthlyEmployeeId}
-                placeholder="Search employee by name or ID..."
+                placeholder="All employees (optional)..."
               />
             </div>
             <div>
@@ -1114,7 +1148,7 @@ export default function Reports() {
             </div>
             <button
               onClick={downloadMonthlyAttendance}
-              disabled={monthlyDownloading || !monthlyEmployeeId}
+              disabled={monthlyDownloading || !monthlyMonth}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {monthlyDownloading ? (
@@ -1122,48 +1156,72 @@ export default function Reports() {
               ) : (
                 <Download size={14} />
               )}
-              Download Monthly Attendance
+              {monthlyEmployeeId
+                ? "Download Monthly Attendance"
+                : "Download Month (All Employees)"}
             </button>
             {monthlyError && (
               <span className="text-xs text-orange-600 flex items-center gap-1">
                 <AlertTriangle size={13} /> {monthlyError}
               </span>
             )}
+            {/* Export Excel lives here (next to Download Month) instead
+                of its own row below — Attendance has no search box, so
+                a separate search+export bar was just an empty-looking
+                strip with nothing to search. */}
+            <div className="flex items-center gap-3 sm:ml-auto">
+              {!loading && !error && (
+                <span className="text-xs text-slate-400">
+                  {rows.length} {rows.length === 1 ? "record" : "records"}
+                </span>
+              )}
+              <button
+                onClick={handleExport}
+                disabled={loading || !!error || rows.length === 0}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Download size={14} />
+                Export Excel
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Search + export — shown for every tab, including Employees */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border-b border-slate-100">
-          <div className="relative flex-1 max-w-sm">
-            <Search
-              size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${TABS.find((t) => t.key === activeTab)?.label.toLowerCase()}...`}
-              className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-            />
+        {/* Search + export — Employees/Leave Requests/Payroll/Projects
+            only; Attendance has its own export next to Download Month
+            above instead (no free-text search on that tab). */}
+        {activeTab !== "attendance" && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border-b border-slate-100">
+            <div className="relative flex-1 max-w-sm">
+              <Search
+                size={15}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={`Search ${TABS.find((t) => t.key === activeTab)?.label.toLowerCase()}...`}
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+              />
+            </div>
+            <div className="flex items-center gap-3 sm:ml-auto">
+              {!loading && !error && (
+                <span className="text-xs text-slate-400">
+                  {filtered.length}{" "}
+                  {filtered.length === 1 ? "record" : "records"}
+                </span>
+              )}
+              <button
+                onClick={handleExport}
+                disabled={loading || !!error || filtered.length === 0}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Download size={14} />
+                {activeTab === "employees" ? "Export Excel" : "Export CSV"}
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-3 sm:ml-auto">
-            {!loading && !error && (
-              <span className="text-xs text-slate-400">
-                {filtered.length} {filtered.length === 1 ? "record" : "records"}
-              </span>
-            )}
-            <button
-              onClick={handleExport}
-              disabled={loading || !!error || filtered.length === 0}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Download size={14} />
-              {activeTab === "employees" || activeTab === "attendance"
-                ? "Export Excel"
-                : "Export CSV"}
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Table */}
         {error ? (

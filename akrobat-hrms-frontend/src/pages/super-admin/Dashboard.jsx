@@ -1077,7 +1077,6 @@ import AttendanceTrendChart from "../../components/common/AttendanceTrendChart";
 import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
-import CheckInOutCard from "../../components/common/CheckInOutCard";
 
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard ";
@@ -1750,7 +1749,7 @@ export default function SuperAdminDashboard() {
         {/* ================= Left column (65%) ================= */}
         <div className="flex flex-col gap-6 min-w-0">
           {/* ---------- Check-in/out (HR Admin is a person too) ---------- */}
-          <CheckInOutCard onActivityChange={loadLogs} />
+          {/* <CheckInOutCard onActivityChange={loadLogs} /> */}
 
           {/* ---------- Recent audit activity: fixed height, hidden scrollbar ---------- */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col h-[360px]">

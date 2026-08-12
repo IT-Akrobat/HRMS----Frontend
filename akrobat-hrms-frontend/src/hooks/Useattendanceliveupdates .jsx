@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { getAuthToken, wsUrl } from "../services/apiClient";
+import { wsUrl } from "../services/apiClient";
 
 // Shared by every role's dashboard (super-admin, hr-admin, manager,
 // employee) so none of them have to poll on a timer to see another
@@ -10,6 +10,14 @@ import { getAuthToken, wsUrl } from "../services/apiClient";
 // delay if the connection drops (backend restart, network blip, laptop
 // waking from sleep) instead of going silently stale for the rest of the
 // session.
+//
+// Auth: the browser attaches the httpOnly access-token cookie to the WS
+// handshake automatically (same as it does for fetch() with
+// credentials:"include" -- see app/core/cookies.py), so there's no
+// token to read or append to the URL here anymore. The backend closes
+// the socket with code 4401 if the cookie's missing/invalid, which the
+// onclose handler below just treats as "retry shortly" like any other
+// drop -- a fresh login will re-establish it.
 //
 // Usage:
 //   useAttendanceLiveUpdates(() => {
@@ -30,10 +38,9 @@ export function useAttendanceLiveUpdates(onEvent) {
     let cancelled = false;
 
     function connect() {
-      const token = getAuthToken();
-      if (!token || cancelled) return;
+      if (cancelled) return;
 
-      ws = new WebSocket(`${wsUrl("/ws/dashboard")}?token=${token}`);
+      ws = new WebSocket(wsUrl("/ws/dashboard"));
 
       ws.onmessage = () => {
         onEventRef.current?.();

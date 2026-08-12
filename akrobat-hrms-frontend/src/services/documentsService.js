@@ -3,9 +3,18 @@
 //
 // apiClient.js only does JSON in/out, so this talks to fetch() directly
 // for the two things it can't do: multipart file upload, and streaming a
-// binary (file / zip) response back out as a browser download.
+// binary (file / zip) response back out as a browser download. Auth
+// cookies are httpOnly (see app/core/cookies.py), so every call here
+// still needs credentials:"include" to send them, and every
+// mutating (POST/DELETE) call needs the CSRF header (see
+// app/core/csrf.py) -- withCredentialsAndCsrf() from apiClient.js does
+// both consistently instead of each fetch() reinventing it.
 //
 // Backend: app/documents/routes.py
+//   GET  /documents/                    -> every document, company-wide,
+//                                          paginated (requires VIEW_DOCUMENTS
+//                                          — HR ADMIN / HR EXECUTIVE hold it,
+//                                          see sql/006_document_permissions_seed.sql)
 //   POST /documents/my                  -> self-service upload (multipart)
 //   GET  /documents/{id}/file           -> download one document's file
 //                                          (owner, or HR/Admin via VIEW_DOCUMENTS)
@@ -16,7 +25,7 @@
 //                                          that employee viewing their own —
 //                                          Super Admin always qualifies)
 
-import { BASE_URL, getAuthToken } from "./apiClient";
+import { apiClient, BASE_URL, withCredentialsAndCsrf } from "./apiClient";
 
 // Keep in sync with ALLOWED_DOCUMENT_TYPES in app/documents/services.py.
 export const ACCEPTED_DOCUMENT_TYPES =
@@ -31,11 +40,6 @@ export const DOCUMENT_TYPE_OPTIONS = [
   "Certification",
   "Other",
 ];
-
-function authHeaders() {
-  const token = getAuthToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 async function parseErrorMessage(response) {
   const isJson = response.headers
@@ -66,6 +70,16 @@ function filenameFromResponse(response, fallback) {
 }
 
 export const documentsService = {
+  // HR Admin (VIEW_DOCUMENTS) / Super Admin — every document uploaded
+  // company-wide, regardless of which employee it belongs to, paginated.
+  // Used by the HR "Documents" screen (pages/hr-admin/Documents.jsx) —
+  // the same company-wide visibility Super Admin has, just as a browsable
+  // list here instead of per-employee via the Users drawer.
+  async getAll({ page = 1, limit = 20 } = {}) {
+    const res = await apiClient.get(`/documents/?page=${page}&limit=${limit}`);
+    return res?.data || { records: [], total: 0, page, limit };
+  },
+
   // Employee / Manager / HR Admin / Super Admin — upload a document
   // against their OWN employee record only.
   async uploadMy({ file, documentName, documentType, expiryDate, remarks }) {
@@ -78,7 +92,8 @@ export const documentsService = {
 
     const response = await fetch(`${BASE_URL}/documents/my`, {
       method: "POST",
-      headers: authHeaders(), // no Content-Type — browser sets the multipart boundary
+      // no Content-Type — browser sets the multipart boundary
+      ...withCredentialsAndCsrf("POST"),
       body: form,
     });
 
@@ -93,7 +108,7 @@ export const documentsService = {
   // one document's actual file.
   async downloadFile(documentId, suggestedName) {
     const response = await fetch(`${BASE_URL}/documents/${documentId}/file`, {
-      headers: authHeaders(),
+      ...withCredentialsAndCsrf("GET"),
     });
 
     if (!response.ok) {
@@ -113,7 +128,7 @@ export const documentsService = {
   async deleteMy(documentId) {
     const response = await fetch(`${BASE_URL}/documents/my/${documentId}`, {
       method: "DELETE",
-      headers: authHeaders(),
+      ...withCredentialsAndCsrf("DELETE"),
     });
 
     if (!response.ok) {
@@ -131,7 +146,7 @@ export const documentsService = {
   async getForEmployee(employeeId) {
     const response = await fetch(
       `${BASE_URL}/documents/employee/${employeeId}`,
-      { headers: authHeaders() },
+      { ...withCredentialsAndCsrf("GET") },
     );
 
     if (!response.ok) {
@@ -148,7 +163,7 @@ export const documentsService = {
   // SUPER ADMIN in MyProfile.jsx.
   async downloadAll() {
     const response = await fetch(`${BASE_URL}/documents/download-all`, {
-      headers: authHeaders(),
+      ...withCredentialsAndCsrf("GET"),
     });
 
     if (!response.ok) {

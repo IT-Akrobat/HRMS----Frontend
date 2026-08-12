@@ -3,6 +3,7 @@ import {
   Bell,
   Building2,
   Clock,
+  FileText,
   LayoutDashboard,
   Palmtree,
   Settings,
@@ -146,15 +147,6 @@ export const NAVIGATION_CONFIG = {
       ],
     },
     {
-      label: "Organization",
-      icon: Building2,
-      children: [
-        { label: "Departments", path: "/hr-admin/organization/departments" },
-        { label: "Designations", path: "/hr-admin/organization/designations" },
-        { label: "Locations", path: "/hr-admin/organization/locations" },
-      ],
-    },
-    {
       label: "Attendance",
       icon: Clock,
       children: [
@@ -188,14 +180,16 @@ export const NAVIGATION_CONFIG = {
     //     { label: "Payroll Reports", path: "/hr-admin/payroll/reports" },
     //   ],
     // },
-    // {
-    //   label: "Documents",
-    //   icon: FileText,
-    //   children: [
-    //     { label: "Employee Documents", path: "/hr-admin/documents" },
-    //     { label: "Templates", path: "/hr-admin/documents/templates" },
-    //   ],
-    // },
+    {
+      label: "Documents",
+      icon: FileText,
+      path: "/hr-admin/documents",
+    },
+    {
+      label: "Live Site Tracking",
+      icon: Clock,
+      path: "/hr-admin/attendance/live-tracking",
+    },
     // {
     //   label: "Reports & Analytics",
     //   icon: BarChart3,
@@ -252,14 +246,9 @@ export const NAVIGATION_CONFIG = {
       ],
     },
     {
-      label: "Attendance",
+      label: "Live Site Tracking",
       icon: Clock,
-      children: [
-        {
-          label: "Live Site Tracking",
-          path: "/super-admin/attendance/live-tracking",
-        },
-      ],
+      path: "/super-admin/attendance/live-tracking",
     },
     {
       label: "Security",

@@ -2,51 +2,53 @@
 // header / error-shape handling. Backend error shape (see
 // app/core/responses.py -> error_response):
 //   { success: false, status_code, message, errors }
+//
+// Auth model: the access/refresh tokens are httpOnly cookies set by the
+// backend (see app/core/cookies.py) -- this file never reads, stores, or
+// attaches them itself. `credentials: "include"` on every request is
+// what makes the browser send those cookies; it's the cookie-based
+// equivalent of the old `Authorization: Bearer ${token}` header.
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-const TOKEN_KEY = "akrobat_token";
-const REFRESH_KEY = "akrobat_refresh_token";
+// Double-submit CSRF cookie (see app/core/csrf.py). It's deliberately
+// NOT httpOnly -- that's the whole point of the pattern -- so reading it
+// here with document.cookie is expected, not a bug. It only protects
+// against forged cross-site requests; it does nothing for XSS (an XSS
+// payload running on this page could read it too), which is a separate
+// problem httpOnly cookies for the *auth* tokens are there to limit.
+const CSRF_COOKIE_NAME = "akrobat_csrf_token";
+const CSRF_HEADER_NAME = "X-CSRF-Token";
 
-function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+function getCsrfToken() {
+  const match = document.cookie.match(
+    new RegExp(`(?:^|; )${CSRF_COOKIE_NAME}=([^;]*)`),
+  );
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
-function getRefreshToken() {
-  return localStorage.getItem(REFRESH_KEY);
-}
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-// Supabase access tokens are short-lived (~1hr, see app/core/security.py ->
-// supabase.auth.get_user). Previously the refresh_token from login just sat
-// unused in localStorage, so every request started failing with "Invalid
-// or expired token." the moment the access token expired — the user had to
-// fully log out and back in. This calls the new POST /auth/refresh once,
-// swaps in the fresh tokens, and lets the caller retry.
-//
-// refreshInFlight de-dupes concurrent 401s (e.g. a dashboard firing 6
-// requests at once) into a single refresh call instead of 6.
+// De-dupes concurrent 401s (e.g. a dashboard firing 6 requests at once)
+// into a single refresh call instead of 6.
 let refreshInFlight = null;
 
 async function refreshAccessToken() {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
-
   if (!refreshInFlight) {
     refreshInFlight = fetch(`${BASE_URL}/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        [CSRF_HEADER_NAME]: getCsrfToken() || "",
+      },
+      // Backend prefers the refresh_token cookie and only falls back to
+      // the body if it's missing (see app/auth/routes.py::refresh) --
+      // this project still needs *a* JSON body since the route always
+      // parses one, even though there's nothing to put in it now.
+      body: JSON.stringify({}),
     })
-      .then(async (res) => {
-        if (!res.ok) return false;
-        const data = await res.json().catch(() => null);
-        if (!data?.access_token) return false;
-        localStorage.setItem(TOKEN_KEY, data.access_token);
-        if (data.refresh_token) {
-          localStorage.setItem(REFRESH_KEY, data.refresh_token);
-        }
-        return true;
-      })
+      .then((res) => res.ok)
       .catch(() => false)
       .finally(() => {
         refreshInFlight = null;
@@ -57,9 +59,11 @@ async function refreshAccessToken() {
 }
 
 function clearSession() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_KEY);
-  localStorage.removeItem("akrobat_user");
+  // Nothing client-side left to clear -- the cookies are httpOnly, so
+  // only the server can remove them (see authService.logout(), which
+  // calls POST /auth/refresh's sibling POST /auth/logout). This exists
+  // as a hook for callers that just need to know "the session is dead,
+  // update the UI" without necessarily hitting the network again.
 }
 
 async function request(
@@ -68,9 +72,9 @@ async function request(
 ) {
   const finalHeaders = { "Content-Type": "application/json", ...headers };
 
-  if (auth) {
-    const token = getToken();
-    if (token) finalHeaders.Authorization = `Bearer ${token}`;
+  if (auth && MUTATING_METHODS.has(method)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) finalHeaders[CSRF_HEADER_NAME] = csrfToken;
   }
 
   let response;
@@ -78,6 +82,7 @@ async function request(
     response = await fetch(`${BASE_URL}${path}`, {
       method,
       headers: finalHeaders,
+      credentials: "include", // send/receive the httpOnly + CSRF cookies
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (networkErr) {
@@ -105,7 +110,7 @@ async function request(
       if (refreshed) {
         return request(path, { method, body, auth, headers, _retried: true });
       }
-      // Refresh token is also dead — this is a real "please log in again".
+      // Refresh is also dead -- this is a real "please log in again".
       clearSession();
     }
 
@@ -129,12 +134,16 @@ export const apiClient = {
   delete: (path, opts) => request(path, { ...opts, method: "DELETE" }),
 };
 
-// For WebSocket connections (see Dashboard.jsx's live-updates socket) —
-// the browser WebSocket API can't attach an Authorization header to the
-// handshake the way fetch() can, so the caller appends this token as a
-// query param instead: `${wsUrl("/ws/dashboard")}?token=${getAuthToken()}`.
-export function getAuthToken() {
-  return getToken();
+// For requests that can't go through apiClient.request (multipart
+// uploads, binary downloads -- see documentsService.js): the same
+// credentials + CSRF-header rules apply, just attached by hand.
+export function withCredentialsAndCsrf(method, headers = {}) {
+  const finalHeaders = { ...headers };
+  if (MUTATING_METHODS.has(method)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) finalHeaders[CSRF_HEADER_NAME] = csrfToken;
+  }
+  return { credentials: "include", headers: finalHeaders };
 }
 
 export function wsUrl(path) {

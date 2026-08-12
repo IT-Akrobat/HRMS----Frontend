@@ -9,9 +9,14 @@ import Employees from "../pages/hr-admin/Employees.jsx";
 // import EmployeesProfile from "../pages/hr-admin/EmployeesProfile.jsx";
 import LeaveBalance from "../pages/hr-admin/LeaveBalance.jsx";
 import LeaveRequests from "../pages/hr-admin/LeaveRequests.jsx";
-import OrganizationDepartments from "../pages/hr-admin/OrganizationDepartments.jsx";
-import OrganizationDesignations from "../pages/hr-admin/OrganizationDesignations.jsx";
-import OrganizationLocations from "../pages/hr-admin/OrganizationLocations.jsx";
+import LiveTracking from "../pages/hr-admin/LiveTracking.jsx";
+// Organization (Departments / Designations / Locations) was removed from
+// the HR sidebar and routes on purpose — HR no longer gets a "create
+// site/location" or org-structure screen. Super Admin still owns that
+// under src/pages/super-admin/Organization*.jsx / superAdminRoutes.jsx.
+// import OrganizationDepartments from "../pages/hr-admin/OrganizationDepartments.jsx";
+// import OrganizationDesignations from "../pages/hr-admin/OrganizationDesignations.jsx";
+// import OrganizationLocations from "../pages/hr-admin/OrganizationLocations.jsx";
 import PayrollGeneratePayslip from "../pages/hr-admin/PayrollGeneratePayslip.jsx";
 import PayrollReports from "../pages/hr-admin/PayrollReports.jsx";
 import PayrollSalaryStructure from "../pages/hr-admin/PayrollSalaryStructure.jsx";
@@ -25,12 +30,13 @@ export const hrAdminRoutes = [
   { path: "employees", element: <Employees /> },
   // { path: "employees/add", element: <EmployeesAdd /> },
   // { path: "employees/profile", element: <EmployeesProfile /> },
-  { path: "organization/departments", element: <OrganizationDepartments /> },
-  { path: "organization/designations", element: <OrganizationDesignations /> },
-  { path: "organization/locations", element: <OrganizationLocations /> },
+  // { path: "organization/departments", element: <OrganizationDepartments /> },
+  // { path: "organization/designations", element: <OrganizationDesignations /> },
+  // { path: "organization/locations", element: <OrganizationLocations /> },
   { path: "attendance", element: <Attendance /> },
   // { path: "attendance/shifts", element: <AttendanceShifts /> },
   { path: "attendance/reports", element: <AttendanceReports /> },
+  { path: "attendance/live-tracking", element: <LiveTracking /> },
   { path: "leave/requests", element: <LeaveRequests /> },
   // { path: "leave/policies", element: <LeavePolicies /> },
   { path: "leave/balance", element: <LeaveBalance /> },

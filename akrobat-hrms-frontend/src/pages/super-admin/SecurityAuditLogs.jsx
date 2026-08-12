@@ -577,25 +577,39 @@ function AuditDetail({ log }) {
             Field changes
           </p>
           <div className="border border-slate-200 rounded-lg divide-y divide-slate-100">
-            {Object.entries(changes).map(([field, diff]) => (
-              <div
-                key={field}
-                className="flex items-center justify-between px-3 py-2 text-xs"
-              >
-                <span className="font-medium text-slate-500 capitalize">
-                  {field.replace(/_/g, " ")}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-orange-500 line-through">
-                    {String(diff.old ?? "—")}
+            {Object.entries(changes).map(([field, diff]) => {
+              // Defensive: a `changes` entry is normally shaped
+              // {old, new}, but older audit rows (logged before the
+              // creation-event fix in app/core/audit.py::_diff) can
+              // still have a raw value here instead — including `null`
+              // itself, which crashed this modal outright since
+              // `diff.old` doesn't exist on `null`. Treat anything that
+              // isn't a proper {old, new} object as a bare "new" value.
+              const isDiffShape =
+                diff !== null && typeof diff === "object" && "new" in diff;
+              const oldVal = isDiffShape ? diff.old : undefined;
+              const newVal = isDiffShape ? diff.new : diff;
+
+              return (
+                <div
+                  key={field}
+                  className="flex items-center justify-between px-3 py-2 text-xs"
+                >
+                  <span className="font-medium text-slate-500 capitalize">
+                    {field.replace(/_/g, " ")}
                   </span>
-                  <span className="text-slate-300">→</span>
-                  <span className="text-blue-600 font-medium">
-                    {String(diff.new ?? "—")}
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-orange-500 line-through">
+                      {String(oldVal ?? "—")}
+                    </span>
+                    <span className="text-slate-300">→</span>
+                    <span className="text-blue-600 font-medium">
+                      {String(newVal ?? "—")}
+                    </span>
                   </span>
-                </span>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

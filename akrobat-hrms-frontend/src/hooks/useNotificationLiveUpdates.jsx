@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { getAuthToken, wsUrl } from "../services/apiClient";
+import { wsUrl } from "../services/apiClient";
 
 // Real-time replacement for polling GET /notifications/my on a timer.
 // Opens /ws/notifications (see app/main.py), which is private per
@@ -9,6 +9,9 @@ import { getAuthToken, wsUrl } from "../services/apiClient";
 // after a short delay if the connection drops (backend restart, network
 // blip, laptop waking from sleep, phone locking/unlocking), same pattern
 // as useAttendanceLiveUpdates.
+//
+// Auth: cookie-based, same as useAttendanceLiveUpdates -- see the
+// comment there for why there's no token on the URL anymore.
 //
 // Usage:
 //   useNotificationLiveUpdates((notification) => {
@@ -28,10 +31,9 @@ export function useNotificationLiveUpdates(onNotification) {
     let cancelled = false;
 
     function connect() {
-      const token = getAuthToken();
-      if (!token || cancelled) return;
+      if (cancelled) return;
 
-      ws = new WebSocket(`${wsUrl("/ws/notifications")}?token=${token}`);
+      ws = new WebSocket(wsUrl("/ws/notifications"));
 
       ws.onmessage = (event) => {
         let payload;

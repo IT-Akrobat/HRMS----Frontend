@@ -10,6 +10,11 @@
 //   }
 //   PUT  /access-control/                -> same shape, partial body accepted
 //   POST /access-control/force-logout-all -> { signed_out, targeted }
+//   GET  /access-control/lockouts         -> [{
+//     employee_id, failed_attempts, locked_until, updated_at,
+//     employees: { full_name, employee_id, email, profile_photo }
+//   }]
+//   POST /access-control/lockouts/{employee_id}/unlock -> employee basics
 //
 // These settings are actually enforced at login (see
 // app/auth/services.py::login_user): IP allowlist + lockout are checked
@@ -25,4 +30,14 @@ export const accessControlService = {
   updateSettings: (partial) => apiClient.put("/access-control/", partial),
 
   forceLogoutAll: () => apiClient.post("/access-control/force-logout-all"),
+
+  // Currently-locked accounts (locked_until in the future) — lets Super
+  // Admin see who's locked and why, instead of only finding out when
+  // that person complains they can't sign in.
+  getLockedAccounts: () => apiClient.get("/access-control/lockouts"),
+
+  // Clears a lockout early so the employee can sign in right away
+  // instead of waiting out lockout_duration_minutes.
+  unlockAccount: (employeeId) =>
+    apiClient.post(`/access-control/lockouts/${employeeId}/unlock`),
 };

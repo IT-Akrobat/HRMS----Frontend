@@ -1592,6 +1592,24 @@ function statusStyle(status) {
   return STATUS_STYLES[status] || STATUS_STYLES["Weekly Off"];
 }
 
+// The backend only ever persists status as "Present" or "Half Day" —
+// lateness is tracked separately on the row as `late_minutes` (used for
+// the Super Admin "Late Check-In" notification and for reports), it never
+// overwrites `status` itself. The Status filter dropdown, the summary
+// counts, and STATUS_STYLES above all already expect a "Late" value
+// though, so without this the "Late" filter option matched nothing and
+// every late check-in still showed a plain "Present" badge. This derives
+// a display-only status — a row that's genuinely Present but was clocked
+// in after the shift's grace period shows as "Late" everywhere in this
+// page, while the underlying data (check-in time, working hours, etc.)
+// is untouched.
+function withDisplayStatus(row) {
+  if (row.status === "Present" && (row.late_minutes || 0) > 0) {
+    return { ...row, status: "Late" };
+  }
+  return row;
+}
+
 function todayIso() {
   return toLocalISODate();
 }
@@ -1850,7 +1868,7 @@ export default function AttendanceHistory() {
 
     apiClient
       .get(`/attendance/my${qs ? `?${qs}` : ""}`)
-      .then((res) => setRows(res.data || []))
+      .then((res) => setRows((res.data || []).map(withDisplayStatus)))
       .catch((err) => {
         setRows([]);
         if (err.status === 404) {

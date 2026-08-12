@@ -1,19 +1,19 @@
 import {
-    ArrowLeft,
-    Baby,
-    CalendarDays,
-    CheckCircle2,
-    Clock3,
-    HeartHandshake,
-    HeartPulse,
-    Info,
-    Loader2,
-    RefreshCcw,
-    Send,
-    ShieldAlert,
-    ShieldCheck,
-    Umbrella,
-    XCircle,
+  ArrowLeft,
+  Baby,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  HeartHandshake,
+  HeartPulse,
+  Info,
+  Loader2,
+  RefreshCcw,
+  Send,
+  ShieldAlert,
+  ShieldCheck,
+  Umbrella,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -511,9 +511,7 @@ export default function LeaveApply() {
                           —
                         </span>
                       ) : t.tier_not_assigned ? (
-                        <span className="text-[11px] text-slate-400">
-                          Tier not assigned
-                        </span>
+                        <span className="text-[11px] text-slate-400"> — </span>
                       ) : (
                         <>
                           <span className="text-sm font-semibold text-slate-800">

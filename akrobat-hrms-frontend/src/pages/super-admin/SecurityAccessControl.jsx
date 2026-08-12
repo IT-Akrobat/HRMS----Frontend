@@ -1,7 +1,9 @@
-import { AlertCircle, LogOut } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlertCircle, Lock, LogOut, Unlock } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import ToggleSwitch from "../../components/common/ToggleSwitch";
+import { parseServerDate } from "../../utils/date";
 
 import { accessControlService } from "../../services/Accesscontrolservice ";
 
@@ -33,6 +35,21 @@ function fmtMinutes(mins) {
   return `${hrs} hour${hrs === 1 ? "" : "s"}`;
 }
 
+// "Unlocks in 12m" / "Unlocks in 2h 5m" — how long until locked_until,
+// so Super Admin can see at a glance whether it's worth unlocking by
+// hand or it'll clear itself in a minute anyway.
+function fmtRemaining(lockedUntil) {
+  const until = parseServerDate(lockedUntil);
+  if (!until) return "";
+  const ms = until.getTime() - Date.now();
+  if (ms <= 0) return "Unlocking now";
+  const mins = Math.ceil(ms / 60000);
+  if (mins < 60) return `Unlocks in ${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return `Unlocks in ${hrs}h${rem ? ` ${rem}m` : ""}`;
+}
+
 export default function SecurityAccessControl() {
   const [settings, setSettings] = useState(null); // null = loading
   const [ipRangesInput, setIpRangesInput] = useState("");
@@ -40,6 +57,22 @@ export default function SecurityAccessControl() {
   const [savingField, setSavingField] = useState(null);
   const [loggingOutAll, setLoggingOutAll] = useState(false);
   const [logoutResult, setLogoutResult] = useState(null);
+
+  // Locked accounts — who's locked out right now, and why (failed
+  // attempts + when it clears on its own), with a way to clear it early.
+  const [lockedAccounts, setLockedAccounts] = useState(null); // null = loading
+  const [lockedError, setLockedError] = useState("");
+  const [unlockingId, setUnlockingId] = useState(null);
+
+  const loadLockedAccounts = useCallback(() => {
+    accessControlService
+      .getLockedAccounts()
+      .then((res) => setLockedAccounts(res?.data ?? []))
+      .catch((err) => {
+        setLockedError(err.message || "Unable to load locked accounts.");
+        setLockedAccounts([]);
+      });
+  }, []);
 
   useEffect(() => {
     accessControlService
@@ -53,7 +86,23 @@ export default function SecurityAccessControl() {
         setError(err.message || "Unable to load access control settings.");
         setSettings({});
       });
-  }, []);
+    loadLockedAccounts();
+  }, [loadLockedAccounts]);
+
+  async function handleUnlock(employeeId) {
+    setUnlockingId(employeeId);
+    setLockedError("");
+    try {
+      await accessControlService.unlockAccount(employeeId);
+      setLockedAccounts((prev) =>
+        (prev || []).filter((row) => row.employee_id !== employeeId),
+      );
+    } catch (err) {
+      setLockedError(err.message || "Couldn't unlock this account. Try again.");
+    } finally {
+      setUnlockingId(null);
+    }
+  }
 
   async function saveField(field, value) {
     const previous = settings[field];
@@ -321,6 +370,89 @@ export default function SecurityAccessControl() {
               Left empty, the office restriction won't block anyone — add at
               least one range before relying on it.
             </p>
+          </div>
+        )}
+      </div>
+
+      {/* Locked accounts — who's currently locked out, why (failed
+          attempt count), and how much longer until it clears on its
+          own, with a way to clear it early instead of waiting. */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 mt-4">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+            <Lock size={14} className="text-slate-400" />
+            Locked accounts
+          </p>
+          {!!lockedAccounts?.length && (
+            <span className="text-xs text-slate-400">
+              {lockedAccounts.length} locked
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-slate-500 mb-3">
+          Accounts currently locked out after too many failed sign-in attempts.
+        </p>
+
+        {lockedError && (
+          <div className="mb-3 flex items-center gap-2 text-sm text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-4 py-2.5">
+            <AlertCircle size={14} className="shrink-0" />
+            {lockedError}
+          </div>
+        )}
+
+        {lockedAccounts === null ? (
+          <div className="space-y-2">
+            {[1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-12 bg-slate-100 rounded-lg animate-pulse"
+              />
+            ))}
+          </div>
+        ) : lockedAccounts.length === 0 ? (
+          <p className="text-sm text-slate-400 py-3">
+            No accounts are locked right now.
+          </p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {lockedAccounts.map((row) => {
+              const emp = row.employees || {};
+              return (
+                <div
+                  key={row.employee_id}
+                  className="flex items-center justify-between gap-4 py-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar
+                      name={emp.full_name}
+                      photo={emp.profile_photo}
+                      size="w-8 h-8"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">
+                        {emp.full_name || "—"}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {emp.employee_id || emp.email || "—"} ·{" "}
+                        {row.failed_attempts} failed attempt
+                        {row.failed_attempts === 1 ? "" : "s"} ·{" "}
+                        {fmtRemaining(row.locked_until)}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleUnlock(row.employee_id)}
+                    disabled={unlockingId === row.employee_id}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-orange-600 border border-orange-200 rounded-lg px-3 py-1.5 hover:bg-orange-50 disabled:opacity-50 shrink-0"
+                  >
+                    <Unlock size={12} />
+                    {unlockingId === row.employee_id
+                      ? "Unlocking..."
+                      : "Unlock"}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

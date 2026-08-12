@@ -12,18 +12,28 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Rehydrate session on refresh
-    const storedUser = authService.getStoredUser();
-    const token = authService.getToken();
-    if (storedUser && token) {
-      setUser(storedUser);
-      // Covers reopening the app on a device that granted permission
-      // before but doesn't have an active subscription anymore (e.g.
-      // browser data was cleared) -- enablePushNotifications() itself
-      // no-ops quickly if a subscription already exists.
-      enablePushNotifications();
-    }
-    setLoading(false);
+    // Rehydrate session on refresh. There's no client-side token to
+    // check anymore (see authService.js) -- the httpOnly cookie either
+    // still validates against GET /auth/me or it doesn't, so this just
+    // asks the backend rather than reading anything out of storage.
+    let cancelled = false;
+
+    authService.restoreSession().then((restoredUser) => {
+      if (cancelled) return;
+      if (restoredUser) {
+        setUser(restoredUser);
+        // Covers reopening the app on a device that granted permission
+        // before but doesn't have an active subscription anymore (e.g.
+        // browser data was cleared) -- enablePushNotifications() itself
+        // no-ops quickly if a subscription already exists.
+        enablePushNotifications();
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = async (employeeCode, password) => {
@@ -40,26 +50,27 @@ export function AuthProvider({ children }) {
     return loggedInUser;
   };
 
-  const logout = () => {
+  const logout = async () => {
     disablePushNotifications();
-    authService.logout();
+    await authService.logout();
     setUser(null);
   };
 
   // Merge a partial update (e.g. { profile: { profile_photo } }) into the
-  // shared user object and keep sessionStorage in sync, so every component
-  // reading useAuth().user — Header included — reflects the change
-  // immediately, without needing a full re-login or its own local copy.
+  // shared user object, so every component reading useAuth().user --
+  // Header included -- reflects the change immediately without a full
+  // re-login. This only lives in React state now, not localStorage --
+  // it's derived, re-fetchable data (GET /auth/me), not a credential, so
+  // there's nothing sensitive gained by persisting it, and one less
+  // place for stale/stolen data to sit around in.
   const updateUser = (partial) => {
     setUser((prev) => {
       if (!prev) return prev;
-      const next = {
+      return {
         ...prev,
         ...partial,
         profile: { ...prev.profile, ...partial?.profile },
       };
-      authService.setStoredUser(next);
-      return next;
     });
   };
 
