@@ -1,4 +1,9 @@
 {
-  "source": "/api/(.*)",
-  "destination": "https://hrms-backend-3-isq9.onrender.com"
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://hrms-backend-3-isq9.onrender.com/$1"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
