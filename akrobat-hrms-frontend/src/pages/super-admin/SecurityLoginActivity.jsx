@@ -172,12 +172,12 @@ export default function SecurityLoginActivity() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <StatCard
+        {/* <StatCard
           icon={LogIn}
           label="Total logins"
           value={total}
           loading={records === null}
-        />
+        /> */}
         <StatCard
           icon={Calendar}
           label="Logins today (this page)"

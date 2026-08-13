@@ -1056,7 +1056,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Building2,
-  Clock3,
   Loader2,
   LogIn,
   LogOut,
@@ -1644,42 +1643,86 @@ export default function SuperAdminDashboard() {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      <PageHeader
-        title="System Dashboard"
-        subtitle="Overview of your system and activity"
-        actions={
-          <div className="flex items-center gap-3">
+      {/* ---------- Desktop/tablet header (lg and up) — unchanged ---------- */}
+      <div className="hidden lg:block">
+        <PageHeader
+          title="System Dashboard"
+          subtitle="Overview of your system and activity"
+          actions={
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={openAddUser}
+                title="Create User"
+                aria-label="Create User"
+                className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+              >
+                <UserPlus size={16} />
+                <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  Create User
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddSiteOpen(true)}
+                title="Create Site"
+                aria-label="Create Site"
+                className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+              >
+                <Building2 size={16} />
+                <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  Create Site
+                </span>
+              </button>
+              <QuoteOfDayCard compact />
+            </div>
+          }
+        />
+      </div>
+
+      {/* ---------- Mobile header (below lg) ----------
+          Title + the two quick-action circles share the same line (like
+          the desktop header), Quote of the Day stacked full-width below —
+          same pattern as the Employee/Manager dashboards' mobile header. */}
+      <div className="lg:hidden mb-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-slate-800 mb-1">
+              System Dashboard
+            </h1>
+            <p className="text-sm text-slate-500">
+              Overview of your system and activity
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={openAddUser}
               title="Create User"
               aria-label="Create User"
-              className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+              className="w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
             >
               <UserPlus size={16} />
-              <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                Create User
-              </span>
             </button>
             <button
               type="button"
               onClick={() => setAddSiteOpen(true)}
               title="Create Site"
               aria-label="Create Site"
-              className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+              className="w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
             >
               <Building2 size={16} />
-              <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                Create Site
-              </span>
             </button>
-            <QuoteOfDayCard compact />
           </div>
-        }
-      />
+        </div>
+
+        <div className="mt-3">
+          <QuoteOfDayCard compact />
+        </div>
+      </div>
 
       {/* ---------- Top row: stat cards (full width) ---------- */}
-      <div className="flex gap-4 mb-6 items-stretch">
+      <div className="flex gap-3 sm:gap-4 mb-4 sm:mb-6 items-stretch">
         <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1 w-full">
           <div className="min-w-[170px] w-[170px] shrink-0">
             <StatCard
@@ -1718,7 +1761,7 @@ export default function SuperAdminDashboard() {
               value={stats?.total_departments ?? "—"}
             />
           </div>
-          <div className="min-w-[170px] w-[170px] shrink-0">
+          {/* <div className="min-w-[170px] w-[170px] shrink-0">
             <StatCard
               icon={MapPin}
               label="Locations"
@@ -1735,7 +1778,7 @@ export default function SuperAdminDashboard() {
               loading={statsLoading}
               value={stats?.total_shifts ?? "—"}
             />
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -1745,14 +1788,14 @@ export default function SuperAdminDashboard() {
           Right: On Leave Today -> Announcements -> Upcoming Birthdays ->
                  Top Performance
       ---------------------------------------------------------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-[65%_1fr] gap-6 items-start min-w-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[65%_1fr] gap-4 sm:gap-6 items-start min-w-0">
         {/* ================= Left column (65%) ================= */}
-        <div className="flex flex-col gap-6 min-w-0">
+        <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
           {/* ---------- Check-in/out (HR Admin is a person too) ---------- */}
           {/* <CheckInOutCard onActivityChange={loadLogs} /> */}
 
           {/* ---------- Recent audit activity: fixed height, hidden scrollbar ---------- */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col h-[360px]">
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 flex flex-col h-[300px] sm:h-[360px]">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                 <ShieldCheck size={17} className="text-orange-500" /> Recent
@@ -1859,14 +1902,14 @@ export default function SuperAdminDashboard() {
             Fixed height + its own vertical scroll, so this column never
             grows taller than the viewport / left column — it scrolls
             independently instead of pushing the page down. */}
-        <div className="flex flex-col gap-6 min-w-0 lg:h-[calc(100vh-6rem)] lg:sticky lg:top-4 lg:overflow-y-auto lg:pr-1 no-scrollbar">
+        <div className="flex flex-col gap-4 sm:gap-6 min-w-0 lg:h-[calc(100vh-6rem)] lg:sticky lg:top-4 lg:overflow-y-auto lg:pr-1 no-scrollbar">
           {/* ---------- On Leave Today ---------- */}
-          <div className="h-72">
+          <div className="h-60 sm:h-72">
             <OnLeaveTodayCard />
           </div>
 
           {/* ---------- Announcements ---------- */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 h-72 flex flex-col">
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 h-60 sm:h-72 flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                 <Megaphone size={17} className="text-orange-500" />{" "}
@@ -1965,12 +2008,12 @@ export default function SuperAdminDashboard() {
           </div>
 
           {/* ---------- Upcoming Birthdays ---------- */}
-          <div className="h-72">
+          <div className="h-60 sm:h-72">
             <BirthdaysCard />
           </div>
 
           {/* ---------- Top Performance ---------- */}
-          <div className="h-72">
+          <div className="h-60 sm:h-72">
             <TopPerformersCard />
           </div>
         </div>

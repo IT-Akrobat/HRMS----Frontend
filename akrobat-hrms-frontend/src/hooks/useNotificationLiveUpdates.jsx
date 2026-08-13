@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { wsUrl } from "../services/apiClient";
+import { getWsTicket, wsUrl } from "../services/apiClient";
 
 // Real-time replacement for polling GET /notifications/my on a timer.
 // Opens /ws/notifications (see app/main.py), which is private per
@@ -30,10 +30,20 @@ export function useNotificationLiveUpdates(onNotification) {
     let reconnectTimer;
     let cancelled = false;
 
-    function connect() {
+    async function connect() {
       if (cancelled) return;
 
-      ws = new WebSocket(wsUrl("/ws/notifications"));
+      // Same-origin deployments don't need this (the cookie rides along
+      // automatically) -- but it's cheap and harmless to always fetch a
+      // ticket, and it's required when the WS connects straight to a
+      // different domain than the proxied API (see apiClient.js).
+      const ticket = await getWsTicket();
+      if (cancelled) return;
+
+      const url = ticket
+        ? `${wsUrl("/ws/notifications")}?ticket=${encodeURIComponent(ticket)}`
+        : wsUrl("/ws/notifications");
+      ws = new WebSocket(url);
 
       ws.onmessage = (event) => {
         let payload;

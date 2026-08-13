@@ -624,10 +624,11 @@ export default function Users() {
             onClick={() => setFormState({ mode: "add" })}
             disabled={!rolesReady}
             title={rolesError || (!rolesReady ? "Loading roles…" : undefined)}
-            className="px-3.5 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-2 sm:px-3.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-medium flex items-center gap-1.5 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus size={15} />
-            Add User
+            <span className="hidden sm:inline">Add User</span>
+            <span className="sm:hidden">Add</span>
           </button>
         }
       />
@@ -640,7 +641,7 @@ export default function Users() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 mb-4">
         <StatCard
           icon={UsersIcon}
           label="Total Users"
@@ -673,7 +674,7 @@ export default function Users() {
 
       {/* Filters */}
       <div className="bg-white border border-slate-200 rounded-xl p-2.5 mb-3 flex flex-wrap items-center gap-2.5">
-        <div className="relative flex-1 min-w-[220px]">
+        <div className="relative flex-1 basis-full sm:basis-auto min-w-0 sm:min-w-[220px]">
           <Search
             size={16}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -741,7 +742,7 @@ export default function Users() {
         )}
       </div>
 
-      {/* Table */}
+      {/* Table (mobile: card list) */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         {loadError && (
           <div className="flex items-center gap-2 text-orange-600 bg-orange-50 border-b border-orange-100 px-4 py-3 text-sm">
@@ -750,7 +751,105 @@ export default function Users() {
           </div>
         )}
 
-        <div className="max-h-[480px] overflow-y-auto">
+        {/* ---- Mobile card list (below sm) ---- */}
+        <div className="sm:hidden max-h-[560px] overflow-y-auto divide-y divide-slate-50">
+          {loading ? (
+            [...Array(5)].map((_, i) => (
+              <div key={i} className="px-4 py-3">
+                <div className="h-10 bg-slate-100 rounded animate-pulse" />
+              </div>
+            ))
+          ) : pageItems.length === 0 ? (
+            <div className="px-4 py-12 text-center text-slate-400 text-sm">
+              No users found.
+            </div>
+          ) : (
+            pageItems.map((u) => (
+              <div
+                key={u.id}
+                onClick={() => setViewing(u)}
+                className="px-4 py-3 active:bg-slate-50"
+              >
+                <div className="flex items-start gap-3">
+                  <Avatar
+                    person={u}
+                    className="w-10 h-10 rounded-full text-xs"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-800 truncate">
+                          {u.full_name}
+                        </div>
+                        <div className="text-xs text-slate-500 truncate">
+                          {u.email}
+                        </div>
+                      </div>
+                      <div
+                        className="flex items-center gap-1 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={() =>
+                            setFormState({ mode: "edit", user: u })
+                          }
+                          title="Edit"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-orange-50 hover:text-orange-500"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeleteTarget(u);
+                          }}
+                          title="Delete"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-orange-50 hover:text-orange-500"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${roleBadgeStyle(u.role_name)}`}
+                      >
+                        {u.role_name}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                          STATUS_STYLES[u.employment_status] ||
+                          "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {u.employment_status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs text-slate-500">
+                      <div className="truncate">
+                        <span className="text-slate-400">ID: </span>
+                        {u.employee_id || "—"}
+                      </div>
+                      <div className="truncate">
+                        <span className="text-slate-400">Dept: </span>
+                        {u.departments?.department_name || "—"}
+                      </div>
+                      <div className="truncate col-span-2">
+                        <span className="text-slate-400">Joined: </span>
+                        {formatDate(u.joining_date)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* ---- Desktop table (sm and up) ---- */}
+        <div className="hidden sm:block max-h-[480px] overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
@@ -871,11 +970,11 @@ export default function Users() {
         </div>
 
         {!loading && filtered.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 text-xs text-slate-500">
-            <span>
-              Showing {(page - 1) * pageSize + 1}–
+          <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3 border-t border-slate-100 text-xs text-slate-500">
+            <span className="truncate">
+              {(page - 1) * pageSize + 1}–
               {Math.min(page * pageSize, filtered.length)} of {filtered.length}{" "}
-              users
+              <span className="hidden sm:inline">users</span>
             </span>
             <div className="flex items-center gap-1">
               <button

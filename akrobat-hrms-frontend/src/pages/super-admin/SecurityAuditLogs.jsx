@@ -9,13 +9,11 @@ import {
   Pencil,
   Plus,
   Search,
-  Shield,
-  Trash2,
+  Trash2
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
-import StatCard from "../../components/common/StatCard";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 import { geocodeQueue, placeKey, reverseGeocode } from "../../utils/Geocode";
@@ -290,7 +288,7 @@ export default function SecurityAuditLogs() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      {/* <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard
           icon={ClipboardList}
           label="Total logged events"
@@ -311,7 +309,7 @@ export default function SecurityAuditLogs() {
           loading={records === null}
           color="purple"
         />
-      </div>
+      </div> */}
 
       <div className="bg-white rounded-xl border border-slate-200">
         {/* Filters */}

@@ -404,16 +404,16 @@ function TodayTab() {
       <div className="flex justify-end mb-3">
         <button
           onClick={() => load()}
-          className="px-3.5 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5"
+          className="px-3 py-2 sm:px-3.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           Refresh
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3 flex items-center justify-between text-sm">
+      <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-sm">
         <div className="flex items-center gap-2 text-slate-600 flex-wrap">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
+          <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
           <span className="font-medium">{onSiteCount}</span> on site right now ·{" "}
           <span className="font-medium">{rows.length}</span> field employees
           total
@@ -449,114 +449,209 @@ function TodayTab() {
             No one has visited a site today yet.
           </div>
         ) : (
-          <div className="max-h-[560px] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
-                  <th className="px-4 py-3 font-medium">Employee</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Current Site</th>
-                  <th className="px-4 py-3 font-medium">Since</th>
-                  <th className="px-4 py-3 font-medium">Presence</th>
-                  <th className="px-4 py-3 font-medium">Sites Visited Today</th>
-                  <th className="px-4 py-3 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const meta =
-                    STATUS_META[row.live_status] || STATUS_META.not_checked_in;
-                  return (
-                    <tr
-                      key={row.employee_id}
-                      className="border-b border-slate-50 hover:bg-slate-50/60"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          {row.employee?.profile_photo ? (
-                            <img
-                              src={row.employee.profile_photo}
-                              alt=""
-                              className="w-8 h-8 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold">
-                              {initials(row.employee?.full_name)}
-                            </div>
-                          )}
-                          <div>
-                            <div className="font-medium text-slate-700">
+          <>
+            {/* ---- Mobile card list (below sm) ---- */}
+            <div className="sm:hidden max-h-[560px] overflow-y-auto divide-y divide-slate-50">
+              {rows.map((row) => {
+                const meta =
+                  STATUS_META[row.live_status] || STATUS_META.not_checked_in;
+                return (
+                  <button
+                    key={row.employee_id}
+                    type="button"
+                    onClick={() => setSelected(row)}
+                    className="w-full text-left px-4 py-3 active:bg-slate-50"
+                  >
+                    <div className="flex items-start gap-3">
+                      {row.employee?.profile_photo ? (
+                        <img
+                          src={row.employee.profile_photo}
+                          alt=""
+                          className="w-10 h-10 rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold shrink-0">
+                          {initials(row.employee?.full_name)}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-medium text-slate-700 truncate">
                               {row.employee?.full_name || "—"}
                             </div>
-                            <div className="text-xs text-slate-400">
+                            <div className="text-xs text-slate-400 truncate">
                               {row.employee?.departments?.department_name || ""}
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${meta.badge}`}
-                        >
                           <span
-                            className={`w-1.5 h-1.5 rounded-full ${meta.dot}`}
-                          />
-                          {meta.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {row.current_site?.location_name || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-slate-500 text-xs">
-                        {timeOnly(row.current_site_since)}
-                      </td>
-                      <td className="px-4 py-3 text-xs">
-                        {row.live_status !== "on_site" ? (
-                          <span className="text-slate-300">—</span>
-                        ) : row.is_outside_radius ? (
-                          <span
-                            className="inline-flex items-center gap-1 text-orange-600 font-medium"
-                            title={
-                              row.last_ping_distance_m
-                                ? `${Math.round(row.last_ping_distance_m)}m from site`
-                                : undefined
-                            }
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-medium shrink-0 ${meta.badge}`}
                           >
-                            <AlertTriangle size={12} /> Out of range
-                            {row.last_ping_at && (
-                              <span className="text-slate-400 font-normal">
-                                · {timeAgo(row.last_ping_at)}
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${meta.dot}`}
+                            />
+                            {meta.label}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs text-slate-500">
+                          <div className="truncate">
+                            <span className="text-slate-400">Site: </span>
+                            {row.current_site?.location_name || "—"}
+                          </div>
+                          <div className="truncate">
+                            <span className="text-slate-400">Since: </span>
+                            {timeOnly(row.current_site_since)}
+                          </div>
+                          <div className="truncate col-span-2">
+                            <span className="text-slate-400">Presence: </span>
+                            {row.live_status !== "on_site" ? (
+                              "—"
+                            ) : row.is_outside_radius ? (
+                              <span className="text-orange-600 font-medium inline-flex items-center gap-1">
+                                <AlertTriangle size={11} /> Out of range
+                                {row.last_ping_at &&
+                                  ` · ${timeAgo(row.last_ping_at)}`}
                               </span>
+                            ) : row.last_ping_at ? (
+                              `In range · ${timeAgo(row.last_ping_at)}`
+                            ) : (
+                              "No live ping yet"
                             )}
-                          </span>
-                        ) : row.last_ping_at ? (
-                          <span className="text-slate-500">
-                            In range · {timeAgo(row.last_ping_at)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">
-                            No live ping yet
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {row.sites_visited_today}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => setSelected(row)}
-                          className="text-orange-600 hover:text-orange-700 text-xs font-medium inline-flex items-center gap-1"
-                        >
+                          </div>
+                          <div className="truncate col-span-2">
+                            <span className="text-slate-400">
+                              Sites visited today:{" "}
+                            </span>
+                            {row.sites_visited_today}
+                          </div>
+                        </div>
+
+                        <div className="mt-2 text-orange-600 text-xs font-medium inline-flex items-center gap-1">
                           <MapPin size={13} />
                           View Trail
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ---- Desktop table (sm and up) ---- */}
+            <div className="hidden sm:block max-h-[560px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
+                    <th className="px-4 py-3 font-medium">Employee</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Current Site</th>
+                    <th className="px-4 py-3 font-medium">Since</th>
+                    <th className="px-4 py-3 font-medium">Presence</th>
+                    <th className="px-4 py-3 font-medium">
+                      Sites Visited Today
+                    </th>
+                    <th className="px-4 py-3 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const meta =
+                      STATUS_META[row.live_status] ||
+                      STATUS_META.not_checked_in;
+                    return (
+                      <tr
+                        key={row.employee_id}
+                        className="border-b border-slate-50 hover:bg-slate-50/60"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            {row.employee?.profile_photo ? (
+                              <img
+                                src={row.employee.profile_photo}
+                                alt=""
+                                className="w-8 h-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold">
+                                {initials(row.employee?.full_name)}
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-medium text-slate-700">
+                                {row.employee?.full_name || "—"}
+                              </div>
+                              <div className="text-xs text-slate-400">
+                                {row.employee?.departments?.department_name ||
+                                  ""}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${meta.badge}`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${meta.dot}`}
+                            />
+                            {meta.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {row.current_site?.location_name || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 text-xs">
+                          {timeOnly(row.current_site_since)}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {row.live_status !== "on_site" ? (
+                            <span className="text-slate-300">—</span>
+                          ) : row.is_outside_radius ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-orange-600 font-medium"
+                              title={
+                                row.last_ping_distance_m
+                                  ? `${Math.round(row.last_ping_distance_m)}m from site`
+                                  : undefined
+                              }
+                            >
+                              <AlertTriangle size={12} /> Out of range
+                              {row.last_ping_at && (
+                                <span className="text-slate-400 font-normal">
+                                  · {timeAgo(row.last_ping_at)}
+                                </span>
+                              )}
+                            </span>
+                          ) : row.last_ping_at ? (
+                            <span className="text-slate-500">
+                              In range · {timeAgo(row.last_ping_at)}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">
+                              No live ping yet
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {row.sites_visited_today}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => setSelected(row)}
+                            className="text-orange-600 hover:text-orange-700 text-xs font-medium inline-flex items-center gap-1"
+                          >
+                            <MapPin size={13} />
+                            View Trail
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -642,7 +737,7 @@ function HistoryTab() {
             value={fromDate}
             max={toDate}
             onChange={(e) => setFromDate(e.target.value)}
-            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700"
+            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 w-[140px] sm:w-auto"
           />
         </div>
         <div>
@@ -653,17 +748,17 @@ function HistoryTab() {
             min={fromDate}
             max={defaultTo}
             onChange={(e) => setToDate(e.target.value)}
-            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700"
+            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 w-[140px] sm:w-auto"
           />
         </div>
         <button
           onClick={() => load()}
-          className="px-3.5 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5"
+          className="px-3 py-2 sm:px-3.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           Apply / Refresh
         </button>
-        <div className="ml-auto text-xs text-slate-400">
+        <div className="w-full sm:w-auto sm:ml-auto text-xs text-slate-400">
           Showing past visits only — today's activity is on the "Today" tab.
         </div>
       </div>
@@ -686,71 +781,130 @@ function HistoryTab() {
             No site visits recorded in this date range.
           </div>
         ) : (
-          <div className="max-h-[560px] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
-                  <th className="px-4 py-3 font-medium">Employee</th>
-                  <th className="px-4 py-3 font-medium">Date</th>
-                  <th className="px-4 py-3 font-medium">Sites Visited</th>
-                  <th className="px-4 py-3 font-medium">Time on Site</th>
-                  <th className="px-4 py-3 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, idx) => (
-                  <tr
-                    key={`${row.employee_id}-${row.attendance_date}-${idx}`}
-                    className="border-b border-slate-50 hover:bg-slate-50/60"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        {row.employee?.profile_photo ? (
-                          <img
-                            src={row.employee.profile_photo}
-                            alt=""
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold">
-                            {initials(row.employee?.full_name)}
-                          </div>
-                        )}
-                        <div>
-                          <div className="font-medium text-slate-700">
-                            {row.employee?.full_name || "—"}
-                          </div>
-                          <div className="text-xs text-slate-400">
-                            {row.employee?.departments?.department_name || ""}
-                          </div>
+          <>
+            {/* ---- Mobile card list (below sm) ---- */}
+            <div className="sm:hidden max-h-[560px] overflow-y-auto divide-y divide-slate-50">
+              {rows.map((row, idx) => (
+                <button
+                  key={`${row.employee_id}-${row.attendance_date}-${idx}`}
+                  type="button"
+                  onClick={() => setSelected(row)}
+                  className="w-full text-left px-4 py-3 active:bg-slate-50"
+                >
+                  <div className="flex items-start gap-3">
+                    {row.employee?.profile_photo ? (
+                      <img
+                        src={row.employee.profile_photo}
+                        alt=""
+                        className="w-10 h-10 rounded-full object-cover shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold shrink-0">
+                        {initials(row.employee?.full_name)}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-slate-700 truncate">
+                        {row.employee?.full_name || "—"}
+                      </div>
+                      <div className="text-xs text-slate-400 truncate">
+                        {row.employee?.departments?.department_name || ""}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs text-slate-500">
+                        <div className="truncate">
+                          <span className="text-slate-400">Date: </span>
+                          {formatDay(row.attendance_date)}
+                        </div>
+                        <div className="truncate">
+                          <span className="text-slate-400">Sites: </span>
+                          {row.site_count}
+                        </div>
+                        <div className="truncate col-span-2">
+                          <span className="text-slate-400">Time on site: </span>
+                          {row.total_minutes
+                            ? `${Math.floor(row.total_minutes / 60)}h ${row.total_minutes % 60}m`
+                            : "—"}
                         </div>
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {formatDay(row.attendance_date)}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {row.site_count}
-                    </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">
-                      {row.total_minutes
-                        ? `${Math.floor(row.total_minutes / 60)}h ${row.total_minutes % 60}m`
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => setSelected(row)}
-                        className="text-orange-600 hover:text-orange-700 text-xs font-medium inline-flex items-center gap-1"
-                      >
+
+                      <div className="mt-2 text-orange-600 text-xs font-medium inline-flex items-center gap-1">
                         <MapPin size={13} />
                         View Trail
-                      </button>
-                    </td>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* ---- Desktop table (sm and up) ---- */}
+            <div className="hidden sm:block max-h-[560px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
+                    <th className="px-4 py-3 font-medium">Employee</th>
+                    <th className="px-4 py-3 font-medium">Date</th>
+                    <th className="px-4 py-3 font-medium">Sites Visited</th>
+                    <th className="px-4 py-3 font-medium">Time on Site</th>
+                    <th className="px-4 py-3 font-medium"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {rows.map((row, idx) => (
+                    <tr
+                      key={`${row.employee_id}-${row.attendance_date}-${idx}`}
+                      className="border-b border-slate-50 hover:bg-slate-50/60"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          {row.employee?.profile_photo ? (
+                            <img
+                              src={row.employee.profile_photo}
+                              alt=""
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold">
+                              {initials(row.employee?.full_name)}
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-medium text-slate-700">
+                              {row.employee?.full_name || "—"}
+                            </div>
+                            <div className="text-xs text-slate-400">
+                              {row.employee?.departments?.department_name || ""}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {formatDay(row.attendance_date)}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {row.site_count}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">
+                        {row.total_minutes
+                          ? `${Math.floor(row.total_minutes / 60)}h ${row.total_minutes % 60}m`
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => setSelected(row)}
+                          className="text-orange-600 hover:text-orange-700 text-xs font-medium inline-flex items-center gap-1"
+                        >
+                          <MapPin size={13} />
+                          View Trail
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

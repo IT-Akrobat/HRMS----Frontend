@@ -1123,68 +1123,134 @@ export default function Reports() {
 
         {/* Download one employee's monthly attendance — Attendance tab only */}
         {activeTab === "attendance" && (
-          <div className="flex flex-col sm:flex-row sm:items-end gap-3 p-4 border-b border-slate-100 bg-slate-50/60">
-            <div className="flex-1 max-w-xs">
-              <label className="block text-xs font-medium text-slate-500 mb-1.5">
-                Employee
-              </label>
-              <EmployeeSearchSelect
-                options={employeeOptions}
-                value={monthlyEmployeeId}
-                onChange={setMonthlyEmployeeId}
-                placeholder="All employees (optional)..."
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1.5">
-                Month
-              </label>
-              <input
-                type="month"
-                value={monthlyMonth}
-                onChange={(e) => setMonthlyMonth(e.target.value)}
-                className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-              />
-            </div>
-            <button
-              onClick={downloadMonthlyAttendance}
-              disabled={monthlyDownloading || !monthlyMonth}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {monthlyDownloading ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Download size={14} />
+          <>
+            {/* ---- Desktop/tablet (sm and up) — original layout, unchanged ---- */}
+            <div className="hidden sm:flex sm:items-end gap-3 p-4 border-b border-slate-100 bg-slate-50/60">
+              <div className="flex-1 max-w-xs">
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                  Employee
+                </label>
+                <EmployeeSearchSelect
+                  options={employeeOptions}
+                  value={monthlyEmployeeId}
+                  onChange={setMonthlyEmployeeId}
+                  placeholder="All employees (optional)..."
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                  Month
+                </label>
+                <input
+                  type="month"
+                  value={monthlyMonth}
+                  onChange={(e) => setMonthlyMonth(e.target.value)}
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                />
+              </div>
+              <button
+                onClick={downloadMonthlyAttendance}
+                disabled={monthlyDownloading || !monthlyMonth}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {monthlyDownloading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Download size={14} />
+                )}
+                {monthlyEmployeeId
+                  ? "Download Monthly Attendance"
+                  : "Download Month (All Employees)"}
+              </button>
+              {monthlyError && (
+                <span className="text-xs text-orange-600 flex items-center gap-1">
+                  <AlertTriangle size={13} /> {monthlyError}
+                </span>
               )}
-              {monthlyEmployeeId
-                ? "Download Monthly Attendance"
-                : "Download Month (All Employees)"}
-            </button>
-            {monthlyError && (
-              <span className="text-xs text-orange-600 flex items-center gap-1">
-                <AlertTriangle size={13} /> {monthlyError}
-              </span>
-            )}
-            {/* Export Excel lives here (next to Download Month) instead
-                of its own row below — Attendance has no search box, so
-                a separate search+export bar was just an empty-looking
-                strip with nothing to search. */}
-            <div className="flex items-center gap-3 sm:ml-auto">
+              <div className="flex items-center gap-3 ml-auto">
+                {!loading && !error && (
+                  <span className="text-xs text-slate-400">
+                    {rows.length} {rows.length === 1 ? "record" : "records"}
+                  </span>
+                )}
+                <button
+                  onClick={handleExport}
+                  disabled={loading || !!error || rows.length === 0}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Download size={14} />
+                  Export Excel
+                </button>
+              </div>
+            </div>
+
+            {/* ---- Mobile (below sm) — employee+export on one line,
+                month+download on another ---- */}
+            <div className="sm:hidden p-4 border-b border-slate-100 bg-slate-50/60 space-y-3">
+              <div className="flex items-end gap-2">
+                <div className="flex-1 min-w-0">
+                  <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                    Employee
+                  </label>
+                  <EmployeeSearchSelect
+                    options={employeeOptions}
+                    value={monthlyEmployeeId}
+                    onChange={setMonthlyEmployeeId}
+                    placeholder="All employees (optional)..."
+                  />
+                </div>
+                <button
+                  onClick={handleExport}
+                  disabled={loading || !!error || rows.length === 0}
+                  title="Export Excel"
+                  className="flex items-center justify-center w-[38px] h-[38px] shrink-0 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Download size={15} />
+                </button>
+              </div>
+
+              <div className="flex items-end gap-2">
+                <div className="shrink-0">
+                  <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                    Month
+                  </label>
+                  <input
+                    type="month"
+                    value={monthlyMonth}
+                    onChange={(e) => setMonthlyMonth(e.target.value)}
+                    className="w-[140px] border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                  />
+                </div>
+                <button
+                  onClick={downloadMonthlyAttendance}
+                  disabled={monthlyDownloading || !monthlyMonth}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {monthlyDownloading ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Download size={14} />
+                  )}
+                  <span className="truncate">
+                    {monthlyEmployeeId
+                      ? "Download Monthly Attendance"
+                      : "Download Month (All )"}
+                  </span>
+                </button>
+              </div>
+
               {!loading && !error && (
                 <span className="text-xs text-slate-400">
                   {rows.length} {rows.length === 1 ? "record" : "records"}
                 </span>
               )}
-              <button
-                onClick={handleExport}
-                disabled={loading || !!error || rows.length === 0}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Download size={14} />
-                Export Excel
-              </button>
+              {monthlyError && (
+                <span className="text-xs text-orange-600 flex items-center gap-1">
+                  <AlertTriangle size={13} /> {monthlyError}
+                </span>
+              )}
             </div>
-          </div>
+          </>
         )}
 
         {/* Search + export — Employees/Leave Requests/Payroll/Projects
@@ -1204,7 +1270,7 @@ export default function Reports() {
                 className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
               />
             </div>
-            <div className="flex items-center gap-3 sm:ml-auto">
+            <div className="flex items-center justify-between sm:justify-normal gap-3 sm:ml-auto">
               {!loading && !error && (
                 <span className="text-xs text-slate-400">
                   {filtered.length}{" "}
@@ -1214,7 +1280,7 @@ export default function Reports() {
               <button
                 onClick={handleExport}
                 disabled={loading || !!error || filtered.length === 0}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               >
                 <Download size={14} />
                 {activeTab === "employees" ? "Export Excel" : "Export CSV"}

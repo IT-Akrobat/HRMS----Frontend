@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { wsUrl } from "../services/apiClient";
+import { getWsTicket, wsUrl } from "../services/apiClient";
 
 // Shared by every role's dashboard (super-admin, hr-admin, manager,
 // employee) so none of them have to poll on a timer to see another
@@ -37,10 +37,19 @@ export function useAttendanceLiveUpdates(onEvent) {
     let reconnectTimer;
     let cancelled = false;
 
-    function connect() {
+    async function connect() {
       if (cancelled) return;
 
-      ws = new WebSocket(wsUrl("/ws/dashboard"));
+      // See the matching comment in useNotificationLiveUpdates.jsx -- the
+      // ticket is required when this WS connects to a different domain
+      // than the proxied API, harmless otherwise.
+      const ticket = await getWsTicket();
+      if (cancelled) return;
+
+      const url = ticket
+        ? `${wsUrl("/ws/dashboard")}?ticket=${encodeURIComponent(ticket)}`
+        : wsUrl("/ws/dashboard");
+      ws = new WebSocket(url);
 
       ws.onmessage = () => {
         onEventRef.current?.();

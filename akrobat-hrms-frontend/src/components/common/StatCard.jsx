@@ -1,4 +1,3 @@
-
 // Small color presets so callers just pass a name instead of raw Tailwind
 // classes every time. Add more here if a page needs a color this doesn't have.
 const COLOR_MAP = {
@@ -23,22 +22,25 @@ export default function StatCard({
   loading,
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-3">
+    <div className="bg-white rounded-xl border border-slate-200 p-2.5 lg:p-4 flex flex-col gap-2 lg:gap-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-slate-500">{label}</span>
+        <span className="text-[11px] lg:text-sm text-slate-500">{label}</span>
         {Icon && (
           <div
-            className={`w-9 h-9 rounded-lg flex items-center justify-center ${COLOR_MAP[color]}`}
+            className={`w-7 h-7 lg:w-9 lg:h-9 rounded-lg flex items-center justify-center ${COLOR_MAP[color]}`}
           >
-            <Icon size={18} />
+            <Icon size={14} className="lg:hidden" />
+            <Icon size={18} className="hidden lg:block" />
           </div>
         )}
       </div>
 
       {loading ? (
-        <div className="h-7 w-16 bg-slate-100 rounded animate-pulse" />
+        <div className="h-5 w-12 lg:h-7 lg:w-16 bg-slate-100 rounded animate-pulse" />
       ) : (
-        <div className="text-2xl font-bold text-slate-800">{value}</div>
+        <div className="text-lg lg:text-2xl font-bold text-slate-800">
+          {value}
+        </div>
       )}
 
       {trend && !loading && (

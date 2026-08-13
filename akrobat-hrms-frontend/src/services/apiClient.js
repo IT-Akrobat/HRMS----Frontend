@@ -11,6 +11,18 @@
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
+// In production BASE_URL is a relative "/api" path (see .env.example) so
+// that normal fetch()/apiClient calls are same-origin through the Vercel
+// rewrite proxy -- that's what lets the httpOnly auth cookie actually
+// get stored on iOS/Safari. WebSockets can't go through that proxy
+// (Vercel doesn't proxy persistent WS upgrades to an external host), so
+// they need the backend's real address. VITE_WS_BASE_URL supplies that;
+// if it's not set (e.g. local dev, where BASE_URL is already an absolute
+// http://localhost:8000 URL) we just derive ws(s):// from BASE_URL like
+// before.
+const WS_BASE_URL =
+  import.meta.env.VITE_WS_BASE_URL || BASE_URL.replace(/^http/, "ws");
+
 // Double-submit CSRF cookie (see app/core/csrf.py). It's deliberately
 // NOT httpOnly -- that's the whole point of the pattern -- reading it
 // with document.cookie would be fine for XSS purposes (an XSS payload on
@@ -200,7 +212,25 @@ export function withCredentialsAndCsrf(method, headers = {}) {
 }
 
 export function wsUrl(path) {
-  return `${BASE_URL.replace(/^http/, "ws")}${path}`;
+  return `${WS_BASE_URL}${path}`;
+}
+
+// The WS connection hits the backend's own domain directly (see
+// WS_BASE_URL above), so on iOS/Safari it can't rely on the httpOnly
+// cookie -- that cookie was only ever stored for the *proxied* /api
+// origin. This fetches a short-lived, single-use ticket over the normal
+// (proxied, cookie-authed) apiClient connection instead; the caller
+// appends it as ?ticket= on the WS URL. See
+// app/auth/routes.py::get_ws_ticket and app/core/ws_tickets.py on the
+// backend. Same-origin deployments still work fine -- the backend falls
+// back to the cookie automatically when there's no ticket.
+export async function getWsTicket() {
+  try {
+    const data = await request("/auth/ws-ticket", { method: "GET" });
+    return data?.ticket || null;
+  } catch {
+    return null;
+  }
 }
 
 export { BASE_URL };
