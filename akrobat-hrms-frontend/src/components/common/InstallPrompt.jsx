@@ -1,4 +1,4 @@
-import { Download, X } from "lucide-react";
+import { Download, Share, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------
@@ -35,15 +35,42 @@ function isStandalone() {
   );
 }
 
+// iOS Safari (and any browser on iOS, since they're all forced onto
+// WebKit) never fires `beforeinstallprompt` — there is no scripted
+// install dialog on iOS at all. The only path is manual: Share sheet
+// -> "Add to Home Screen". We detect that case separately so those
+// users get instructions instead of a silently-missing button.
+function isIos() {
+  return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+}
+
+function isIosSafari() {
+  if (!isIos()) return false;
+  const ua = window.navigator.userAgent;
+  // Chrome/Firefox/Edge on iOS all still use WebKit under the hood and
+  // also can't trigger the Add to Home Screen sheet programmatically,
+  // but they identify as "CriOS"/"FxiOS"/"EdgiOS" in the UA string —
+  // kept out of the "Safari" label below just for accurate wording.
+  return /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+}
+
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [visible, setVisible] = useState(false);
+  const [iosVisible, setIosVisible] = useState(false);
   const [dismissed, setDismissed] = useState(
     () => sessionStorage.getItem("installPromptDismissed") === "1",
   );
 
   useEffect(() => {
     if (isStandalone()) return; // already installed / running as an app
+
+    // iOS never gets a `beforeinstallprompt` event, so there's nothing
+    // to listen for — just show the manual-instructions banner instead.
+    if (isIos()) {
+      setIosVisible(true);
+      return;
+    }
 
     function onBeforeInstallPrompt(event) {
       // Stop Chrome's own mini-infobar from also trying to show —
@@ -77,13 +104,50 @@ export default function InstallPrompt() {
 
   function handleDismiss() {
     setVisible(false);
+    setIosVisible(false);
     // Don't nag again this tab session; the browser will still offer
     // its own address-bar install icon regardless.
     sessionStorage.setItem("installPromptDismissed", "1");
     setDismissed(true);
   }
 
-  if (!visible || dismissed) return null;
+  if (dismissed) return null;
+  if (!visible && !iosVisible) return null;
+
+  if (iosVisible) {
+    return (
+      <div className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:right-4 sm:w-96 z-[100] bg-white border border-slate-200 rounded-xl shadow-2xl p-4 flex items-start gap-3">
+        <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+          <Share size={18} className="text-orange-500" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-800">
+            Install Akrobat HRMS
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {isIosSafari()
+              ? 'Tap the Share icon below, then "Add to Home Screen".'
+              : 'Open this page in Safari, tap Share, then "Add to Home Screen" — other iOS browsers can\'t install apps.'}
+          </p>
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              onClick={handleDismiss}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg text-slate-500 hover:bg-slate-50"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+        <button
+          onClick={handleDismiss}
+          className="text-slate-300 hover:text-slate-500 shrink-0"
+          title="Dismiss"
+        >
+          <X size={16} />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:right-4 sm:w-96 z-[100] bg-white border border-slate-200 rounded-xl shadow-2xl p-4 flex items-start gap-3">
