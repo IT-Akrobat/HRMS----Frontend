@@ -11,6 +11,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
+import DatePicker from "../../components/layout/DatePicker";
 import { apiClient } from "../../services/apiClient";
 import {
   parseLocalISODate,
@@ -306,6 +307,31 @@ function EmployeeDrilldown({ employee, fromDate, toDate, onClose }) {
   );
 }
 
+// ---------------------------------------------------------------------
+// Mobile-only presentation piece below (StatChip) and the `lg:hidden`
+// block in the return statement further down. Nothing above this
+// line, and none of the desktop JSX in the `hidden lg:block` block,
+// is changed — same state, same `load()`, same derived `totals` feed
+// both layouts; only the markup below switches on the `lg` (1024px)
+// breakpoint, the same one Sidebar/Header already use. EmployeeDrilldown
+// is rendered once, outside both blocks, so it works the same way
+// regardless of which layout triggered it (see bottom of this file).
+// ---------------------------------------------------------------------
+
+// Compact stat card that scrolls horizontally on mobile instead of
+// sitting in the desktop's 4-column grid.
+function StatChip({ icon: Icon, label, value }) {
+  return (
+    <div className="shrink-0 min-w-[132px] bg-white border border-slate-200 rounded-xl p-3">
+      <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mb-1.5">
+        <Icon size={13} />
+        {label}
+      </div>
+      <div className="text-lg font-bold text-slate-800">{value}</div>
+    </div>
+  );
+}
+
 export default function ManagerAttendanceReports() {
   const [fromDate, setFromDate] = useState(firstOfMonth());
   const [toDate, setToDate] = useState(isoToday());
@@ -349,204 +375,377 @@ export default function ManagerAttendanceReports() {
 
   return (
     <div>
-      <PageHeader
-        title="Attendance Reports"
-        subtitle="Attendance summary for your direct and indirect reports over a date range."
-        actions={
-          report &&
-          employees.length > 0 && (
-            <button
-              onClick={() => downloadCSV(report)}
-              className="flex items-center gap-1.5 border border-slate-200 text-slate-700 text-sm font-medium px-3.5 py-2 rounded-lg hover:bg-slate-50"
-            >
-              <Download size={14} /> Export CSV
-            </button>
-          )
-        }
-      />
+      {/* =================== DESKTOP (unchanged) =================== */}
+      <div className="hidden lg:block">
+        <PageHeader
+          title="Attendance Reports"
+          subtitle="Attendance summary for your direct and indirect reports over a date range."
+          actions={
+            report &&
+            employees.length > 0 && (
+              <button
+                onClick={() => downloadCSV(report)}
+                className="flex items-center gap-1.5 border border-slate-200 text-slate-700 text-sm font-medium px-3.5 py-2 rounded-lg hover:bg-slate-50"
+              >
+                <Download size={14} /> Export CSV
+              </button>
+            )
+          }
+        />
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-end gap-3">
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1.5">
-            From
-          </label>
-          <input
-            type="date"
+        <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-end gap-3">
+          <DatePicker
+            label="From"
             value={fromDate}
             max={toDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+            onChange={(iso) => setFromDate(iso)}
           />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1.5">
-            To
-          </label>
-          <input
-            type="date"
+          <DatePicker
+            label="To"
             value={toDate}
             min={fromDate}
             max={isoToday()}
-            onChange={(e) => setToDate(e.target.value)}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+            onChange={(iso) => setToDate(iso)}
+          />
+          <button
+            onClick={load}
+            className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium px-4 py-2 rounded-lg"
+          >
+            Apply
+          </button>
+          {report && (
+            <span className="text-xs text-slate-400 sm:ml-auto">
+              {report.working_days} working day
+              {report.working_days !== 1 ? "s" : ""} in range (Mon–Fri)
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard
+            icon={Users}
+            label="Team Size"
+            value={employees.length}
+            loading={loading}
+          />
+          <StatCard
+            icon={TrendingUp}
+            label="Avg. Attendance"
+            value={`${totals.avgPct}%`}
+            color="blue"
+            loading={loading}
+          />
+          <StatCard
+            icon={UserX}
+            label="Total Absences"
+            value={totals.absent}
+            color="red"
+            loading={loading}
+          />
+          <StatCard
+            icon={Clock}
+            label="Late Instances"
+            value={totals.late}
+            color="slate"
+            loading={loading}
           />
         </div>
-        <button
-          onClick={load}
-          className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium px-4 py-2 rounded-lg"
-        >
-          Apply
-        </button>
-        {report && (
-          <span className="text-xs text-slate-400 sm:ml-auto">
-            {report.working_days} working day
-            {report.working_days !== 1 ? "s" : ""} in range (Mon–Fri)
-          </span>
-        )}
-      </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
-          icon={Users}
-          label="Team Size"
-          value={employees.length}
-          loading={loading}
-        />
-        <StatCard
-          icon={TrendingUp}
-          label="Avg. Attendance"
-          value={`${totals.avgPct}%`}
-          color="blue"
-          loading={loading}
-        />
-        <StatCard
-          icon={UserX}
-          label="Total Absences"
-          value={totals.absent}
-          color="red"
-          loading={loading}
-        />
-        <StatCard
-          icon={Clock}
-          label="Late Instances"
-          value={totals.late}
-          color="slate"
-          loading={loading}
-        />
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          {loading ? (
+            <div className="p-6 space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className="h-12 bg-slate-100 rounded animate-pulse"
+                />
+              ))}
+            </div>
+          ) : error ? (
+            <div className="p-6 text-sm text-orange-500 flex items-center gap-2">
+              <AlertTriangle size={14} /> {error}
+            </div>
+          ) : employees.length === 0 ? (
+            <div className="p-10 text-center text-sm text-slate-400 flex flex-col items-center gap-2">
+              <Calendar size={22} className="text-slate-300" />
+              No one reports to you yet, so there's no attendance to summarize.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 text-left text-xs text-slate-400 uppercase tracking-wide">
+                    <th className="px-4 py-3">Employee</th>
+                    <th className="px-4 py-3 text-center">Present</th>
+                    <th className="px-4 py-3 text-center">Half Day</th>
+                    <th className="px-4 py-3 text-center">Leave</th>
+                    <th className="px-4 py-3 text-center">Absent</th>
+                    <th className="px-4 py-3 text-center">Late</th>
+                    <th className="px-4 py-3 text-center">Attendance %</th>
+                    <th className="px-4 py-3 text-right">Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map((e) => (
+                    <tr
+                      key={e.employee_id}
+                      className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 cursor-pointer"
+                      onClick={() => setSelected(e)}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar
+                            person={e}
+                            className="w-8 h-8 rounded-full text-xs"
+                          />
+                          <div className="min-w-0">
+                            <div className="font-medium text-slate-800 truncate">
+                              {e.full_name}
+                            </div>
+                            <div className="text-xs text-slate-400 truncate">
+                              {e.department || "—"} · {e.designation || "—"}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-slate-600">
+                        {e.present_days}
+                      </td>
+                      <td className="px-4 py-3 text-center text-slate-600">
+                        {e.half_days}
+                      </td>
+                      <td className="px-4 py-3 text-center text-slate-600">
+                        {e.leave_days}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={
+                            e.absent_days > 0
+                              ? "text-orange-600 font-medium"
+                              : "text-slate-400"
+                          }
+                        >
+                          {e.absent_days}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={
+                            e.late_days > 0
+                              ? "text-orange-500 font-medium"
+                              : "text-slate-400"
+                          }
+                        >
+                          {e.late_days}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-full ${pctColor(e.attendance_percentage)}`}
+                        >
+                          {e.attendance_percentage}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-500 text-xs">
+                        {(e.total_working_minutes / 60).toFixed(1)}h
+                        {e.total_overtime_minutes > 0 && (
+                          <span className="text-blue-500">
+                            {" "}
+                            (+{(e.total_overtime_minutes / 60).toFixed(1)}h OT)
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
+      {/* ================== /DESKTOP (unchanged) ================== */}
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      {/* ===================== MOBILE ===================== */}
+      <div className="lg:hidden pb-6">
+        <div className="sticky top-0 z-10 bg-[#F7F5EF] pt-1 pb-3 -mx-4 px-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-slate-800 truncate">
+                Attendance Reports
+              </h1>
+              <p className="text-xs text-slate-500 truncate">
+                {report
+                  ? `${report.working_days} working day${report.working_days !== 1 ? "s" : ""} in range (Mon–Fri)`
+                  : "Summary for your direct and indirect reports."}
+              </p>
+            </div>
+            {report && employees.length > 0 && (
+              <button
+                onClick={() => downloadCSV(report)}
+                className="shrink-0 flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 text-slate-600 active:bg-slate-50"
+                aria-label="Export CSV"
+              >
+                <Download size={16} />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 mt-3">
+            <div className="flex-1 min-w-0 border border-slate-200 rounded-lg bg-white px-3 py-2">
+              <DatePicker
+                value={fromDate}
+                max={toDate}
+                onChange={(iso) => setFromDate(iso)}
+                className="w-full"
+              />
+            </div>
+            <div className="flex-1 min-w-0 border border-slate-200 rounded-lg bg-white px-3 py-2">
+              <DatePicker
+                value={toDate}
+                min={fromDate}
+                max={isoToday()}
+                onChange={(iso) => setToDate(iso)}
+                className="w-full"
+              />
+            </div>
+            <button
+              onClick={load}
+              className="shrink-0 bg-orange-500 active:bg-orange-600 text-white text-sm font-medium px-3.5 py-2 rounded-lg"
+            >
+              Go
+            </button>
+          </div>
+        </div>
+
+        <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-4 px-4 mb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <StatChip
+            icon={Users}
+            label="Team Size"
+            value={loading ? "—" : employees.length}
+          />
+          <StatChip
+            icon={TrendingUp}
+            label="Avg. Attendance"
+            value={loading ? "—" : `${totals.avgPct}%`}
+          />
+          <StatChip
+            icon={UserX}
+            label="Total Absences"
+            value={loading ? "—" : totals.absent}
+          />
+          <StatChip
+            icon={Clock}
+            label="Late Instances"
+            value={loading ? "—" : totals.late}
+          />
+        </div>
+
         {loading ? (
-          <div className="p-6 space-y-3">
+          <div className="space-y-2">
             {[...Array(5)].map((_, i) => (
               <div
                 key={i}
-                className="h-12 bg-slate-100 rounded animate-pulse"
+                className="h-24 bg-slate-100 rounded-xl animate-pulse"
               />
             ))}
           </div>
         ) : error ? (
-          <div className="p-6 text-sm text-orange-500 flex items-center gap-2">
-            <AlertTriangle size={14} /> {error}
+          <div className="text-sm text-orange-500 flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-lg px-3 py-3">
+            <AlertTriangle size={14} className="shrink-0" /> {error}
           </div>
         ) : employees.length === 0 ? (
-          <div className="p-10 text-center text-sm text-slate-400 flex flex-col items-center gap-2">
+          <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-400 flex flex-col items-center gap-2">
             <Calendar size={22} className="text-slate-300" />
             No one reports to you yet, so there's no attendance to summarize.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-left text-xs text-slate-400 uppercase tracking-wide">
-                  <th className="px-4 py-3">Employee</th>
-                  <th className="px-4 py-3 text-center">Present</th>
-                  <th className="px-4 py-3 text-center">Half Day</th>
-                  <th className="px-4 py-3 text-center">Leave</th>
-                  <th className="px-4 py-3 text-center">Absent</th>
-                  <th className="px-4 py-3 text-center">Late</th>
-                  <th className="px-4 py-3 text-center">Attendance %</th>
-                  <th className="px-4 py-3 text-right">Hours</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees.map((e) => (
-                  <tr
-                    key={e.employee_id}
-                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 cursor-pointer"
-                    onClick={() => setSelected(e)}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar
-                          person={e}
-                          className="w-8 h-8 rounded-full text-xs"
-                        />
-                        <div className="min-w-0">
-                          <div className="font-medium text-slate-800 truncate">
-                            {e.full_name}
-                          </div>
-                          <div className="text-xs text-slate-400 truncate">
-                            {e.department || "—"} · {e.designation || "—"}
-                          </div>
-                        </div>
+          <div className="space-y-2">
+            {employees.map((e) => (
+              <button
+                key={e.employee_id}
+                type="button"
+                onClick={() => setSelected(e)}
+                className="w-full text-left bg-white border border-slate-200 rounded-xl p-3.5 active:bg-slate-50"
+              >
+                <div className="flex items-start gap-3">
+                  <Avatar person={e} className="w-9 h-9 rounded-full text-xs" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">
+                          {e.full_name}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate">
+                          {e.department || "—"} · {e.designation || "—"}
+                        </p>
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-center text-slate-600">
-                      {e.present_days}
-                    </td>
-                    <td className="px-4 py-3 text-center text-slate-600">
-                      {e.half_days}
-                    </td>
-                    <td className="px-4 py-3 text-center text-slate-600">
-                      {e.leave_days}
-                    </td>
-                    <td className="px-4 py-3 text-center">
                       <span
-                        className={
-                          e.absent_days > 0
-                            ? "text-orange-600 font-medium"
-                            : "text-slate-400"
-                        }
-                      >
-                        {e.absent_days}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span
-                        className={
-                          e.late_days > 0
-                            ? "text-orange-500 font-medium"
-                            : "text-slate-400"
-                        }
-                      >
-                        {e.late_days}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-full ${pctColor(e.attendance_percentage)}`}
+                        className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${pctColor(e.attendance_percentage)}`}
                       >
                         {e.attendance_percentage}%
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-500 text-xs">
-                      {(e.total_working_minutes / 60).toFixed(1)}h
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-1.5 mt-3 text-center">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700">
+                          {e.present_days}
+                        </p>
+                        <p className="text-[10px] text-slate-400">Present</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700">
+                          {e.leave_days}
+                        </p>
+                        <p className="text-[10px] text-slate-400">Leave</p>
+                      </div>
+                      <div>
+                        <p
+                          className={`text-sm font-semibold ${
+                            e.absent_days > 0
+                              ? "text-orange-600"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          {e.absent_days}
+                        </p>
+                        <p className="text-[10px] text-slate-400">Absent</p>
+                      </div>
+                      <div>
+                        <p
+                          className={`text-sm font-semibold ${
+                            e.late_days > 0
+                              ? "text-orange-500"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          {e.late_days}
+                        </p>
+                        <p className="text-[10px] text-slate-400">Late</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-50 text-xs text-slate-500">
+                      <span>
+                        {(e.total_working_minutes / 60).toFixed(1)}h worked
+                      </span>
                       {e.total_overtime_minutes > 0 && (
-                        <span className="text-blue-500">
-                          {" "}
-                          (+{(e.total_overtime_minutes / 60).toFixed(1)}h OT)
+                        <span className="text-blue-500 font-medium">
+                          +{(e.total_overtime_minutes / 60).toFixed(1)}h OT
                         </span>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
         )}
       </div>
+      {/* ==================== /MOBILE ==================== */}
 
+      {/* Shared drilldown — one instance handles taps from either the
+          desktop table rows or the mobile cards above. */}
       <EmployeeDrilldown
         employee={selected}
         fromDate={fromDate}

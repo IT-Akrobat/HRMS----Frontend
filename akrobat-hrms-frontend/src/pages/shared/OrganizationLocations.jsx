@@ -157,7 +157,7 @@ export function LocationFormModal({ mode, location, onClose, onSaved }) {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Site Details
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Site Name" required>
                 <input
                   className={inputCls}
@@ -355,19 +355,42 @@ export default function OrganizationLocations() {
 
   return (
     <div>
-      <PageHeader
-        title="Locations"
-        subtitle="Manage your organization's sites and their check-in geofences."
-        actions={
+      {/* ---------- Desktop/tablet header (lg and up) — unchanged ---------- */}
+      <div className="hidden lg:block">
+        <PageHeader
+          title="Locations"
+          subtitle="Manage your organization's sites and their check-in geofences."
+          actions={
+            <button
+              onClick={() => setFormState({ mode: "add" })}
+              className="px-3.5 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center gap-1.5"
+            >
+              <Plus size={15} />
+              New Site
+            </button>
+          }
+        />
+      </div>
+
+      {/* ---------- Mobile header (below lg) ----------
+          "New Site" is now a compact plus-icon button at the end of the
+          title line, instead of a full-width button below the subtitle. */}
+      <div className="lg:hidden mb-4">
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <h1 className="text-xl font-bold text-slate-800">Locations</h1>
           <button
             onClick={() => setFormState({ mode: "add" })}
-            className="px-3.5 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center gap-1.5"
+            aria-label="New Site"
+            title="New Site"
+            className="shrink-0 w-9 h-9 rounded-lg bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center"
           >
-            <Plus size={15} />
-            New Site
+            <Plus size={18} />
           </button>
-        }
-      />
+        </div>
+        <p className="text-sm text-slate-500">
+          Manage your organization's sites and their check-in geofences.
+        </p>
+      </div>
 
       {/* Filters */}
       <div className="bg-white border border-slate-200 rounded-xl p-2.5 mb-3 flex flex-wrap items-center gap-2.5">
@@ -395,7 +418,8 @@ export default function OrganizationLocations() {
         )}
 
         <div className="max-h-[520px] overflow-y-auto">
-          <table className="w-full text-sm">
+          {/* ---------- Desktop/tablet table (lg and up) — unchanged ---------- */}
+          <table className="hidden lg:table w-full text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-3 font-medium">Site</th>
@@ -483,6 +507,87 @@ export default function OrganizationLocations() {
               )}
             </tbody>
           </table>
+
+          {/* ---------- Mobile card list (below lg) ----------
+              A 6-column table (name, code, address, coordinates, radius,
+              actions) has no room on a phone — each site becomes a card:
+              icon + name + code up top, address and radius below, Edit /
+              Delete as full-width buttons at the bottom instead of small
+              icon-only buttons crammed to the right. */}
+          <div className="lg:hidden">
+            {loading ? (
+              <div className="p-4 space-y-3">
+                {[...Array(4)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-16 bg-slate-100 rounded-xl animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="px-4 py-12 text-center text-slate-400 text-sm">
+                No sites found. Tap "New Site" to add your first location.
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {filtered.map((loc) => (
+                  <li key={loc.id} className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+                        <MapPin size={16} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-slate-800 truncate">
+                          {loc.location_name}
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {loc.location_code || "—"}
+                        </div>
+
+                        {loc.address && (
+                          <div className="text-xs text-slate-500 mt-1.5">
+                            {loc.address}
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 mt-1.5">
+                          <span>
+                            {typeof loc.latitude === "number" &&
+                            typeof loc.longitude === "number"
+                              ? `${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)}`
+                              : "No coordinates"}
+                          </span>
+                          <span>
+                            {loc.radius ? `${loc.radius} m radius` : "—"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-3">
+                          <button
+                            onClick={() =>
+                              setFormState({ mode: "edit", location: loc })
+                            }
+                            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-lg"
+                          >
+                            <Pencil size={13} /> Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDeleteError(null);
+                              setDeleteTarget(loc);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium text-orange-600 border border-orange-200 bg-orange-50 hover:bg-orange-100 px-3 py-2 rounded-lg"
+                          >
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
 

@@ -20,9 +20,12 @@ export default function StatCard({
   color = "orange",
   trend,
   loading,
+  className = "",
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-2.5 lg:p-4 flex flex-col gap-2 lg:gap-3">
+    <div
+      className={`bg-white rounded-xl border border-slate-200 p-2.5 lg:p-4 flex flex-col gap-2 lg:gap-3 ${className}`}
+    >
       <div className="flex items-center justify-between">
         <span className="text-[11px] lg:text-sm text-slate-500">{label}</span>
         {Icon && (

@@ -272,6 +272,71 @@ function FieldStaffRow({ row }) {
   );
 }
 
+// ---------------------------------------------------------------------
+// Mobile-only presentation pieces below (StatChip, OfficeTeamCard) and
+// the `lg:hidden` block in the return statement further down. Nothing
+// above this line, and none of the desktop JSX in the `hidden lg:block`
+// block, is changed — same components, same two effects, same derived
+// numbers feed both layouts; only the markup below switches on the
+// `lg` (1024px) breakpoint, the same one Sidebar/Header already use.
+// FieldStaffRow itself is reused as-is on mobile too (it's already a
+// stacked row, not a table, so it doesn't need a separate card).
+// ---------------------------------------------------------------------
+
+// Compact stat card that scrolls horizontally on mobile instead of
+// sitting in the desktop's 4-column grid.
+function StatChip({ icon: Icon, label, value }) {
+  return (
+    <div className="shrink-0 min-w-[132px] bg-white border border-slate-200 rounded-xl p-3">
+      <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mb-1.5">
+        <Icon size={13} />
+        {label}
+      </div>
+      <div className="text-lg font-bold text-slate-800">{value}</div>
+    </div>
+  );
+}
+
+// Full-width stacked card, replacing the desktop table row for narrow
+// screens. Same status coloring convention as the rest of the page.
+function OfficeTeamCard({ row }) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex items-center gap-3">
+      <Avatar
+        name={row.employees?.full_name}
+        photo={row.employees?.profile_photo}
+        size="w-9 h-9"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium text-slate-800 truncate">
+            {row.employees?.full_name || "—"}
+          </p>
+          <span
+            className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
+              row.status === "Present"
+                ? "bg-blue-50 text-blue-600"
+                : "bg-orange-50 text-orange-500"
+            }`}
+          >
+            {row.status}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
+          <span className="flex items-center gap-1">
+            <LogIn size={11} className="text-slate-400" />
+            {formatTime(row.check_in_time)}
+          </span>
+          <span className="flex items-center gap-1">
+            <LogOut size={11} className="text-slate-400" />
+            {formatTime(row.check_out_time)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ManagerAttendance() {
   const [fieldStaff, setFieldStaff] = useState([]);
   const [fieldLoading, setFieldLoading] = useState(true);
@@ -316,139 +381,247 @@ export default function ManagerAttendance() {
 
   return (
     <div>
-      <PageHeader
-        title="Team Attendance"
-        subtitle="Field staff live location, plus everyone else's check-in status."
-      />
+      {/* =================== DESKTOP (unchanged) =================== */}
+      <div className="hidden lg:block">
+        <PageHeader
+          title="Team Attendance"
+          subtitle="Field staff live location, plus everyone else's check-in status."
+        />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard
-          icon={Users}
-          label="Field Staff"
-          color="orange"
-          loading={fieldLoading}
-          value={fieldStaff.length || "—"}
-        />
-        <StatCard
-          icon={MapPin}
-          label="On Site Now"
-          color="green"
-          loading={fieldLoading}
-          value={onSiteCount}
-        />
-        <StatCard
-          icon={Users}
-          label="Office Team"
-          color="blue"
-          loading={officeLoading}
-          value={officeOnly.length || "—"}
-        />
-        <StatCard
-          icon={Building2}
-          label="Present (Office)"
-          color="slate"
-          loading={officeLoading}
-          value={officePresentCount}
-        />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <StatCard
+            icon={Users}
+            label="Field Staff"
+            color="orange"
+            loading={fieldLoading}
+            value={fieldStaff.length || "—"}
+          />
+          <StatCard
+            icon={MapPin}
+            label="On Site Now"
+            color="green"
+            loading={fieldLoading}
+            value={onSiteCount}
+          />
+          <StatCard
+            icon={Users}
+            label="Office Team"
+            color="blue"
+            loading={officeLoading}
+            value={officeOnly.length || "—"}
+          />
+          <StatCard
+            icon={Building2}
+            label="Present (Office)"
+            color="slate"
+            loading={officeLoading}
+            value={officePresentCount}
+          />
+        </div>
+
+        {/* ---------- Field staff — live site status ---------- */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+          <h3 className="font-semibold text-slate-800 mb-1">
+            Field Staff — Live Status
+          </h3>
+          <p className="text-xs text-slate-400 mb-3">
+            Inspection / Operation reports who visit multiple sites in a day.
+            Tap a row to see today's full site-by-site breakdown.
+          </p>
+
+          {fieldError && (
+            <div className="mb-3 text-sm text-orange-500 bg-orange-50 border border-orange-100 rounded-lg px-4 py-3">
+              {fieldError}
+            </div>
+          )}
+
+          {fieldLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-14 bg-slate-100 rounded animate-pulse"
+                />
+              ))}
+            </div>
+          ) : fieldStaff.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4">
+              No field staff (Inspection / Operation) report to you.
+            </p>
+          ) : (
+            <div>
+              {fieldStaff.map((row) => (
+                <FieldStaffRow key={row.employee_id} row={row} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ---------- Everyone else — plain check-in/out ---------- */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <h3 className="font-semibold text-slate-800 mb-4">
+            Office Team — Today
+          </h3>
+
+          {officeLoading ? (
+            <div className="h-24 bg-slate-100 rounded animate-pulse" />
+          ) : officeOnly.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              No office attendance records for your team today.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
+                  <th className="pb-2 font-medium">Employee</th>
+                  <th className="pb-2 font-medium">Check In</th>
+                  <th className="pb-2 font-medium">Check Out</th>
+                  <th className="pb-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {officeOnly.map((row) => (
+                  <tr key={row.id}>
+                    <td className="py-2 text-slate-700">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar
+                          name={row.employees?.full_name}
+                          photo={row.employees?.profile_photo}
+                          size="w-7 h-7"
+                          textSize="text-[10px]"
+                        />
+                        <span>{row.employees?.full_name || "—"}</span>
+                      </div>
+                    </td>
+                    <td className="py-2 text-slate-500">
+                      {formatTime(row.check_in_time)}
+                    </td>
+                    <td className="py-2 text-slate-500">
+                      {formatTime(row.check_out_time)}
+                    </td>
+                    <td className="py-2">
+                      <span
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          row.status === "Present"
+                            ? "bg-blue-50 text-blue-600"
+                            : "bg-orange-50 text-orange-500"
+                        }`}
+                      >
+                        {row.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
+      {/* ================== /DESKTOP (unchanged) ================== */}
 
-      {/* ---------- Field staff — live site status ---------- */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-        <h3 className="font-semibold text-slate-800 mb-1">
-          Field Staff — Live Status
-        </h3>
-        <p className="text-xs text-slate-400 mb-3">
-          Inspection / Operation reports who visit multiple sites in a day. Tap
-          a row to see today's full site-by-site breakdown.
-        </p>
+      {/* ===================== MOBILE ===================== */}
+      <div className="lg:hidden pb-6">
+        <div className="sticky top-0 z-10 bg-[#F7F5EF] pt-1 pb-3 -mx-4 px-4">
+          <h1 className="text-lg font-bold text-slate-800">Team Attendance</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Field staff live location, plus everyone else's check-in status.
+          </p>
+        </div>
 
         {fieldError && (
-          <div className="mb-3 text-sm text-orange-500 bg-orange-50 border border-orange-100 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2 text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2.5 text-xs mb-4">
+            <AlertTriangle size={15} className="shrink-0" />
             {fieldError}
           </div>
         )}
 
-        {fieldLoading ? (
+        <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-4 px-4 mb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <StatChip
+            icon={Users}
+            label="Field Staff"
+            value={fieldLoading ? "—" : fieldStaff.length}
+          />
+          <StatChip
+            icon={MapPin}
+            label="On Site Now"
+            value={fieldLoading ? "—" : onSiteCount}
+          />
+          <StatChip
+            icon={Users}
+            label="Office Team"
+            value={officeLoading ? "—" : officeOnly.length}
+          />
+          <StatChip
+            icon={Building2}
+            label="Present (Office)"
+            value={officeLoading ? "—" : officePresentCount}
+          />
+        </div>
+
+        {/* ---------- Field staff — live site status ---------- */}
+        <div className="flex items-center gap-2 mb-1">
+          <Route size={15} className="text-orange-500" />
+          <h3 className="font-semibold text-slate-800 text-sm">
+            Field Staff — Live Status
+          </h3>
+        </div>
+        <p className="text-xs text-slate-400 mb-3">
+          Tap a row for today's full site-by-site breakdown.
+        </p>
+
+        <div className="bg-white rounded-xl border border-slate-200 px-4 mb-6">
+          {fieldLoading ? (
+            <div className="space-y-2 py-3">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-14 bg-slate-100 rounded animate-pulse"
+                />
+              ))}
+            </div>
+          ) : fieldStaff.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4">
+              No field staff (Inspection / Operation) report to you.
+            </p>
+          ) : (
+            <div>
+              {fieldStaff.map((row) => (
+                <FieldStaffRow key={row.employee_id} row={row} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ---------- Everyone else — plain check-in/out ---------- */}
+        <div className="flex items-center gap-2 mb-3">
+          <Building2 size={15} className="text-orange-500" />
+          <h3 className="font-semibold text-slate-800 text-sm">
+            Office Team — Today
+          </h3>
+        </div>
+
+        {officeLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-14 bg-slate-100 rounded animate-pulse"
+                className="h-16 bg-slate-100 rounded-xl animate-pulse"
               />
             ))}
           </div>
-        ) : fieldStaff.length === 0 ? (
-          <p className="text-sm text-slate-400 py-4">
-            No field staff (Inspection / Operation) report to you.
-          </p>
+        ) : officeOnly.length === 0 ? (
+          <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-sm text-slate-400">
+            No office attendance records for your team today.
+          </div>
         ) : (
-          <div>
-            {fieldStaff.map((row) => (
-              <FieldStaffRow key={row.employee_id} row={row} />
+          <div className="space-y-2">
+            {officeOnly.map((row) => (
+              <OfficeTeamCard key={row.id} row={row} />
             ))}
           </div>
         )}
       </div>
-
-      {/* ---------- Everyone else — plain check-in/out ---------- */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <h3 className="font-semibold text-slate-800 mb-4">
-          Office Team — Today
-        </h3>
-
-        {officeLoading ? (
-          <div className="h-24 bg-slate-100 rounded animate-pulse" />
-        ) : officeOnly.length === 0 ? (
-          <p className="text-sm text-slate-400">
-            No office attendance records for your team today.
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
-                <th className="pb-2 font-medium">Employee</th>
-                <th className="pb-2 font-medium">Check In</th>
-                <th className="pb-2 font-medium">Check Out</th>
-                <th className="pb-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {officeOnly.map((row) => (
-                <tr key={row.id}>
-                  <td className="py-2 text-slate-700">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar
-                        name={row.employees?.full_name}
-                        photo={row.employees?.profile_photo}
-                        size="w-7 h-7"
-                        textSize="text-[10px]"
-                      />
-                      <span>{row.employees?.full_name || "—"}</span>
-                    </div>
-                  </td>
-                  <td className="py-2 text-slate-500">
-                    {formatTime(row.check_in_time)}
-                  </td>
-                  <td className="py-2 text-slate-500">
-                    {formatTime(row.check_out_time)}
-                  </td>
-                  <td className="py-2">
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        row.status === "Present"
-                          ? "bg-blue-50 text-blue-600"
-                          : "bg-orange-50 text-orange-500"
-                      }`}
-                    >
-                      {row.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {/* ==================== /MOBILE ==================== */}
     </div>
   );
 }

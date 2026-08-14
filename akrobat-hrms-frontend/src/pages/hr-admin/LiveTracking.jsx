@@ -4,7 +4,14 @@ import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import "leaflet/dist/leaflet.css";
 import { AlertTriangle, Loader2, MapPin, RefreshCw, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import PageHeader from "../../components/common/PageHeader";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
@@ -287,14 +294,23 @@ function TrailMapModal({ row, onClose }) {
   const meta = STATUS_META[row.live_status] || STATUS_META.not_checked_in;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 sm:p-4">
+      {/* Mobile: full-width sheet sliding up from the bottom, rounded top
+          corners only, near-full-height. Desktop (sm+): unchanged centered
+          dialog — every mobile-only class below is undone by an sm: class
+          that restores the original look exactly. */}
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl max-h-[94vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-xl">
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center pt-2 pb-1 shrink-0">
+          <span className="w-10 h-1.5 rounded-full bg-slate-300" />
+        </div>
+
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-slate-800 truncate">
               {row.employee?.full_name || "Employee"} — Today's Trail
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
               <span
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${meta.badge}`}
               >
@@ -317,16 +333,16 @@ function TrailMapModal({ row, onClose }) {
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 shrink-0"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="px-6 py-4 overflow-y-auto">
+        <div className="px-4 sm:px-6 py-4 overflow-y-auto flex-1">
           <div
             ref={mapElRef}
-            className="w-full h-[380px] rounded-xl border border-slate-200"
+            className="w-full h-[44vh] sm:h-[380px] rounded-xl border border-slate-200"
           />
 
           {points.length === 0 && (
@@ -343,19 +359,19 @@ function TrailMapModal({ row, onClose }) {
                   key={visit.id}
                   type="button"
                   onClick={() => setActiveVisitId(visit.id)}
-                  className={`w-full flex items-center justify-between text-sm rounded-lg px-3 py-2 border text-left transition-colors ${
+                  className={`w-full flex items-center justify-between text-sm rounded-lg px-3 py-2.5 sm:py-2 border text-left transition-colors ${
                     activeVisitId === visit.id
                       ? "bg-orange-50 border-orange-200"
                       : "bg-slate-50 border-slate-100 hover:bg-slate-100"
                   }`}
                 >
-                  <div className="flex items-center gap-2 text-slate-700">
-                    <MapPin size={14} className="text-orange-500" />
-                    <span className="font-medium">
+                  <div className="flex items-center gap-2 text-slate-700 min-w-0">
+                    <MapPin size={14} className="text-orange-500 shrink-0" />
+                    <span className="font-medium truncate">
                       {visit.locations?.location_name || "Unknown Site"}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-500 shrink-0 pl-2">
                     {timeOnly(visit.arrival_time)} →{" "}
                     {visit.departure_time
                       ? timeOnly(visit.departure_time)
@@ -376,7 +392,10 @@ function TrailMapModal({ row, onClose }) {
 // (GET /attendance/org/site-visits, already filtered server-side).
 // ==========================================================================
 
-function TodayTab() {
+// forwardRef so the parent tab bar can trigger a refresh on mobile, where
+// the standalone Refresh button below is hidden and replaced by an
+// icon button docked at the right end of the Today/History tab row.
+const TodayTab = forwardRef(function TodayTab(_props, ref) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -398,6 +417,10 @@ function TodayTab() {
       .finally(() => setLoading(false));
   }
 
+  useImperativeHandle(ref, () => ({
+    refresh: () => load(),
+  }));
+
   useEffect(() => {
     load();
     const interval = setInterval(() => load(true), POLL_MS);
@@ -411,19 +434,21 @@ function TodayTab() {
 
   return (
     <div>
-      <div className="flex justify-end mb-3">
+      {/* Desktop only — mobile gets an icon-only Refresh docked at the
+          right end of the Today/History tab row (see LiveTracking below). */}
+      <div className="hidden sm:flex justify-end mb-3">
         <button
           onClick={() => load()}
-          className="px-3.5 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5"
+          className="px-3 py-2 sm:px-3.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           Refresh
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3 flex items-center justify-between text-sm">
+      <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-sm">
         <div className="flex items-center gap-2 text-slate-600 flex-wrap">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
+          <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
           <span className="font-medium">{onSiteCount}</span> on site right now ·{" "}
           <span className="font-medium">{rows.length}</span> field employees
           total
@@ -459,114 +484,209 @@ function TodayTab() {
             No one has visited a site today yet.
           </div>
         ) : (
-          <div className="max-h-[560px] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
-                  <th className="px-4 py-3 font-medium">Employee</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Current Site</th>
-                  <th className="px-4 py-3 font-medium">Since</th>
-                  <th className="px-4 py-3 font-medium">Presence</th>
-                  <th className="px-4 py-3 font-medium">Sites Visited Today</th>
-                  <th className="px-4 py-3 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const meta =
-                    STATUS_META[row.live_status] || STATUS_META.not_checked_in;
-                  return (
-                    <tr
-                      key={row.employee_id}
-                      className="border-b border-slate-50 hover:bg-slate-50/60"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          {row.employee?.profile_photo ? (
-                            <img
-                              src={row.employee.profile_photo}
-                              alt=""
-                              className="w-8 h-8 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold">
-                              {initials(row.employee?.full_name)}
-                            </div>
-                          )}
-                          <div>
-                            <div className="font-medium text-slate-700">
+          <>
+            {/* ---- Mobile card list (below sm) ---- */}
+            <div className="sm:hidden max-h-[560px] overflow-y-auto divide-y divide-slate-50">
+              {rows.map((row) => {
+                const meta =
+                  STATUS_META[row.live_status] || STATUS_META.not_checked_in;
+                return (
+                  <button
+                    key={row.employee_id}
+                    type="button"
+                    onClick={() => setSelected(row)}
+                    className="w-full text-left px-4 py-3 active:bg-slate-50"
+                  >
+                    <div className="flex items-start gap-3">
+                      {row.employee?.profile_photo ? (
+                        <img
+                          src={row.employee.profile_photo}
+                          alt=""
+                          className="w-10 h-10 rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold shrink-0">
+                          {initials(row.employee?.full_name)}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-medium text-slate-700 truncate">
                               {row.employee?.full_name || "—"}
                             </div>
-                            <div className="text-xs text-slate-400">
+                            <div className="text-xs text-slate-400 truncate">
                               {row.employee?.departments?.department_name || ""}
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${meta.badge}`}
-                        >
                           <span
-                            className={`w-1.5 h-1.5 rounded-full ${meta.dot}`}
-                          />
-                          {meta.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {row.current_site?.location_name || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-slate-500 text-xs">
-                        {timeOnly(row.current_site_since)}
-                      </td>
-                      <td className="px-4 py-3 text-xs">
-                        {row.live_status !== "on_site" ? (
-                          <span className="text-slate-300">—</span>
-                        ) : row.is_outside_radius ? (
-                          <span
-                            className="inline-flex items-center gap-1 text-orange-600 font-medium"
-                            title={
-                              row.last_ping_distance_m
-                                ? `${Math.round(row.last_ping_distance_m)}m from site`
-                                : undefined
-                            }
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-medium shrink-0 ${meta.badge}`}
                           >
-                            <AlertTriangle size={12} /> Out of range
-                            {row.last_ping_at && (
-                              <span className="text-slate-400 font-normal">
-                                · {timeAgo(row.last_ping_at)}
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${meta.dot}`}
+                            />
+                            {meta.label}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs text-slate-500">
+                          <div className="truncate">
+                            <span className="text-slate-400">Site: </span>
+                            {row.current_site?.location_name || "—"}
+                          </div>
+                          <div className="truncate">
+                            <span className="text-slate-400">Since: </span>
+                            {timeOnly(row.current_site_since)}
+                          </div>
+                          <div className="truncate col-span-2">
+                            <span className="text-slate-400">Presence: </span>
+                            {row.live_status !== "on_site" ? (
+                              "—"
+                            ) : row.is_outside_radius ? (
+                              <span className="text-orange-600 font-medium inline-flex items-center gap-1">
+                                <AlertTriangle size={11} /> Out of range
+                                {row.last_ping_at &&
+                                  ` · ${timeAgo(row.last_ping_at)}`}
                               </span>
+                            ) : row.last_ping_at ? (
+                              `In range · ${timeAgo(row.last_ping_at)}`
+                            ) : (
+                              "No live ping yet"
                             )}
-                          </span>
-                        ) : row.last_ping_at ? (
-                          <span className="text-slate-500">
-                            In range · {timeAgo(row.last_ping_at)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">
-                            No live ping yet
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {row.sites_visited_today}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => setSelected(row)}
-                          className="text-orange-600 hover:text-orange-700 text-xs font-medium inline-flex items-center gap-1"
-                        >
+                          </div>
+                          <div className="truncate col-span-2">
+                            <span className="text-slate-400">
+                              Sites visited today:{" "}
+                            </span>
+                            {row.sites_visited_today}
+                          </div>
+                        </div>
+
+                        <div className="mt-2 text-orange-600 text-xs font-medium inline-flex items-center gap-1">
                           <MapPin size={13} />
                           View Trail
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ---- Desktop table (sm and up) — unchanged ---- */}
+            <div className="hidden sm:block max-h-[560px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
+                    <th className="px-4 py-3 font-medium">Employee</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Current Site</th>
+                    <th className="px-4 py-3 font-medium">Since</th>
+                    <th className="px-4 py-3 font-medium">Presence</th>
+                    <th className="px-4 py-3 font-medium">
+                      Sites Visited Today
+                    </th>
+                    <th className="px-4 py-3 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const meta =
+                      STATUS_META[row.live_status] ||
+                      STATUS_META.not_checked_in;
+                    return (
+                      <tr
+                        key={row.employee_id}
+                        className="border-b border-slate-50 hover:bg-slate-50/60"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            {row.employee?.profile_photo ? (
+                              <img
+                                src={row.employee.profile_photo}
+                                alt=""
+                                className="w-8 h-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold">
+                                {initials(row.employee?.full_name)}
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-medium text-slate-700">
+                                {row.employee?.full_name || "—"}
+                              </div>
+                              <div className="text-xs text-slate-400">
+                                {row.employee?.departments?.department_name ||
+                                  ""}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${meta.badge}`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${meta.dot}`}
+                            />
+                            {meta.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {row.current_site?.location_name || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 text-xs">
+                          {timeOnly(row.current_site_since)}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {row.live_status !== "on_site" ? (
+                            <span className="text-slate-300">—</span>
+                          ) : row.is_outside_radius ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-orange-600 font-medium"
+                              title={
+                                row.last_ping_distance_m
+                                  ? `${Math.round(row.last_ping_distance_m)}m from site`
+                                  : undefined
+                              }
+                            >
+                              <AlertTriangle size={12} /> Out of range
+                              {row.last_ping_at && (
+                                <span className="text-slate-400 font-normal">
+                                  · {timeAgo(row.last_ping_at)}
+                                </span>
+                              )}
+                            </span>
+                          ) : row.last_ping_at ? (
+                            <span className="text-slate-500">
+                              In range · {timeAgo(row.last_ping_at)}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">
+                              No live ping yet
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {row.sites_visited_today}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => setSelected(row)}
+                            className="text-orange-600 hover:text-orange-700 text-xs font-medium inline-flex items-center gap-1"
+                          >
+                            <MapPin size={13} />
+                            View Trail
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -575,7 +695,7 @@ function TodayTab() {
       )}
     </div>
   );
-}
+});
 
 // ==========================================================================
 // HISTORY TAB — past site visits, one row per employee/day
@@ -652,7 +772,7 @@ function HistoryTab() {
             value={fromDate}
             max={toDate}
             onChange={(e) => setFromDate(e.target.value)}
-            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700"
+            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 w-[112px] sm:w-auto"
           />
         </div>
         <div>
@@ -663,18 +783,27 @@ function HistoryTab() {
             min={fromDate}
             max={defaultTo}
             onChange={(e) => setToDate(e.target.value)}
-            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700"
+            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 w-[112px] sm:w-auto"
           />
         </div>
-        <button
-          onClick={() => load()}
-          className="px-3.5 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5"
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          Apply / Refresh
-        </button>
-        <div className="ml-auto text-xs text-slate-400">
-          Showing past visits only — today's activity is on the "Today" tab.
+        {/* Mobile: button and text share their own full-width row, with
+            the button pushed to the end (right) via justify-between and
+            order. Desktop (sm and up): sm:contents drops this wrapper so
+            both flow in the row exactly as before — unchanged. */}
+        <div className="flex items-center justify-between gap-2 w-full sm:contents">
+          <button
+            onClick={() => load()}
+            className="px-2.5 py-2 sm:px-3.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5 shrink-0 order-2 sm:order-none"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            <span className="hidden sm:inline">Apply / Refresh</span>
+          </button>
+          <div className="text-xs text-slate-400 order-1 sm:order-none sm:ml-auto">
+            <span className="sm:hidden">Showing past visits only.</span>
+            <span className="hidden sm:inline">
+              Showing past visits only — today's activity is on the "Today" tab.
+            </span>
+          </div>
         </div>
       </div>
 
@@ -696,71 +825,130 @@ function HistoryTab() {
             No site visits recorded in this date range.
           </div>
         ) : (
-          <div className="max-h-[560px] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
-                  <th className="px-4 py-3 font-medium">Employee</th>
-                  <th className="px-4 py-3 font-medium">Date</th>
-                  <th className="px-4 py-3 font-medium">Sites Visited</th>
-                  <th className="px-4 py-3 font-medium">Time on Site</th>
-                  <th className="px-4 py-3 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, idx) => (
-                  <tr
-                    key={`${row.employee_id}-${row.attendance_date}-${idx}`}
-                    className="border-b border-slate-50 hover:bg-slate-50/60"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        {row.employee?.profile_photo ? (
-                          <img
-                            src={row.employee.profile_photo}
-                            alt=""
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold">
-                            {initials(row.employee?.full_name)}
-                          </div>
-                        )}
-                        <div>
-                          <div className="font-medium text-slate-700">
-                            {row.employee?.full_name || "—"}
-                          </div>
-                          <div className="text-xs text-slate-400">
-                            {row.employee?.departments?.department_name || ""}
-                          </div>
+          <>
+            {/* ---- Mobile card list (below sm) ---- */}
+            <div className="sm:hidden max-h-[560px] overflow-y-auto divide-y divide-slate-50">
+              {rows.map((row, idx) => (
+                <button
+                  key={`${row.employee_id}-${row.attendance_date}-${idx}`}
+                  type="button"
+                  onClick={() => setSelected(row)}
+                  className="w-full text-left px-4 py-3 active:bg-slate-50"
+                >
+                  <div className="flex items-start gap-3">
+                    {row.employee?.profile_photo ? (
+                      <img
+                        src={row.employee.profile_photo}
+                        alt=""
+                        className="w-10 h-10 rounded-full object-cover shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold shrink-0">
+                        {initials(row.employee?.full_name)}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-slate-700 truncate">
+                        {row.employee?.full_name || "—"}
+                      </div>
+                      <div className="text-xs text-slate-400 truncate">
+                        {row.employee?.departments?.department_name || ""}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs text-slate-500">
+                        <div className="truncate">
+                          <span className="text-slate-400">Date: </span>
+                          {formatDay(row.attendance_date)}
+                        </div>
+                        <div className="truncate">
+                          <span className="text-slate-400">Sites: </span>
+                          {row.site_count}
+                        </div>
+                        <div className="truncate col-span-2">
+                          <span className="text-slate-400">Time on site: </span>
+                          {row.total_minutes
+                            ? `${Math.floor(row.total_minutes / 60)}h ${row.total_minutes % 60}m`
+                            : "—"}
                         </div>
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {formatDay(row.attendance_date)}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {row.site_count}
-                    </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">
-                      {row.total_minutes
-                        ? `${Math.floor(row.total_minutes / 60)}h ${row.total_minutes % 60}m`
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => setSelected(row)}
-                        className="text-orange-600 hover:text-orange-700 text-xs font-medium inline-flex items-center gap-1"
-                      >
+
+                      <div className="mt-2 text-orange-600 text-xs font-medium inline-flex items-center gap-1">
                         <MapPin size={13} />
                         View Trail
-                      </button>
-                    </td>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* ---- Desktop table (sm and up) — unchanged ---- */}
+            <div className="hidden sm:block max-h-[560px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
+                    <th className="px-4 py-3 font-medium">Employee</th>
+                    <th className="px-4 py-3 font-medium">Date</th>
+                    <th className="px-4 py-3 font-medium">Sites Visited</th>
+                    <th className="px-4 py-3 font-medium">Time on Site</th>
+                    <th className="px-4 py-3 font-medium"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {rows.map((row, idx) => (
+                    <tr
+                      key={`${row.employee_id}-${row.attendance_date}-${idx}`}
+                      className="border-b border-slate-50 hover:bg-slate-50/60"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          {row.employee?.profile_photo ? (
+                            <img
+                              src={row.employee.profile_photo}
+                              alt=""
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold">
+                              {initials(row.employee?.full_name)}
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-medium text-slate-700">
+                              {row.employee?.full_name || "—"}
+                            </div>
+                            <div className="text-xs text-slate-400">
+                              {row.employee?.departments?.department_name || ""}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {formatDay(row.attendance_date)}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {row.site_count}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">
+                        {row.total_minutes
+                          ? `${Math.floor(row.total_minutes / 60)}h ${row.total_minutes % 60}m`
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => setSelected(row)}
+                          className="text-orange-600 hover:text-orange-700 text-xs font-medium inline-flex items-center gap-1"
+                        >
+                          <MapPin size={13} />
+                          View Trail
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -784,6 +972,17 @@ function HistoryTab() {
 
 export default function LiveTracking() {
   const [tab, setTab] = useState("today");
+  const todayRef = useRef(null);
+  const [mobileRefreshing, setMobileRefreshing] = useState(false);
+
+  async function handleMobileRefresh() {
+    setMobileRefreshing(true);
+    try {
+      await todayRef.current?.refresh();
+    } finally {
+      setMobileRefreshing(false);
+    }
+  }
 
   return (
     <div>
@@ -792,26 +991,46 @@ export default function LiveTracking() {
         subtitle="Field staff (Inspection/Operation) who've visited a site — today, live, or their past history."
       />
 
-      <div className="flex items-center gap-1 mb-4 border-b border-slate-200">
-        {[
-          { key: "today", label: "Today" },
-          { key: "history", label: "History" },
-        ].map((t) => (
+      <div className="flex items-center justify-between gap-2 mb-4 border-b border-slate-200">
+        <div className="flex items-center gap-1">
+          {[
+            { key: "today", label: "Today" },
+            { key: "history", label: "History" },
+          ].map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                tab === t.key
+                  ? "border-orange-500 text-orange-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Mobile only — icon-only Refresh docked at the right end of the
+            Today/History tab row. The Today tab's own standalone Refresh
+            button (desktop-only, see TodayTab) is hidden below sm so this
+            is the only Refresh control on mobile. */}
+        {tab === "today" && (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t.key
-                ? "border-orange-500 text-orange-600"
-                : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
+            type="button"
+            onClick={handleMobileRefresh}
+            aria-label="Refresh"
+            className="sm:hidden shrink-0 mb-1.5 w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 active:bg-slate-50"
           >
-            {t.label}
+            <RefreshCw
+              size={14}
+              className={mobileRefreshing ? "animate-spin" : ""}
+            />
           </button>
-        ))}
+        )}
       </div>
 
-      {tab === "today" ? <TodayTab /> : <HistoryTab />}
+      {tab === "today" ? <TodayTab ref={todayRef} /> : <HistoryTab />}
     </div>
   );
 }

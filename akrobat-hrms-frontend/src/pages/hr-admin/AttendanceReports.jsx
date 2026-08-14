@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  BarChart3,
   Calendar,
   CheckCircle2,
   Clock,
@@ -11,6 +12,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
+import SelectDropdown from "../../components/common/SelectDropdown";
+import DatePicker from "../../components/layout/DatePicker";
 import { apiClient } from "../../services/apiClient";
 
 function asList(res) {
@@ -151,6 +154,8 @@ export default function AttendanceReports() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [view, setView] = useState("daily");
+  // Mobile-only popup for the "Needs attention" list (see tab row).
+  const [showNeedsAttention, setShowNeedsAttention] = useState(false);
 
   const [report, setReport] = useState({ employees: [], daily_records: [] });
   const [loading, setLoading] = useState(true);
@@ -404,99 +409,173 @@ export default function AttendanceReports() {
         title="Attendance reports"
         subtitle={`${formatDateLabel(fromDate)} – ${formatDateLabel(toDate)}`}
         actions={
-          <button
-            onClick={exportAll}
-            className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium px-4 py-2 rounded-lg"
-          >
-            <Download size={16} />
-            Export all
-          </button>
+          <>
+            {/* Mobile: search moves up onto the title line itself instead
+                of its own row further down. Desktop (sm and up):
+                unchanged — hidden here since the search box still lives
+                in the filter bar exactly as before. */}
+            <div className="relative sm:hidden">
+              <Search
+                size={14}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search employee"
+                className="pl-7 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg w-28"
+              />
+            </div>
+            {/* Mobile: "Export all" moves down to the date-range line as
+                an icon-only button, so the labelled button is hidden
+                here. Desktop: unchanged. */}
+            <button
+              onClick={exportAll}
+              className="hidden sm:flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium px-4 py-2 rounded-lg"
+            >
+              <Download size={16} />
+              Export all
+            </button>
+          </>
         }
       />
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <div className="relative">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search employee"
-            className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-48"
-          />
+        {/* Row 1: Search box. Mobile: hidden here — it now sits on the
+            title line instead (see PageHeader actions above). Desktop:
+            sm:contents drops this wrapper so the search box flows
+            exactly as before, unchanged. */}
+        <div className="hidden sm:contents">
+          <div className="relative w-full sm:w-auto">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search employee"
+              className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-full sm:w-48"
+            />
+          </div>
         </div>
-        <input
-          type="date"
-          value={fromDate}
-          max={toDate}
-          onChange={(e) => setFromDate(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-200 rounded-lg"
-        />
-        <input
-          type="date"
-          value={toDate}
-          min={fromDate}
-          max={todayISO()}
-          onChange={(e) => setToDate(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-200 rounded-lg"
-        />
-        <select
-          value={departmentId}
-          onChange={(e) => setDepartmentId(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-200 rounded-lg"
-        >
-          <option value="">All departments</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.department_name}
-            </option>
-          ))}
-        </select>
 
-        {/* Kept together (flex-nowrap) so "All statuses" and "Clear
-            filters" always stay on the same line instead of the pair
-            splitting across two rows when the bar wraps. */}
-        <div className="flex flex-nowrap items-center gap-2">
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="px-3 py-2 text-sm border border-slate-200 rounded-lg"
-          >
-            <option value="">All statuses</option>
-            <option value="Present">Present</option>
-            <option value="Late">Late</option>
-            <option value="Absent">Absent</option>
-            <option value="On Leave">On leave</option>
-            <option value="Half Day">Half day</option>
-          </select>
+        {/* Row 2 (mobile): From/To date range together, right under the
+            search box, near the top of the screen. Desktop: sm:contents
+            drops this wrapper so the two date inputs flow exactly as
+            before. */}
+        <div className="flex items-center gap-2 w-full sm:contents">
+          <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2 flex-1 min-w-0 sm:flex-initial sm:w-auto">
+            <DatePicker
+              value={fromDate}
+              max={toDate}
+              placeholder="From"
+              onChange={(iso) => setFromDate(iso)}
+            />
+            <span className="text-slate-300">→</span>
+            <DatePicker
+              value={toDate}
+              min={fromDate}
+              max={todayISO()}
+              placeholder="To"
+              onChange={(iso) => setToDate(iso)}
+            />
+          </div>
+          {/* Mobile: icon-only "Export all", moved here from the title
+              line so it sits with the date range. Desktop: hidden — the
+              labelled button in the title line is used instead,
+              unchanged. */}
           <button
-            type="button"
-            onClick={clearFilters}
-            disabled={!hasActiveFilters}
-            className="flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            onClick={exportAll}
+            className="sm:hidden flex items-center justify-center p-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 shrink-0"
+            aria-label="Export all"
           >
-            <X size={14} />
-            Clear filters
+            <Download size={16} />
           </button>
+        </div>
+
+        {/* Row 3 (mobile): department, status, and clear together on one
+            line. Desktop: sm:contents drops this wrapper so department and
+            the existing status+clear pair flow exactly as before. */}
+        <div className="flex items-center gap-2 w-full sm:contents">
+          <SelectDropdown
+            value={departmentId}
+            onChange={setDepartmentId}
+            placeholder="All departments"
+            options={[
+              { value: "", label: "All departments" },
+              ...departments.map((d) => ({
+                value: d.id,
+                label: d.department_name,
+              })),
+            ]}
+            className="flex-1 min-w-0 sm:flex-initial sm:w-auto"
+          />
+
+          {/* Kept together (flex-nowrap) so "All statuses" and "Clear
+              filters" always stay on the same line instead of the pair
+              splitting across two rows when the bar wraps. */}
+          <div className="flex flex-nowrap items-center gap-2 shrink-0 sm:shrink">
+            <SelectDropdown
+              value={status}
+              onChange={setStatus}
+              placeholder="All statuses"
+              options={[
+                { value: "", label: "All statuses" },
+                { value: "Present", label: "Present" },
+                { value: "Late", label: "Late" },
+                { value: "Absent", label: "Absent" },
+                { value: "On Leave", label: "On leave" },
+                { value: "Half Day", label: "Half day" },
+              ]}
+              className="flex-1 min-w-0 sm:flex-initial sm:w-auto"
+            />
+            <button
+              type="button"
+              onClick={clearFilters}
+              disabled={!hasActiveFilters}
+              className="flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent shrink-0"
+            >
+              <X size={14} />
+              <span className="hidden sm:inline">Clear filters</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit mb-5">
-        {TABS.map((t) => (
+      <div className="flex items-center justify-between gap-2 mb-5">
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setView(t.key)}
+              className={`text-sm px-3.5 py-1.5 rounded-md transition-colors ${
+                view === t.key
+                  ? "bg-white font-medium text-slate-800 shadow-sm"
+                  : "text-slate-500"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {/* Mobile: "Needs attention" indicator at the end of the tab row —
+            tapping it opens the same content in a popup instead of it
+            sitting inline below. Desktop (sm and up): hidden, since the
+            block below is shown inline instead, unchanged. */}
+        {needsAttention.length > 0 && (
           <button
-            key={t.key}
-            onClick={() => setView(t.key)}
-            className={`text-sm px-3.5 py-1.5 rounded-md transition-colors ${
-              view === t.key
-                ? "bg-white font-medium text-slate-800 shadow-sm"
-                : "text-slate-500"
-            }`}
+            type="button"
+            onClick={() => setShowNeedsAttention(true)}
+            className="sm:hidden relative flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 text-amber-600 hover:bg-slate-50 shrink-0"
+            aria-label={`Needs attention (${needsAttention.length})`}
           >
-            {t.label}
+            <AlertTriangle size={16} />
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] leading-4 text-center">
+              {needsAttention.length}
+            </span>
           </button>
-        ))}
+        )}
       </div>
 
       {error && (
@@ -506,7 +585,7 @@ export default function AttendanceReports() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-3 mb-5">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 snap-x sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
           <StatCard
             icon={<CheckCircle2 size={14} />}
             iconColor="text-green-700"
@@ -515,6 +594,7 @@ export default function AttendanceReports() {
             sub={`${summary.presentPct}% of workdays`}
             subColor="text-green-700"
             divider
+            className="min-w-[136px] shrink-0 snap-start sm:min-w-0 sm:shrink sm:snap-none"
           />
           <StatCard
             icon={<XCircle size={14} />}
@@ -524,6 +604,7 @@ export default function AttendanceReports() {
             sub={`${summary.absentPct}% of workdays`}
             subColor="text-red-700"
             divider
+            className="min-w-[136px] shrink-0 snap-start sm:min-w-0 sm:shrink sm:snap-none"
           />
           <StatCard
             icon={<Clock size={14} />}
@@ -533,6 +614,7 @@ export default function AttendanceReports() {
             sub={`${summary.latePct}% of workdays`}
             subColor="text-amber-700"
             divider
+            className="min-w-[136px] shrink-0 snap-start sm:min-w-0 sm:shrink sm:snap-none"
           />
           <StatCard
             icon={<Calendar size={14} />}
@@ -542,10 +624,26 @@ export default function AttendanceReports() {
             sub={`${summary.leavePct}% of workdays`}
             subColor="text-blue-700"
             divider
+            className="min-w-[136px] shrink-0 snap-start sm:min-w-0 sm:shrink sm:snap-none"
+          />
+          {/* Mobile: "Avg hours/day" joins this scrollable card row
+              instead of sitting in its own box below. Desktop (sm and
+              up): hidden here — the box below is used instead,
+              unchanged. */}
+          <StatCard
+            icon={<BarChart3 size={14} />}
+            iconColor="text-orange-700"
+            label="Avg hours/day"
+            value={summary.avgHours}
+            sub=""
+            subColor=""
+            className="min-w-[136px] shrink-0 snap-start sm:hidden"
           />
         </div>
 
-        <div className="bg-slate-50 rounded-lg p-4 flex items-center justify-between">
+        {/* Mobile: hidden — its content (avg hours/day) now lives in the
+            card row above. Desktop (sm and up): unchanged. */}
+        <div className="hidden sm:flex bg-slate-50 rounded-lg p-4 items-center justify-between">
           <div className="flex items-end gap-1 h-10">
             {sparkline.length === 0 ? (
               <span className="text-xs text-slate-400">No data yet</span>
@@ -568,8 +666,11 @@ export default function AttendanceReports() {
         </div>
       </div>
 
+      {/* Mobile: hidden — same content is reachable via the popup
+          triggered from the icon on the tab row above. Desktop (sm and
+          up): unchanged, still shown inline. */}
       {needsAttention.length > 0 && (
-        <div className="bg-slate-50 rounded-lg p-4 mb-5">
+        <div className="hidden sm:block bg-slate-50 rounded-lg p-4 mb-5">
           <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-3">
             <AlertTriangle size={13} />
             Needs attention
@@ -596,6 +697,52 @@ export default function AttendanceReports() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile-only popup: same "Needs attention" content as the inline
+          desktop block above, opened from the icon on the tab row.
+          sm:hidden is a safety net in case the viewport grows past
+          mobile while this is open — desktop never triggers it. */}
+      {showNeedsAttention && (
+        <div className="sm:hidden fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-3 pb-3">
+          <div className="w-full max-w-md bg-white rounded-xl p-4 max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                <AlertTriangle size={14} className="text-amber-600" />
+                Needs attention
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNeedsAttention(false)}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-50"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-3">
+              {needsAttention.map((e) => (
+                <div
+                  key={e.employee_id}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <Avatar
+                    name={e.full_name}
+                    photo={e.profile_photo}
+                    size="w-6 h-6"
+                    textSize="text-[10px]"
+                  />
+                  <span className="text-slate-700">{e.full_name}</span>
+                  <span className="text-xs text-slate-400 ml-auto">
+                    {e.absent_days > 0 && `${e.absent_days} absent`}
+                    {e.absent_days > 0 && e.late_days > 0 && " · "}
+                    {e.late_days > 0 && `${e.late_days} late`}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -660,9 +807,18 @@ export default function AttendanceReports() {
   );
 }
 
-function StatCard({ icon, iconColor, label, value, sub, subColor, divider }) {
+function StatCard({
+  icon,
+  iconColor,
+  label,
+  value,
+  sub,
+  subColor,
+  divider,
+  className = "",
+}) {
   return (
-    <div className="relative bg-slate-50 rounded-lg p-3.5">
+    <div className={`relative bg-slate-50 rounded-lg p-3.5 ${className}`}>
       <div className="flex items-center gap-1.5 text-xs text-slate-500">
         <span className={iconColor}>{icon}</span>
         {label}
@@ -673,7 +829,9 @@ function StatCard({ icon, iconColor, label, value, sub, subColor, divider }) {
         // Vertical separator between this card and the next one (used
         // between Present/Absent) so the two are visually distinct at a
         // glance instead of blending into one continuous row of cards.
-        <div className="absolute top-2 bottom-2 -right-[7px] w-px bg-slate-300" />
+        // Hidden on mobile, where cards scroll horizontally with a real
+        // gap between them already, so the line has nothing to sit against.
+        <div className="hidden sm:block absolute top-2 bottom-2 -right-[7px] w-px bg-slate-300" />
       )}
     </div>
   );

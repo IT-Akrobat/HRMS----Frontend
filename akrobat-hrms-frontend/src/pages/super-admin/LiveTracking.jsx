@@ -4,7 +4,14 @@ import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import "leaflet/dist/leaflet.css";
 import { AlertTriangle, Loader2, MapPin, RefreshCw, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import PageHeader from "../../components/common/PageHeader";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
@@ -277,14 +284,23 @@ function TrailMapModal({ row, onClose }) {
   const meta = STATUS_META[row.live_status] || STATUS_META.not_checked_in;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 sm:p-4">
+      {/* Mobile: full-width sheet sliding up from the bottom, rounded top
+          corners only, near-full-height. Desktop (sm+): unchanged centered
+          dialog — every mobile-only class below is undone by an sm: class
+          that restores the original look exactly. */}
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl max-h-[94vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-xl">
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center pt-2 pb-1 shrink-0">
+          <span className="w-10 h-1.5 rounded-full bg-slate-300" />
+        </div>
+
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-slate-800 truncate">
               {row.employee?.full_name || "Employee"} — Today's Trail
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
               <span
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${meta.badge}`}
               >
@@ -307,16 +323,16 @@ function TrailMapModal({ row, onClose }) {
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 shrink-0"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="px-6 py-4 overflow-y-auto">
+        <div className="px-4 sm:px-6 py-4 overflow-y-auto flex-1">
           <div
             ref={mapElRef}
-            className="w-full h-[380px] rounded-xl border border-slate-200"
+            className="w-full h-[44vh] sm:h-[380px] rounded-xl border border-slate-200"
           />
 
           {points.length === 0 && (
@@ -333,19 +349,19 @@ function TrailMapModal({ row, onClose }) {
                   key={visit.id}
                   type="button"
                   onClick={() => setActiveVisitId(visit.id)}
-                  className={`w-full flex items-center justify-between text-sm rounded-lg px-3 py-2 border text-left transition-colors ${
+                  className={`w-full flex items-center justify-between text-sm rounded-lg px-3 py-2.5 sm:py-2 border text-left transition-colors ${
                     activeVisitId === visit.id
                       ? "bg-orange-50 border-orange-200"
                       : "bg-slate-50 border-slate-100 hover:bg-slate-100"
                   }`}
                 >
-                  <div className="flex items-center gap-2 text-slate-700">
-                    <MapPin size={14} className="text-orange-500" />
-                    <span className="font-medium">
+                  <div className="flex items-center gap-2 text-slate-700 min-w-0">
+                    <MapPin size={14} className="text-orange-500 shrink-0" />
+                    <span className="font-medium truncate">
                       {visit.locations?.location_name || "Unknown Site"}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-500 shrink-0 pl-2">
                     {timeOnly(visit.arrival_time)} →{" "}
                     {visit.departure_time
                       ? timeOnly(visit.departure_time)
@@ -366,7 +382,10 @@ function TrailMapModal({ row, onClose }) {
 // (GET /attendance/org/site-visits, already filtered server-side).
 // ==========================================================================
 
-function TodayTab() {
+// forwardRef so the parent tab bar can trigger a refresh on mobile, where
+// the standalone Refresh button below is hidden and replaced by an
+// icon button docked at the right end of the Today/History tab row.
+const TodayTab = forwardRef(function TodayTab(_props, ref) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -388,6 +407,10 @@ function TodayTab() {
       .finally(() => setLoading(false));
   }
 
+  useImperativeHandle(ref, () => ({
+    refresh: () => load(),
+  }));
+
   useEffect(() => {
     load();
     const interval = setInterval(() => load(true), POLL_MS);
@@ -401,7 +424,9 @@ function TodayTab() {
 
   return (
     <div>
-      <div className="flex justify-end mb-3">
+      {/* Desktop only — mobile gets an icon-only Refresh docked at the
+          right end of the Today/History tab row (see LiveTracking below). */}
+      <div className="hidden sm:flex justify-end mb-3">
         <button
           onClick={() => load()}
           className="px-3 py-2 sm:px-3.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5"
@@ -660,7 +685,7 @@ function TodayTab() {
       )}
     </div>
   );
-}
+});
 
 // ==========================================================================
 // HISTORY TAB — past site visits, one row per employee/day
@@ -737,7 +762,7 @@ function HistoryTab() {
             value={fromDate}
             max={toDate}
             onChange={(e) => setFromDate(e.target.value)}
-            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 w-[140px] sm:w-auto"
+            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 w-[112px] sm:w-auto"
           />
         </div>
         <div>
@@ -748,18 +773,24 @@ function HistoryTab() {
             min={fromDate}
             max={defaultTo}
             onChange={(e) => setToDate(e.target.value)}
-            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 w-[140px] sm:w-auto"
+            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 w-[112px] sm:w-auto"
           />
         </div>
-        <button
-          onClick={() => load()}
-          className="px-3 py-2 sm:px-3.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5"
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          Apply / Refresh
-        </button>
-        <div className="w-full sm:w-auto sm:ml-auto text-xs text-slate-400">
-          Showing past visits only — today's activity is on the "Today" tab.
+        {/* Mobile: button and text share their own full-width row, with
+            the button pushed to the end (right) via justify-between and
+            order. Desktop (sm and up): sm:contents drops this wrapper so
+            both flow in the row exactly as before — unchanged. */}
+        <div className="flex items-center justify-between gap-2 w-full sm:contents">
+          <button
+            onClick={() => load()}
+            className="px-2.5 py-2 sm:px-3.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5 shrink-0 order-2 sm:order-none"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            <span className="hidden sm:inline">Apply / Refresh</span>
+          </button>
+          <div className="text-xs text-slate-400 order-1 sm:order-none sm:ml-auto">
+            Showing past visits only.
+          </div>
         </div>
       </div>
 
@@ -928,6 +959,17 @@ function HistoryTab() {
 
 export default function LiveTracking() {
   const [tab, setTab] = useState("today");
+  const todayRef = useRef(null);
+  const [mobileRefreshing, setMobileRefreshing] = useState(false);
+
+  async function handleMobileRefresh() {
+    setMobileRefreshing(true);
+    try {
+      await todayRef.current?.refresh();
+    } finally {
+      setMobileRefreshing(false);
+    }
+  }
 
   return (
     <div>
@@ -936,26 +978,46 @@ export default function LiveTracking() {
         subtitle="Field staff (Inspection/Operation) who've visited a site — today, live, or their past history."
       />
 
-      <div className="flex items-center gap-1 mb-4 border-b border-slate-200">
-        {[
-          { key: "today", label: "Today" },
-          { key: "history", label: "History" },
-        ].map((t) => (
+      <div className="flex items-center justify-between gap-2 mb-4 border-b border-slate-200">
+        <div className="flex items-center gap-1">
+          {[
+            { key: "today", label: "Today" },
+            { key: "history", label: "History" },
+          ].map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                tab === t.key
+                  ? "border-orange-500 text-orange-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Mobile only — icon-only Refresh docked at the right end of the
+            Today/History tab row. The Today tab's own standalone Refresh
+            button (desktop-only, see TodayTab) is hidden below sm so this
+            is the only Refresh control on mobile. */}
+        {tab === "today" && (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t.key
-                ? "border-orange-500 text-orange-600"
-                : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
+            type="button"
+            onClick={handleMobileRefresh}
+            aria-label="Refresh"
+            className="sm:hidden shrink-0 mb-1.5 w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 active:bg-slate-50"
           >
-            {t.label}
+            <RefreshCw
+              size={14}
+              className={mobileRefreshing ? "animate-spin" : ""}
+            />
           </button>
-        ))}
+        )}
       </div>
 
-      {tab === "today" ? <TodayTab /> : <HistoryTab />}
+      {tab === "today" ? <TodayTab ref={todayRef} /> : <HistoryTab />}
     </div>
   );
 }

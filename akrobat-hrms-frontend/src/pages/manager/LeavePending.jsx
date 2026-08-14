@@ -175,15 +175,17 @@ export default function LeavePending() {
       <PageHeader
         title="Team Leave Requests"
         subtitle="View leave requests from your team. Approval is handled by Super Admin — you'll see status update here as decisions are made."
+        hideSubtitleOnMobile
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="flex md:grid md:grid-cols-4 gap-3 md:gap-4 mb-6 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
         <StatCard
           icon={Clock}
           label="Pending"
           color="orange"
           loading={leaves === null}
           value={stats.pending}
+          className="w-32 shrink-0 md:w-auto"
         />
         <StatCard
           icon={CheckCircle2}
@@ -191,6 +193,7 @@ export default function LeavePending() {
           color="blue"
           loading={leaves === null}
           value={stats.approved}
+          className="w-32 shrink-0 md:w-auto"
         />
         <StatCard
           icon={XCircle}
@@ -198,6 +201,7 @@ export default function LeavePending() {
           color="red"
           loading={leaves === null}
           value={stats.rejected}
+          className="w-32 shrink-0 md:w-auto"
         />
         <StatCard
           icon={Users}
@@ -205,12 +209,13 @@ export default function LeavePending() {
           color="slate"
           loading={leaves === null}
           value={stats.total}
+          className="w-32 shrink-0 md:w-auto"
         />
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200">
         {/* Tabs + search */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-slate-100">
           <div className="flex items-center gap-1.5 overflow-x-auto">
             {TABS.map((t) => (
               <button
@@ -274,64 +279,119 @@ export default function LeavePending() {
               const StatusIcon = status.icon;
 
               return (
-                <li
-                  key={leave.id}
-                  className="flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-4"
-                >
-                  {/* Employee */}
-                  <div className="flex items-center gap-3 sm:w-48 shrink-0">
-                    <div className="w-9 h-9 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold flex items-center justify-center shrink-0">
-                      {initials(leave.employees?.full_name)}
+                <li key={leave.id}>
+                  {/* ---------- Mobile card (< sm) ---------- */}
+                  <div className="sm:hidden px-4 py-3.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-700 text-[11px] font-semibold flex items-center justify-center shrink-0">
+                          {initials(leave.employees?.full_name)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">
+                            {leave.employees?.full_name || "—"}
+                          </p>
+                          <p className="text-[11px] text-slate-400 truncate">
+                            {leave.employees?.employee_id}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`shrink-0 flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full ${status.bg} ${status.text}`}
+                      >
+                        <StatusIcon size={11} />
+                        {leave.status}
+                      </span>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-800 truncate">
-                        {leave.employees?.full_name || "—"}
-                      </p>
-                      <p className="text-xs text-slate-400 truncate">
-                        {leave.employees?.employee_id}
-                      </p>
-                    </div>
-                  </div>
 
-                  {/* Leave details */}
-                  <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${typeStyle.bg} ${typeStyle.text}`}
-                    >
-                      <TypeIcon size={15} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-700">
-                        {leave.leave_types?.leave_name || "Leave"}{" "}
-                        <span className="text-slate-400 font-normal">
-                          · {leave.total_days}{" "}
-                          {leave.total_days === 1 ? "day" : "days"}
-                        </span>
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {formatShort(leave.start_date)} →{" "}
-                        {formatShort(leave.end_date)}
-                      </p>
-                      {leave.reason && (
-                        <p className="text-xs text-slate-500 mt-1 flex items-start gap-1">
-                          <MessageSquareText
-                            size={12}
-                            className="mt-0.5 shrink-0 text-slate-300"
-                          />
-                          <span className="line-clamp-2">{leave.reason}</span>
+                    <div className="flex items-start gap-2 mt-3">
+                      <div
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${typeStyle.bg} ${typeStyle.text}`}
+                      >
+                        <TypeIcon size={13} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-slate-700">
+                          {leave.leave_types?.leave_name || "Leave"}{" "}
+                          <span className="text-slate-400 font-normal">
+                            · {leave.total_days}{" "}
+                            {leave.total_days === 1 ? "day" : "days"}
+                          </span>
                         </p>
-                      )}
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {formatShort(leave.start_date)} →{" "}
+                          {formatShort(leave.end_date)}
+                        </p>
+                        {leave.reason && (
+                          <p className="text-xs text-slate-500 mt-1.5 flex items-start gap-1">
+                            <MessageSquareText
+                              size={12}
+                              className="mt-0.5 shrink-0 text-slate-300"
+                            />
+                            <span className="line-clamp-2">{leave.reason}</span>
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Status (view-only — approval is Super Admin's call) */}
-                  <div className="flex items-center justify-end gap-2 sm:w-56 shrink-0">
-                    <span
-                      className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${status.bg} ${status.text}`}
-                    >
-                      <StatusIcon size={13} />
-                      {leave.status}
-                    </span>
+                  {/* ---------- Desktop row (sm and up) — unchanged ---------- */}
+                  <div className="hidden sm:flex sm:items-center gap-4 px-5 py-4">
+                    {/* Employee */}
+                    <div className="flex items-center gap-3 sm:w-48 shrink-0">
+                      <div className="w-9 h-9 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold flex items-center justify-center shrink-0">
+                        {initials(leave.employees?.full_name)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">
+                          {leave.employees?.full_name || "—"}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate">
+                          {leave.employees?.employee_id}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Leave details */}
+                    <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${typeStyle.bg} ${typeStyle.text}`}
+                      >
+                        <TypeIcon size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-700">
+                          {leave.leave_types?.leave_name || "Leave"}{" "}
+                          <span className="text-slate-400 font-normal">
+                            · {leave.total_days}{" "}
+                            {leave.total_days === 1 ? "day" : "days"}
+                          </span>
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {formatShort(leave.start_date)} →{" "}
+                          {formatShort(leave.end_date)}
+                        </p>
+                        {leave.reason && (
+                          <p className="text-xs text-slate-500 mt-1 flex items-start gap-1">
+                            <MessageSquareText
+                              size={12}
+                              className="mt-0.5 shrink-0 text-slate-300"
+                            />
+                            <span className="line-clamp-2">{leave.reason}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Status (view-only — approval is Super Admin's call) */}
+                    <div className="flex items-center justify-end gap-2 sm:w-56 shrink-0">
+                      <span
+                        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${status.bg} ${status.text}`}
+                      >
+                        <StatusIcon size={13} />
+                        {leave.status}
+                      </span>
+                    </div>
                   </div>
                 </li>
               );

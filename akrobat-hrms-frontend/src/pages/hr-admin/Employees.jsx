@@ -4,6 +4,8 @@ import {
   Building2,
   Calendar,
   CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Clock,
   Contact,
@@ -814,12 +816,22 @@ function EmployeeViewModal({ employee, employees, onClose, onEdit }) {
               <p className="text-xs text-slate-500">{employee.employee_id}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 shrink-0"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={onEdit}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-orange-500"
+              aria-label="Edit"
+            >
+              <Pencil size={16} />
+            </button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -883,22 +895,6 @@ function EmployeeViewModal({ employee, employees, onClose, onEdit }) {
               />
             </div>
           </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 shrink-0">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-          >
-            Close
-          </button>
-          <button
-            onClick={onEdit}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 flex items-center gap-2"
-          >
-            <Pencil size={14} />
-            Edit
-          </button>
         </div>
       </div>
     </div>
@@ -994,6 +990,316 @@ function DrilldownColumn({ title, icon: Icon, children }) {
         <h3 className="font-semibold text-slate-800 text-sm">{title}</h3>
       </div>
       <div className="flex-1 overflow-y-auto p-2 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+// ==========================================================================
+// Mobile browser (below lg) — built from scratch as a two-step flow
+// instead of the desktop's three stacked columns:
+//   Step 1: pick a Department, full-width list.
+//   Step 2: that department's Designations as filter chips, plus the
+//           matching Employees as a card list (tap a card to open the
+//           existing EmployeeViewModal, same as desktop).
+// Only rendered below lg — see the `lg:hidden` wrapper where it's used;
+// the desktop three-column layout is untouched.
+// ==========================================================================
+
+function MobileEmployeeBrowser({
+  departments,
+  departmentCounts,
+  designationsForDept,
+  designationCounts,
+  selectedDept,
+  selectedDeptId,
+  selectedDesigId,
+  selectDept,
+  selectDesig,
+  search,
+  setSearch,
+  statusFilter,
+  setStatusFilter,
+  filtered,
+  scopedEmployees,
+  pageItems,
+  page,
+  pageSize,
+  totalPages,
+  setPage,
+  loading,
+  setViewing,
+  setFormState,
+  setDeleteError,
+  setDeleteTarget,
+}) {
+  // Custom dropdown state for the Status filter — a native <select>'s
+  // open menu is the OS/browser's own popover, which can't be styled
+  // and ends up covering most of this small screen (see screenshot).
+  // This replaces it with an in-app dropdown that matches the rest of
+  // the mobile UI and only overlays the space right below the field.
+  const [statusOpen, setStatusOpen] = useState(false);
+
+  if (!selectedDeptId) {
+    return (
+      <div className="lg:hidden">
+        <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 mb-3">
+          <Building2 size={16} className="text-orange-500" />
+          Departments
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {loading ? (
+            [...Array(4)].map((_, i) => (
+              <div
+                key={i}
+                className="h-[52px] bg-slate-100 rounded-xl animate-pulse"
+              />
+            ))
+          ) : departments.length === 0 ? (
+            <p className="text-sm text-slate-400 px-2 py-6 text-center">
+              No departments yet.
+            </p>
+          ) : (
+            departments.map((dept) => (
+              <button
+                key={dept.id}
+                onClick={() => selectDept(dept.id)}
+                className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl border border-slate-200 bg-white text-left active:bg-slate-50"
+              >
+                <span className="text-sm font-medium text-slate-700 truncate">
+                  {dept.department_name}
+                </span>
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                    {departmentCounts[dept.id] || 0}
+                  </span>
+                  <ChevronRight size={16} className="text-slate-300" />
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="lg:hidden">
+      <button
+        onClick={() => selectDept(null)}
+        className="flex items-center gap-1 text-sm text-slate-500 mb-3 -ml-1 px-1 py-1"
+      >
+        <ChevronLeft size={16} />
+        Departments
+      </button>
+
+      <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 mb-2">
+        <Briefcase size={16} className="text-orange-500" />
+        {selectedDept?.department_name || "—"}
+      </div>
+
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 mb-3 snap-x">
+        <button
+          onClick={() => selectDesig(null)}
+          className={`shrink-0 snap-start text-xs px-3 py-1.5 rounded-full border ${
+            !selectedDesigId
+              ? "bg-orange-50 text-orange-700 border-orange-200 font-medium"
+              : "bg-white text-slate-500 border-slate-200"
+          }`}
+        >
+          All ({departmentCounts[selectedDeptId] || 0})
+        </button>
+        {designationsForDept.map((desig) => (
+          <button
+            key={desig.id}
+            onClick={() => selectDesig(desig.id)}
+            className={`shrink-0 snap-start text-xs px-3 py-1.5 rounded-full border ${
+              selectedDesigId === desig.id
+                ? "bg-orange-50 text-orange-700 border-orange-200 font-medium"
+                : "bg-white text-slate-500 border-slate-200"
+            }`}
+          >
+            {desig.designation_name} ({designationCounts[desig.id] || 0})
+          </button>
+        ))}
+      </div>
+
+      <div className="relative mb-2">
+        <Search
+          size={15}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+        />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name, email or employee ID..."
+          className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+        />
+      </div>
+
+      <div className="flex items-center gap-2 mb-3">
+        <div className="relative flex-1">
+          <button
+            type="button"
+            onClick={() => setStatusOpen((o) => !o)}
+            className="w-full flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-100"
+          >
+            <span>{statusFilter || "All Status"}</span>
+            <ChevronDown
+              size={14}
+              className={`text-slate-400 shrink-0 transition-transform ${statusOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+          {statusOpen && (
+            <>
+              {/* Tap-outside-to-close backdrop, doesn't dim the screen. */}
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setStatusOpen(false)}
+              />
+              <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+                {["", "Active", "Inactive"].map((opt) => (
+                  <button
+                    key={opt || "all"}
+                    type="button"
+                    onClick={() => {
+                      setStatusFilter(opt);
+                      setStatusOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm ${
+                      statusFilter === opt
+                        ? "bg-orange-50 text-orange-700 font-medium"
+                        : "text-slate-600 active:bg-slate-50"
+                    }`}
+                  >
+                    {opt || "All Status"}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+        {(search || statusFilter) && (
+          <button
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("");
+              setStatusOpen(false);
+            }}
+            className="text-sm text-orange-600 shrink-0 px-1"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div className="text-xs text-slate-400 mb-2">
+        {filtered.length} of {scopedEmployees.length} employees
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {loading ? (
+          [...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="h-[76px] bg-slate-100 rounded-xl animate-pulse"
+            />
+          ))
+        ) : pageItems.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-10">
+            No employees found.
+          </p>
+        ) : (
+          pageItems.map((emp) => (
+            <button
+              key={emp.id}
+              onClick={() => setViewing(emp)}
+              className="w-full text-left bg-white border border-slate-200 rounded-xl p-3 active:bg-slate-50"
+            >
+              <div className="flex items-start gap-2.5">
+                <Avatar person={emp} className="w-9 h-9 rounded-full text-xs" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-slate-800 truncate">
+                      {emp.full_name}
+                    </span>
+                    <span
+                      className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                        STATUS_STYLES[emp.employment_status] ||
+                        "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {emp.employment_status}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 truncate">
+                    {emp.employee_id}
+                    {emp.designations?.designation_name
+                      ? ` · ${emp.designations.designation_name}`
+                      : ""}
+                  </div>
+                  <div className="flex items-center justify-between mt-1.5">
+                    <span className="text-[11px] text-slate-400">
+                      Joined {formatDate(emp.joining_date)}
+                    </span>
+                    <span
+                      className="flex items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={() =>
+                          setFormState({ mode: "edit", employee: emp })
+                        }
+                        title="Edit"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 active:bg-orange-50 active:text-orange-500"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleteTarget(emp);
+                        }}
+                        title="Delete"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 active:bg-orange-50 active:text-orange-500"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+
+      {!loading && filtered.length > 0 && (
+        <div className="flex items-center justify-between mt-3 text-xs text-slate-500">
+          <span>
+            {(page - 1) * pageSize + 1}–
+            {Math.min(page * pageSize, filtered.length)} of {filtered.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              disabled={page === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="px-2.5 py-1 rounded-lg border border-slate-200 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <span className="px-2">
+              {page} / {totalPages}
+            </span>
+            <button
+              disabled={page === totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="px-2.5 py-1 rounded-lg border border-slate-200 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1261,7 +1567,35 @@ export default function EmployeesHrAdmin() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[22%_22%_1fr] gap-4 items-start min-w-0">
+      <MobileEmployeeBrowser
+        departments={departments}
+        departmentCounts={departmentCounts}
+        designationsForDept={designationsForDept}
+        designationCounts={designationCounts}
+        selectedDept={selectedDept}
+        selectedDeptId={selectedDeptId}
+        selectedDesigId={selectedDesigId}
+        selectDept={selectDept}
+        selectDesig={selectDesig}
+        search={search}
+        setSearch={setSearch}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        filtered={filtered}
+        scopedEmployees={scopedEmployees}
+        pageItems={pageItems}
+        page={page}
+        pageSize={pageSize}
+        totalPages={totalPages}
+        setPage={setPage}
+        loading={loading}
+        setViewing={setViewing}
+        setFormState={setFormState}
+        setDeleteError={setDeleteError}
+        setDeleteTarget={setDeleteTarget}
+      />
+
+      <div className="hidden lg:grid lg:grid-cols-[22%_22%_1fr] gap-4 items-start min-w-0">
         <DrilldownColumn title="Departments" icon={Building2}>
           <DrilldownRow
             label="All Departments"

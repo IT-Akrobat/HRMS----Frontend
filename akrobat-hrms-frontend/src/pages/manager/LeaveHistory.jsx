@@ -2,6 +2,7 @@ import {
   Baby,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
   Clock,
   Clock3,
   Download,
@@ -195,6 +196,9 @@ export default function LeaveHistory() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [statusTab, setStatusTab] = useState("All");
   const [year, setYear] = useState("All");
+  // Mobile-only (< lg): which panel is showing. Desktop always shows both
+  // side by side via lg:block overrides below, so this has no effect there.
+  const [mobileView, setMobileView] = useState("roster"); // "roster" | "detail"
 
   useEffect(() => {
     apiClient
@@ -310,7 +314,11 @@ export default function LeaveHistory() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5 items-start">
         {/* ================= Left: roster ================= */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div
+          className={`bg-white rounded-xl border border-slate-200 overflow-hidden ${
+            mobileView === "detail" ? "hidden lg:block" : ""
+          }`}
+        >
           <div className="p-3.5 border-b border-slate-100">
             <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2">
               <Search size={14} className="text-slate-400 shrink-0" />
@@ -323,7 +331,7 @@ export default function LeaveHistory() {
             </div>
           </div>
 
-          <div className="max-h-[620px] overflow-y-auto">
+          <div className="max-h-[420px] lg:max-h-[620px] overflow-y-auto">
             {leaves === null ? (
               <div className="p-3.5 space-y-2">
                 {[1, 2, 3, 4].map((i) => (
@@ -344,7 +352,10 @@ export default function LeaveHistory() {
                 return (
                   <button
                     key={p.employeeId}
-                    onClick={() => setSelectedEmployeeId(p.employeeId)}
+                    onClick={() => {
+                      setSelectedEmployeeId(p.employeeId);
+                      setMobileView("detail");
+                    }}
                     className={`w-full flex items-center gap-2.5 px-3.5 py-3 border-b border-slate-50 last:border-0 text-left transition-colors ${
                       active
                         ? "bg-orange-50 border-l-4 border-l-orange-500 pl-3"
@@ -381,7 +392,19 @@ export default function LeaveHistory() {
         </div>
 
         {/* ================= Right: employee detail ================= */}
-        <div className="bg-white rounded-xl border border-slate-200">
+        <div
+          className={`bg-white rounded-xl border border-slate-200 ${
+            mobileView === "roster" ? "hidden lg:block" : ""
+          }`}
+        >
+          {/* Mobile-only back button — desktop always shows both panels */}
+          <button
+            onClick={() => setMobileView("roster")}
+            className="lg:hidden w-full flex items-center gap-1.5 text-sm font-medium text-slate-600 px-5 py-3 border-b border-slate-100"
+          >
+            <ChevronLeft size={16} /> Back to team
+          </button>
+
           {leaves === null ? (
             <div className="p-6 space-y-3">
               {[1, 2, 3].map((i) => (
@@ -415,26 +438,26 @@ export default function LeaveHistory() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-5">
-                  <div className="text-right">
+                <div className="grid grid-cols-4 gap-3 sm:flex sm:items-center sm:gap-5 w-full sm:w-auto">
+                  <div className="text-center sm:text-right">
                     <p className="text-base font-bold text-slate-800">
                       {employeeStats.total}
                     </p>
                     <p className="text-[11px] text-slate-400">Total</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-center sm:text-right">
                     <p className="text-base font-bold text-blue-600">
                       {employeeStats.approved}
                     </p>
                     <p className="text-[11px] text-slate-400">Approved</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-center sm:text-right">
                     <p className="text-base font-bold text-orange-600">
                       {employeeStats.pending}
                     </p>
                     <p className="text-[11px] text-slate-400">Pending</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-center sm:text-right">
                     <p className="text-base font-bold text-orange-500">
                       {employeeStats.rejected}
                     </p>

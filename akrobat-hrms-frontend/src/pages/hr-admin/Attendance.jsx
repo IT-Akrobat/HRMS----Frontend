@@ -1,15 +1,16 @@
 import {
   AlarmClock,
   AlertTriangle,
-  CalendarDays,
+  ChevronDown,
   MapPin,
   Search,
   Timer,
-  Users,
+  Users
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
+import DatePicker from "../../components/layout/DatePicker";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate, toLocalISODate } from "../../utils/date";
 import { unwrap } from "../../utils/unwrap";
@@ -167,12 +168,104 @@ function AttendanceRow({ record }) {
   );
 }
 
+// ---------------------------------------------------------------------
+// Mobile-only presentation pieces below (StatChip, AttendanceCard) and
+// the `lg:hidden` block in the return statement further down. Nothing
+// above this line, and none of the desktop JSX in the `hidden lg:block`
+// block, is changed — same components, same two effects, same derived
+// numbers feed both layouts; only the markup below switches on the
+// `lg` (1024px) breakpoint, the same one Sidebar/Header already use.
+// ---------------------------------------------------------------------
+
+// Compact stat card that scrolls horizontally on mobile instead of
+// sitting in the desktop's 3-column grid.
+function StatChip({ icon: Icon, label, value }) {
+  return (
+    <div className="shrink-0 min-w-[132px] bg-white border border-slate-200 rounded-xl p-3">
+      <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mb-1.5">
+        <Icon size={13} />
+        {label}
+      </div>
+      <div className="text-lg font-bold text-slate-800">{value}</div>
+    </div>
+  );
+}
+
+// Full-width stacked card, replacing the desktop table row for narrow
+// screens. Same status/progress logic as AttendanceRow above.
+function AttendanceCard({ record }) {
+  const status = displayStatus(record);
+  const style = STATUS_COLORS[status] || STATUS_COLORS.Present;
+  const pct = record.working_minutes
+    ? Math.min(
+        100,
+        Math.round((record.working_minutes / STANDARD_SHIFT_MINUTES) * 100),
+      )
+    : 0;
+
+  return (
+    <div
+      className="bg-white border border-slate-200 rounded-xl p-3"
+      style={{ borderLeft: `3px solid ${style.dot}` }}
+    >
+      <div className="flex items-start gap-2.5">
+        <Avatar
+          name={record.employees?.full_name}
+          photo={record.employees?.profile_photo}
+          size="w-9 h-9"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-slate-800 truncate">
+                {record.employees?.full_name || "—"}
+              </div>
+              <div className="text-xs text-slate-400 truncate">
+                {record.employees?.employee_id || "—"}
+              </div>
+            </div>
+            <span
+              className={`text-[11px] font-medium px-2 py-1 rounded-full shrink-0 ${style.bg} ${style.text}`}
+            >
+              {status}
+            </span>
+          </div>
+
+          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mt-2.5">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${pct}%`, backgroundColor: style.dot }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
+            <span>
+              {formatTime(record.check_in_time)} –{" "}
+              {record.check_out_time
+                ? formatTime(record.check_out_time)
+                : "in progress"}
+            </span>
+            <span className="font-medium text-slate-700">
+              {formatMinutes(record.working_minutes)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const PAGE_SIZE = 10;
+const PAGE_SIZE_MOBILE = 8; // smaller batches for the mobile "Load more" button
 
 export default function HrAttendanceOverview() {
   const [selectedDate, setSelectedDate] = useState(toLocalISODate());
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+
+  // Mobile-only UI state — desktop layout doesn't use these.
+  const [mobileVisibleCount, setMobileVisibleCount] =
+    useState(PAGE_SIZE_MOBILE);
 
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
@@ -254,6 +347,14 @@ export default function HrAttendanceOverview() {
     setPage(1);
   }, [selectedDate, search]);
 
+  // Same reset, for the mobile "Load more" batch size.
+  useEffect(() => {
+    setMobileVisibleCount(PAGE_SIZE_MOBILE);
+  }, [selectedDate, search]);
+
+  const mobileVisibleRecords = filteredRecords.slice(0, mobileVisibleCount);
+  const mobileHasMore = mobileVisibleCount < filteredRecords.length;
+
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
   const pagedRecords = filteredRecords.slice(
     (page - 1) * PAGE_SIZE,
@@ -282,91 +383,288 @@ export default function HrAttendanceOverview() {
 
   return (
     <div>
-      <PageHeader
-        title="Attendance Overview"
-        subtitle="Company-wide check-in status for the selected day."
-        actions={
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <CalendarDays
-                size={15}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+      {/* =================== DESKTOP (unchanged) =================== */}
+      <div className="hidden lg:block">
+        <PageHeader
+          title="Attendance Overview"
+          subtitle="Company-wide check-in status for the selected day."
+          actions={
+            <div className="flex items-center gap-2">
+              <div className="border border-slate-200 rounded-lg px-3 py-1.5">
+                <DatePicker
+                  value={selectedDate}
+                  max={toLocalISODate()}
+                  onChange={(iso) => setSelectedDate(iso)}
+                />
+              </div>
+              {!isToday && (
+                <button
+                  onClick={() => setSelectedDate(toLocalISODate())}
+                  className="text-sm font-medium text-orange-600 hover:underline whitespace-nowrap"
+                >
+                  Jump to today
+                </button>
+              )}
+              <div className="relative w-72">
+                <Search
+                  size={15}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name or employee ID..."
+                  className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                />
+              </div>
+            </div>
+          }
+        />
+
+        {loadError && (
+          <div className="flex items-center gap-2 text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-4 py-3 text-sm mb-5">
+            <AlertTriangle size={16} />
+            {loadError}
+          </div>
+        )}
+
+        <div className="flex flex-col lg:flex-row items-stretch gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 content-start flex-1">
+            <div className="bg-white border border-slate-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
+                <Timer size={14} />
+                Avg hours worked
+              </div>
+              <div className="text-xl font-bold text-slate-800">
+                {analyticsLoading ? "—" : avgHours}
+              </div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
+                <AlarmClock size={14} />
+                Overtime logged
+              </div>
+              <div className="text-xl font-bold text-slate-800">
+                {analyticsLoading ? "—" : overtimeHours}
+              </div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
+                <MapPin size={14} />
+                On site now
+              </div>
+              <div className="text-xl font-bold text-slate-800">
+                {onSiteCount}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col items-center lg:w-[220px] shrink-0">
+            {analyticsLoading ? (
+              <div className="w-[180px] h-[180px] rounded-full bg-slate-100 animate-pulse" />
+            ) : (
+              <div className="relative w-full max-w-[180px]">
+                <DonutChart
+                  present={onTimePresentCount}
+                  late={lateCount}
+                  halfDay={halfDayCount}
+                  absent={absentCount}
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-bold text-slate-800">
+                    {activeHeadcount ?? "—"}
+                  </span>
+                  <span className="text-[11px] text-slate-400">employees</span>
+                </div>
+              </div>
+            )}
+
+            <div className="w-full max-w-xs mt-3 space-y-1.5">
+              {[
+                {
+                  label: "Present",
+                  value: onTimePresentCount,
+                  color: "#c2410c",
+                },
+                { label: "Late", value: lateCount, color: "#1d4ed8" },
+                { label: "Half day", value: halfDayCount, color: "#122a51" },
+                { label: "Absent", value: absentCount, color: "#f5730b" },
+              ].map((row) => (
+                <div
+                  key={row.label}
+                  className="flex items-center justify-between text-xs"
+                >
+                  <span className="flex items-center gap-1.5 text-slate-600">
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: row.color }}
+                    />
+                    {row.label}
+                  </span>
+                  <span className="font-medium text-slate-800">
+                    {analyticsLoading ? "—" : row.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 mb-3">
+          <Users size={16} className="text-orange-500" />
+          <h3 className="font-semibold text-slate-800 text-sm">
+            {isToday ? "Today's attendance" : "Attendance"}
+            {!recordsLoading && (
+              <span className="text-slate-400 font-normal">
+                {" "}
+                ({filteredRecords.length} of {records.length} checked in)
+              </span>
+            )}
+          </h3>
+        </div>
+
+        {recordsLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="h-14 bg-slate-100 rounded-xl animate-pulse"
+              />
+            ))}
+          </div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-400">
+            No one has checked in {search ? "matching that search" : "yet"} for
+            this day.
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              {pagedRecords.map((record) => (
+                <AttendanceRow key={record.id} record={record} />
+              ))}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <span className="text-xs text-slate-400">
+                  Showing {(page - 1) * PAGE_SIZE + 1}–
+                  {Math.min(page * PAGE_SIZE, filteredRecords.length)} of{" "}
+                  {filteredRecords.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                  >
+                    Prev
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                    (p) => (
+                      <button
+                        key={p}
+                        onClick={() => setPage(p)}
+                        className={`w-7 h-7 text-xs font-medium rounded-lg ${
+                          p === page
+                            ? "bg-orange-500 text-white"
+                            : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ),
+                  )}
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      {/* ================= /DESKTOP =================== */}
+
+      {/* ===================== MOBILE ===================== */}
+      <div className="lg:hidden pb-6">
+        <div className="sticky top-0 z-10 bg-[#F7F5EF] pt-1 pb-3 -mx-4 px-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-slate-800 truncate">
+                Attendance Overview
+              </h1>
+              <p className="text-xs text-slate-500 truncate">
+                Company-wide check-in status
+              </p>
+            </div>
+            {/* Same pattern as Attendance reports: a small always-visible
+                search box sits right on the title line next to the text,
+                instead of a toggle button that hides/reveals it. */}
+            <div className="relative shrink-0">
+              <Search
+                size={14}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
               />
               <input
-                type="date"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search"
+                className="pl-7 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg w-24 bg-white focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 mt-3">
+            <div className="flex-1 border border-slate-200 rounded-lg bg-white px-3 py-2">
+              <DatePicker
                 value={selectedDate}
                 max={toLocalISODate()}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                onChange={(iso) => setSelectedDate(iso)}
+                className="w-full"
               />
             </div>
             {!isToday && (
               <button
                 onClick={() => setSelectedDate(toLocalISODate())}
-                className="text-sm font-medium text-orange-600 hover:underline whitespace-nowrap"
+                className="shrink-0 text-xs font-medium text-orange-600 whitespace-nowrap px-2 py-2"
               >
-                Jump to today
+                Today
               </button>
             )}
-            <div className="relative w-72">
-              <Search
-                size={15}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name or employee ID..."
-                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-              />
-            </div>
-          </div>
-        }
-      />
-
-      {loadError && (
-        <div className="flex items-center gap-2 text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-4 py-3 text-sm mb-5">
-          <AlertTriangle size={16} />
-          {loadError}
-        </div>
-      )}
-
-      <div className="flex flex-col lg:flex-row items-stretch gap-4 mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 content-start flex-1">
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
-              <Timer size={14} />
-              Avg hours worked
-            </div>
-            <div className="text-xl font-bold text-slate-800">
-              {analyticsLoading ? "—" : avgHours}
-            </div>
-          </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
-              <AlarmClock size={14} />
-              Overtime logged
-            </div>
-            <div className="text-xl font-bold text-slate-800">
-              {analyticsLoading ? "—" : overtimeHours}
-            </div>
-          </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
-              <MapPin size={14} />
-              On site now
-            </div>
-            <div className="text-xl font-bold text-slate-800">
-              {onSiteCount}
-            </div>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col items-center lg:w-[220px] shrink-0">
+        {loadError && (
+          <div className="flex items-center gap-2 text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2.5 text-xs mb-4">
+            <AlertTriangle size={15} className="shrink-0" />
+            {loadError}
+          </div>
+        )}
+
+        <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-4 px-4 mb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <StatChip
+            icon={Timer}
+            label="Avg hours worked"
+            value={analyticsLoading ? "—" : avgHours}
+          />
+          <StatChip
+            icon={AlarmClock}
+            label="Overtime logged"
+            value={analyticsLoading ? "—" : overtimeHours}
+          />
+          <StatChip icon={MapPin} label="On site now" value={onSiteCount} />
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-row items-center gap-4 mb-5">
           {analyticsLoading ? (
-            <div className="w-[180px] h-[180px] rounded-full bg-slate-100 animate-pulse" />
+            <div className="shrink-0 w-[120px] h-[120px] rounded-full bg-slate-100 animate-pulse" />
           ) : (
-            <div className="relative w-full max-w-[180px]">
+            <div className="relative shrink-0 w-[120px]">
               <DonutChart
                 present={onTimePresentCount}
                 late={lateCount}
@@ -374,28 +672,32 @@ export default function HrAttendanceOverview() {
                 absent={absentCount}
               />
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold text-slate-800">
+                <span className="text-lg font-bold text-slate-800">
                   {activeHeadcount ?? "—"}
                 </span>
-                <span className="text-[11px] text-slate-400">employees</span>
+                <span className="text-[9px] text-slate-400">employees</span>
               </div>
             </div>
           )}
 
-          <div className="w-full max-w-xs mt-3 space-y-1.5">
+          <div className="flex-1 min-w-0 grid grid-cols-1 gap-1.5">
             {[
-              { label: "Present", value: onTimePresentCount, color: "#c2410c" },
+              {
+                label: "Present",
+                value: onTimePresentCount,
+                color: "#c2410c",
+              },
               { label: "Late", value: lateCount, color: "#1d4ed8" },
               { label: "Half day", value: halfDayCount, color: "#122a51" },
               { label: "Absent", value: absentCount, color: "#f5730b" },
             ].map((row) => (
               <div
                 key={row.label}
-                className="flex items-center justify-between text-xs"
+                className="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-2.5 py-1.5"
               >
                 <span className="flex items-center gap-1.5 text-slate-600">
                   <span
-                    className="w-2 h-2 rounded-full"
+                    className="w-2 h-2 rounded-full shrink-0"
                     style={{ backgroundColor: row.color }}
                   />
                   {row.label}
@@ -407,85 +709,57 @@ export default function HrAttendanceOverview() {
             ))}
           </div>
         </div>
-      </div>
 
-      <div className="flex items-center gap-2 mb-3">
-        <Users size={16} className="text-orange-500" />
-        <h3 className="font-semibold text-slate-800 text-sm">
-          {isToday ? "Today's attendance" : "Attendance"}
-          {!recordsLoading && (
-            <span className="text-slate-400 font-normal">
-              {" "}
-              ({filteredRecords.length} of {records.length} checked in)
-            </span>
-          )}
-        </h3>
-      </div>
+        <div className="flex items-center gap-2 mb-3">
+          <Users size={15} className="text-orange-500" />
+          <h3 className="font-semibold text-slate-800 text-sm">
+            {isToday ? "Today's attendance" : "Attendance"}
+            {!recordsLoading && (
+              <span className="text-slate-400 font-normal">
+                {" "}
+                ({filteredRecords.length} of {records.length})
+              </span>
+            )}
+          </h3>
+        </div>
 
-      {recordsLoading ? (
-        <div className="space-y-2">
-          {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="h-14 bg-slate-100 rounded-xl animate-pulse"
-            />
-          ))}
-        </div>
-      ) : filteredRecords.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-400">
-          No one has checked in {search ? "matching that search" : "yet"} for
-          this day.
-        </div>
-      ) : (
-        <>
+        {recordsLoading ? (
           <div className="space-y-2">
-            {pagedRecords.map((record) => (
-              <AttendanceRow key={record.id} record={record} />
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="h-20 bg-slate-100 rounded-xl animate-pulse"
+              />
             ))}
           </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <span className="text-xs text-slate-400">
-                Showing {(page - 1) * PAGE_SIZE + 1}–
-                {Math.min(page * PAGE_SIZE, filteredRecords.length)} of{" "}
-                {filteredRecords.length}
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
-                >
-                  Prev
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (p) => (
-                    <button
-                      key={p}
-                      onClick={() => setPage(p)}
-                      className={`w-7 h-7 text-xs font-medium rounded-lg ${
-                        p === page
-                          ? "bg-orange-500 text-white"
-                          : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ),
-                )}
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
-                >
-                  Next
-                </button>
-              </div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-sm text-slate-400">
+            No one has checked in {search ? "matching that search" : "yet"} for
+            this day.
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              {mobileVisibleRecords.map((record) => (
+                <AttendanceCard key={record.id} record={record} />
+              ))}
             </div>
-          )}
-        </>
-      )}
+
+            {mobileHasMore && (
+              <button
+                onClick={() =>
+                  setMobileVisibleCount((c) => c + PAGE_SIZE_MOBILE)
+                }
+                className="w-full mt-3 flex items-center justify-center gap-1.5 text-sm font-medium text-orange-600 bg-white border border-slate-200 rounded-xl py-2.5"
+              >
+                Load more
+                <ChevronDown size={15} />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      {/* ==================== /MOBILE ==================== */}
     </div>
   );
 }

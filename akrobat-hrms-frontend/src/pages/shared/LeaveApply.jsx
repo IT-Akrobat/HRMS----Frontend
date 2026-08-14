@@ -18,6 +18,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
+import SelectDropdown from "../../components/common/SelectDropdown";
 import DatePicker from "../../components/layout/DatePicker";
 import { ROLE_BASE_PATH } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
@@ -172,6 +173,27 @@ export default function LeaveApply() {
     (t) => t.leave_name === form.leave_type,
   );
 
+  // Options for the leave-type dropdown, built from whatever state
+  // `entitlements` is currently in (loading / empty / loaded) so the
+  // SelectDropdown placeholder always reflects reality instead of
+  // showing a stale/empty list.
+  const leaveTypeOptions = (entitlements || []).map((t) => ({
+    value: t.leave_name,
+    label:
+      toTitleCase(t.leave_name) +
+      (t.leave_name === "REPLACEMENT LEAVE"
+        ? ` — ${t.remaining_days ?? 0} day${
+            (t.remaining_days ?? 0) === 1 ? "" : "s"
+          } available`
+        : ""),
+  }));
+  const leaveTypePlaceholder =
+    entitlements === null
+      ? "Loading leave types…"
+      : entitlements?.length === 0
+        ? "No leave types available"
+        : "Select leave type";
+
   // Replacement Leave is credited by HR (one day per public holiday
   // that fell on a Saturday, see app/leaves/policy_services.py
   // credit_replacement_leave) and expires 1 year after it's credited.
@@ -309,33 +331,22 @@ export default function LeaveApply() {
                   <label className="block text-xs font-medium text-slate-500 mb-1.5">
                     Leave Type <span className="text-orange-500">*</span>
                   </label>
-                  <select
+                  {/* Only leave types this employee is eligible for
+                      appear here — e.g. Maternity Leave is simply
+                      absent from the list for a male employee, rather
+                      than shown and silently ignored. Uses the shared
+                      SelectDropdown so it matches every other dropdown
+                      in the app (e.g. Attendance Reports' department
+                      filter) instead of the browser's native <select>
+                      popover. */}
+                  <SelectDropdown
                     value={form.leave_type}
-                    onChange={(e) => update("leave_type", e.target.value)}
+                    onChange={(val) => update("leave_type", val)}
+                    options={leaveTypeOptions}
+                    placeholder={leaveTypePlaceholder}
                     disabled={!entitlements || entitlements.length === 0}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 disabled:bg-slate-50 disabled:text-slate-400"
-                  >
-                    {entitlements === null && (
-                      <option value="">Loading leave types…</option>
-                    )}
-                    {entitlements?.length === 0 && (
-                      <option value="">No leave types available</option>
-                    )}
-                    {/* Only leave types this employee is eligible for
-                        appear here — e.g. Maternity Leave is simply
-                        absent from the list for a male employee, rather
-                        than shown and silently ignored. */}
-                    {entitlements?.map((t) => (
-                      <option key={t.leave_type_id} value={t.leave_name}>
-                        {toTitleCase(t.leave_name)}
-                        {t.leave_name === "REPLACEMENT LEAVE"
-                          ? ` — ${t.remaining_days ?? 0} day${
-                              (t.remaining_days ?? 0) === 1 ? "" : "s"
-                            } available`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
+                    triggerClassName="py-2.5"
+                  />
                   {fieldErrors.leave_type && (
                     <p className="text-xs text-orange-500 mt-1">
                       {fieldErrors.leave_type}

@@ -789,7 +789,8 @@ export default function ManagerDashboard() {
         <QuoteOfDayCard compact />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      {/* ---------- Desktop/tablet stat grid (lg and up) — unchanged ---------- */}
+      <div className="hidden lg:grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <StatCard
           icon={Users}
           label="Team Size"
@@ -811,6 +812,65 @@ export default function ManagerDashboard() {
           loading={leavesLoading}
           value={teamLeaves.length}
         />
+      </div>
+
+      {/* ---------- Mobile stat strip (below lg) ----------
+          A horizontal, snap-scrolling row of compact stat cards instead of
+          a cramped 2-column grid — each card is wide enough to breathe and
+          the row scrolls sideways with a thumb instead of wrapping. */}
+      <div className="lg:hidden -mx-4 px-4 mb-4">
+        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1">
+          {[
+            {
+              key: "team-size",
+              icon: Users,
+              label: "Team Size",
+              value: teamAttendance.length || "—",
+              loading: attendanceLoading,
+              iconBg: "bg-orange-50",
+              iconFg: "text-orange-500",
+            },
+            {
+              key: "present-today",
+              icon: UserCheck,
+              label: "Present Today",
+              value: presentCount,
+              loading: attendanceLoading,
+              iconBg: "bg-blue-50",
+              iconFg: "text-blue-600",
+            },
+            {
+              key: "pending-requests",
+              icon: CalendarClock,
+              label: "Pending Requests",
+              value: teamLeaves.length,
+              loading: leavesLoading,
+              iconBg: "bg-blue-50",
+              iconFg: "text-blue-600",
+            },
+          ].map((stat) => (
+            <div
+              key={stat.key}
+              className="snap-start shrink-0 w-[150px] bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col gap-2.5"
+            >
+              <div
+                className={`w-9 h-9 rounded-lg flex items-center justify-center ${stat.iconBg} ${stat.iconFg}`}
+              >
+                <stat.icon size={18} />
+              </div>
+              {stat.loading ? (
+                <div className="h-6 w-12 bg-slate-100 rounded animate-pulse" />
+              ) : (
+                <div className="text-xl font-bold text-slate-800 leading-none">
+                  {stat.value}
+                </div>
+              )}
+              <span className="text-xs text-slate-500 leading-tight">
+                {stat.label}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ---------- Two-column body ----------
@@ -876,7 +936,7 @@ export default function ManagerDashboard() {
                   return (
                     <li
                       key={entry.key}
-                      className="py-2.5 flex items-start gap-2.5"
+                      className="py-2.5 px-2.5 -mx-2.5 mb-1.5 rounded-lg bg-slate-50 lg:bg-transparent lg:mx-0 lg:mb-0 lg:px-0 lg:rounded-none flex items-start gap-2.5"
                     >
                       <LogIcon kind={entry.kind} />
                       <div className="min-w-0 flex-1 flex items-start justify-between gap-3">
@@ -987,23 +1047,78 @@ export default function ManagerDashboard() {
                 No attendance records for your team today.
               </p>
             ) : (
-              <div className="overflow-y-auto overflow-x-auto no-scrollbar flex-1 min-w-0">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
-                      <th className="pb-2 font-medium">Employee</th>
-                      <th className="pb-2 font-medium">In</th>
-                      <th className="pb-2 font-medium">Out</th>
-                      <th className="pb-2 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {teamAttendance.map((row) => (
-                      <tr key={row.id}>
-                        <td className="py-2 text-slate-700 truncate max-w-[120px]">
+              <>
+                {/* ---------- Desktop/tablet table (lg and up) — unchanged ---------- */}
+                <div className="hidden lg:block overflow-y-auto overflow-x-auto no-scrollbar flex-1 min-w-0">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
+                        <th className="pb-2 font-medium">Employee</th>
+                        <th className="pb-2 font-medium">In</th>
+                        <th className="pb-2 font-medium">Out</th>
+                        <th className="pb-2 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {teamAttendance.map((row) => (
+                        <tr key={row.id}>
+                          <td className="py-2 text-slate-700 truncate max-w-[120px]">
+                            {row.employees?.full_name || "—"}
+                          </td>
+                          <td className="py-2 text-slate-500 whitespace-nowrap">
+                            {row.check_in_time
+                              ? parseServerDate(
+                                  row.check_in_time,
+                                )?.toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "—"}
+                          </td>
+                          <td className="py-2 text-slate-500 whitespace-nowrap">
+                            {row.check_out_time
+                              ? parseServerDate(
+                                  row.check_out_time,
+                                )?.toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "—"}
+                          </td>
+                          <td className="py-2">
+                            <span
+                              className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${
+                                row.status === "Present"
+                                  ? "bg-blue-50 text-blue-600"
+                                  : "bg-orange-50 text-orange-500"
+                              }`}
+                            >
+                              {row.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* ---------- Mobile card list (below lg) ----------
+                    A scrolling table doesn't work well on a phone — each
+                    employee gets a compact row card instead, with In/Out
+                    stacked and the status badge up top where a thumb can
+                    scan it at a glance. */}
+                <ul className="lg:hidden divide-y divide-slate-100 overflow-y-auto no-scrollbar flex-1 -mr-1 pr-1">
+                  {teamAttendance.map((row) => (
+                    <li
+                      key={row.id}
+                      className="py-2.5 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-700 truncate">
                           {row.employees?.full_name || "—"}
-                        </td>
-                        <td className="py-2 text-slate-500 whitespace-nowrap">
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          In{" "}
                           {row.check_in_time
                             ? parseServerDate(
                                 row.check_in_time,
@@ -1012,8 +1127,8 @@ export default function ManagerDashboard() {
                                 minute: "2-digit",
                               })
                             : "—"}
-                        </td>
-                        <td className="py-2 text-slate-500 whitespace-nowrap">
+                          {"  ·  "}
+                          Out{" "}
                           {row.check_out_time
                             ? parseServerDate(
                                 row.check_out_time,
@@ -1022,23 +1137,21 @@ export default function ManagerDashboard() {
                                 minute: "2-digit",
                               })
                             : "—"}
-                        </td>
-                        <td className="py-2">
-                          <span
-                            className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${
-                              row.status === "Present"
-                                ? "bg-blue-50 text-blue-600"
-                                : "bg-orange-50 text-orange-500"
-                            }`}
-                          >
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${
+                          row.status === "Present"
+                            ? "bg-blue-50 text-blue-600"
+                            : "bg-orange-50 text-orange-500"
+                        }`}
+                      >
+                        {row.status}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </div>
 
