@@ -1,4 +1,8 @@
 import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Crown,
   Eye,
   KeyRound,
@@ -9,7 +13,8 @@ import {
   ShieldCheck,
   Sparkles,
   User,
-  Users
+  Users,
+  X,
 } from "lucide-react";
 import {
   useCallback,
@@ -69,7 +74,18 @@ function edgeKey(roleId, permissionId) {
 export default function UsersPermissions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Unified success/error banner. `noticeId` increments on every call so
+  // the auto-dismiss timer and slide-in animation always restart, even
+  // if the same message fires twice in a row.
   const [notice, setNotice] = useState(null);
+  const [noticeType, setNoticeType] = useState("success");
+  const [noticeId, setNoticeId] = useState(0);
+
+  const showNotice = useCallback((message, type = "success") => {
+    setNotice(message);
+    setNoticeType(type);
+    setNoticeId((id) => id + 1);
+  }, []);
 
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
@@ -82,6 +98,11 @@ export default function UsersPermissions() {
 
   const [search, setSearch] = useState("");
   const [moduleFilter, setModuleFilter] = useState("");
+
+  // Mobile-only: which module accordions are collapsed. Purely a view
+  // concern (desktop graph has no equivalent), so it's kept local here
+  // rather than alongside the shared role/permission state above.
+  const [collapsedModules, setCollapsedModules] = useState(new Set());
 
   const containerRef = useRef(null);
   const roleNodeRefs = useRef(new Map());
@@ -116,7 +137,7 @@ export default function UsersPermissions() {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 3000);
     return () => clearTimeout(t);
-  }, [notice]);
+  }, [noticeId]);
 
   // ---------------------------------------------------------------------
   // Derived data
@@ -260,8 +281,9 @@ export default function UsersPermissions() {
       } else {
         await permissionsService.grant(selectedRole.id, permission.id);
       }
-      setNotice(
+      showNotice(
         `${permission.permission_name} ${isGranted ? "disconnected from" : "wired to"} ${selectedRole.role_name}`,
+        "success",
       );
     } catch (e) {
       // rollback optimistic update
@@ -279,7 +301,9 @@ export default function UsersPermissions() {
                 ),
             ),
       );
-      setError(e.message || "Could not update that connection.");
+      const message = e.message || "Could not update that connection.";
+      setError(message);
+      showNotice(message, "error");
     } finally {
       setPendingEdgeKey(null);
     }
@@ -351,7 +375,7 @@ export default function UsersPermissions() {
       </div> */}
 
       {/* ================= GRAPH PANEL ================= */}
-      <div className="bg-[#0B1830] rounded-2xl border border-[#152847] overflow-hidden">
+      <div className="hidden sm:block bg-[#0B1830] rounded-2xl border border-[#152847] overflow-hidden">
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-white/10">
           <div className="flex items-center gap-2 min-w-0">
@@ -688,10 +712,462 @@ export default function UsersPermissions() {
         )}
       </div>
 
-      {/* Toast */}
+      {/* ================= MOBILE PERMISSIONS UI =================
+          The desktop panel above is a wired SVG graph with a fixed
+          880px min-width -- fundamentally a desktop interaction, not
+          something that can just be resized. Mobile gets its own flow
+          instead: tap a role, then toggle its permissions in a plain
+          list, grouped by module. Same state/handlers as the desktop
+          graph (selectedRoleId, togglePermission, grantSet, etc.) so
+          both stay in sync -- this is purely a different view of the
+          same data. ================= */}
+      <div className="sm:hidden">
+        {loading && (
+          <div className="flex flex-col gap-3">
+            <div className="h-28 rounded-2xl bg-slate-100 animate-pulse" />
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-16 rounded-2xl bg-slate-100 animate-pulse"
+              />
+            ))}
+          </div>
+        )}
+
+        {!loading && error && roles.length === 0 && (
+          <div className="flex flex-col items-center text-center py-14 px-4">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-3">
+              <AlertCircle size={18} className="text-red-500" />
+            </div>
+            <p className="text-sm font-semibold text-slate-800 mb-1">
+              Couldn't load roles &amp; permissions
+            </p>
+            <p className="text-xs text-slate-400 mb-4 max-w-[240px]">{error}</p>
+            <button
+              onClick={loadMatrix}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-orange-500 text-white active:bg-orange-600"
+            >
+              <RefreshCw size={13} />
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && !selectedRoleId && (
+          <>
+            {/* Overview card — mirrors the desktop panel's navy/orange
+                identity so mobile doesn't feel like a stripped-down
+                fallback. */}
+            <div className="relative overflow-hidden rounded-2xl bg-[#0B1830] px-4 py-4 mb-4">
+              <div className="absolute -right-8 -top-10 w-32 h-32 rounded-full bg-orange-500/10 blur-2xl" />
+              <div className="relative flex items-center gap-2.5 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-orange-500/15 flex items-center justify-center shrink-0">
+                  <Sparkles size={15} className="text-orange-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">
+                    Roles &amp; Permissions
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Tap a role to manage its access
+                  </p>
+                </div>
+              </div>
+              <div className="relative grid grid-cols-3 gap-2">
+                <div className="rounded-xl bg-white/5 border border-white/10 px-2 py-2 text-center">
+                  <p className="text-base font-semibold text-white tabular-nums">
+                    {roles.length}
+                  </p>
+                  <p className="text-[10px] text-slate-400">Roles</p>
+                </div>
+                <div className="rounded-xl bg-white/5 border border-white/10 px-2 py-2 text-center">
+                  <p className="text-base font-semibold text-white tabular-nums">
+                    {permissions.length}
+                  </p>
+                  <p className="text-[10px] text-slate-400">Permissions</p>
+                </div>
+                <div className="rounded-xl bg-white/5 border border-white/10 px-2 py-2 text-center">
+                  <p className="text-base font-semibold text-white tabular-nums">
+                    {activeConnections}
+                  </p>
+                  <p className="text-[10px] text-slate-400">Connected</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              {roles.map((role) => {
+                const Icon = roleIcon(role.role_name);
+                const count = grants.filter(
+                  (g) => g.role_id === role.id,
+                ).length;
+                const pct = permissions.length
+                  ? Math.round((count / permissions.length) * 100)
+                  : 0;
+                return (
+                  <button
+                    key={role.id}
+                    onClick={() => handleRoleClick(role)}
+                    className={`w-full flex items-center gap-3 text-left rounded-2xl px-4 py-3.5 border transition-all active:scale-[0.98] ${
+                      role.is_super_admin
+                        ? "bg-gradient-to-br from-amber-50 to-white border-amber-200"
+                        : "bg-white border-slate-200 active:bg-slate-50"
+                    }`}
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                        role.is_super_admin
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-slate-100 text-slate-600"
+                      }`}
+                    >
+                      <Icon size={17} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <p className="text-sm font-semibold text-slate-800 truncate">
+                          {role.role_name}
+                        </p>
+                        {!role.is_super_admin && (
+                          <span className="shrink-0 text-[10px] font-semibold text-slate-500 bg-slate-100 rounded-full px-2 py-0.5 tabular-nums">
+                            {count}
+                          </span>
+                        )}
+                      </div>
+                      {role.is_super_admin ? (
+                        <p className="text-[11px] font-medium text-amber-700">
+                          Full access to every module
+                        </p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-orange-500 transition-all"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-400 shrink-0 tabular-nums">
+                            {pct}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <ChevronRight
+                      size={18}
+                      className="text-slate-300 shrink-0"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {!loading && selectedRoleId && selectedRole && (
+          <>
+            {/* Sticky role header + search + filters — stays put above
+                the permission list while scrolling. Offset below the
+                app's own sticky top bar (h-16). */}
+            <div className="sticky top-16 z-10 -mx-3 px-3 bg-slate-50/95 backdrop-blur-sm pb-3">
+              <button
+                onClick={() => setSelectedRoleId(null)}
+                className="flex items-center gap-1 text-xs font-medium text-slate-500 pt-3 pb-2.5"
+              >
+                <ChevronRight size={14} className="rotate-180" aria-hidden />
+                All roles
+              </button>
+
+              <div className="flex items-center gap-3 mb-3 bg-white rounded-xl px-3.5 py-3 border border-slate-200">
+                <div
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                    selectedRole.is_super_admin
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-orange-100 text-orange-600"
+                  }`}
+                >
+                  {(() => {
+                    const Icon = roleIcon(selectedRole.role_name);
+                    return <Icon size={16} />;
+                  })()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-800 truncate">
+                    {selectedRole.role_name}
+                  </p>
+                  {selectedRole.is_super_admin ? (
+                    <p className="text-xs text-amber-700 mt-0.5">Full access</p>
+                  ) : (
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 max-w-[110px] h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-orange-500 transition-all"
+                          style={{
+                            width: `${
+                              permissions.length
+                                ? Math.round(
+                                    (selectedRoleGrantedCount /
+                                      permissions.length) *
+                                      100,
+                                  )
+                                : 0
+                            }%`,
+                          }}
+                        />
+                      </div>
+                      <span className="text-[11px] text-slate-400 tabular-nums">
+                        {selectedRoleGrantedCount} of {permissions.length}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {selectedRole.is_super_admin && (
+                <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2.5 mb-3">
+                  <Lock size={13} className="shrink-0" />
+                  Super Admin has every permission by default and can't be
+                  edited here.
+                </div>
+              )}
+
+              {/* Search */}
+              <div className="relative mb-2.5">
+                <Search
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search permissions"
+                  className="w-full pl-8 pr-8 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:border-orange-400"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                    aria-label="Clear search"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Module filter chips */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                <button
+                  onClick={() => setModuleFilter("")}
+                  className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+                    moduleFilter === ""
+                      ? "bg-orange-500 border-orange-500 text-white"
+                      : "bg-white border-slate-200 text-slate-500"
+                  }`}
+                >
+                  All modules
+                </button>
+                {modules.map((m, i) => {
+                  const c = moduleColor(m, i);
+                  return (
+                    <button
+                      key={m}
+                      onClick={() =>
+                        setModuleFilter((prev) => (prev === m ? "" : m))
+                      }
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+                        moduleFilter === m
+                          ? "bg-slate-800 border-slate-800 text-white"
+                          : "bg-white border-slate-200 text-slate-500"
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+                      {m.replace(/_/g, " ")}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Permissions, grouped by module as collapsible sections */}
+            {permissionsByModule.length === 0 && (
+              <div className="flex flex-col items-center text-center py-10">
+                <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+                  <Search size={16} className="text-slate-400" />
+                </div>
+                <p className="text-sm text-slate-500">
+                  No permissions match your search.
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3 pt-1">
+              {permissionsByModule.map(([mod, perms]) => {
+                const c = moduleColor(mod, modules.indexOf(mod));
+                const grantedInModule = perms.filter((p) =>
+                  grantSet.has(edgeKey(selectedRoleId, p.id)),
+                ).length;
+                const allGranted =
+                  selectedRole.is_super_admin ||
+                  grantedInModule === perms.length;
+                const isCollapsed = collapsedModules.has(mod);
+                return (
+                  <div
+                    key={mod}
+                    className="bg-white rounded-xl border border-slate-200 overflow-hidden"
+                  >
+                    <button
+                      onClick={() =>
+                        setCollapsedModules((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(mod)) next.delete(mod);
+                          else next.add(mod);
+                          return next;
+                        })
+                      }
+                      className="w-full flex items-center justify-between gap-2 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.dot}`}
+                        />
+                        <p
+                          className={`text-[11px] font-semibold tracking-wide truncate ${c.text}`}
+                        >
+                          {mod.replace(/_/g, " ")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span
+                          className={`text-[10px] font-semibold rounded-full px-2 py-0.5 tabular-nums ${
+                            allGranted
+                              ? "bg-orange-50 text-orange-600"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {selectedRole.is_super_admin
+                            ? perms.length
+                            : grantedInModule}
+                          /{perms.length}
+                        </span>
+                        <ChevronDown
+                          size={15}
+                          className={`text-slate-400 transition-transform ${
+                            isCollapsed ? "" : "rotate-180"
+                          }`}
+                        />
+                      </div>
+                    </button>
+                    {!isCollapsed && (
+                      <div className="divide-y divide-slate-100 border-t border-slate-100">
+                        {perms.map((perm) => {
+                          const isConnected = grantSet.has(
+                            edgeKey(selectedRoleId, perm.id),
+                          );
+                          const isPending =
+                            pendingEdgeKey === edgeKey(selectedRoleId, perm.id);
+                          const disabled =
+                            selectedRole.is_super_admin || isPending;
+                          return (
+                            <button
+                              key={perm.id}
+                              onClick={() => togglePermission(perm)}
+                              disabled={disabled}
+                              className={`w-full flex items-center justify-between gap-3 px-4 py-3 text-left ${
+                                disabled ? "opacity-60" : "active:bg-slate-50"
+                              }`}
+                            >
+                              <span className="text-sm text-slate-700 flex-1 min-w-0 truncate">
+                                {perm.permission_name}
+                              </span>
+                              {isPending ? (
+                                <RefreshCw
+                                  size={16}
+                                  className="animate-spin text-slate-400 shrink-0"
+                                />
+                              ) : (
+                                <span
+                                  className={`shrink-0 relative w-10 h-6 rounded-full transition-colors ${
+                                    isConnected || selectedRole.is_super_admin
+                                      ? "bg-orange-500"
+                                      : "bg-slate-200"
+                                  }`}
+                                >
+                                  <span
+                                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                                      isConnected || selectedRole.is_super_admin
+                                        ? "translate-x-4"
+                                        : "translate-x-0.5"
+                                    }`}
+                                  />
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Notification banner — success or error, slides down from the
+          top like a native push notification, with a shrinking timer
+          bar and tap-to-dismiss. Replaces the old bottom-right toast,
+          which never rendered anything on failure (see catch blocks
+          above — this is now the single place both paths report to). */}
       {notice && (
-        <div className="fixed bottom-5 right-5 bg-[#0B1830] text-white text-xs font-medium px-4 py-2.5 rounded-lg shadow-lg border border-white/10 z-50">
-          {notice}
+        <div
+          key={noticeId}
+          className="fixed z-50 inset-x-3 top-[calc(4.25rem+env(safe-area-inset-top))] sm:inset-x-auto sm:right-5 sm:top-5 sm:w-80 animate-[banner-in_0.25s_cubic-bezier(0.16,1,0.3,1)]"
+        >
+          <div
+            className={`relative overflow-hidden rounded-2xl border shadow-lg backdrop-blur-sm ${
+              noticeType === "error"
+                ? "bg-red-50/95 border-red-100"
+                : "bg-white/95 border-slate-200"
+            }`}
+          >
+            <button
+              onClick={() => setNotice(null)}
+              className="w-full flex items-start gap-3 px-4 py-3 text-left"
+            >
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                  noticeType === "error"
+                    ? "bg-red-100 text-red-600"
+                    : "bg-orange-100 text-orange-600"
+                }`}
+              >
+                {noticeType === "error" ? (
+                  <AlertCircle size={15} />
+                ) : (
+                  <CheckCircle2 size={15} />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p
+                  className={`text-xs font-semibold ${
+                    noticeType === "error" ? "text-red-700" : "text-slate-800"
+                  }`}
+                >
+                  {noticeType === "error" ? "Couldn't update" : "Updated"}
+                </p>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  {notice}
+                </p>
+              </div>
+              <X size={14} className="text-slate-400 shrink-0 mt-0.5" />
+            </button>
+            <div
+              key={`${noticeId}-bar`}
+              className={`h-0.5 origin-left animate-[banner-shrink_3s_linear_forwards] ${
+                noticeType === "error" ? "bg-red-400" : "bg-orange-400"
+              }`}
+            />
+          </div>
         </div>
       )}
 
@@ -701,6 +1177,14 @@ export default function UsersPermissions() {
         }
         @keyframes wire-flow-dash {
           to { stroke-dashoffset: -22; }
+        }
+        @keyframes banner-in {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes banner-shrink {
+          from { transform: scaleX(1); }
+          to { transform: scaleX(0); }
         }
       `}</style>
     </div>

@@ -893,13 +893,6 @@ export default function LeaveHistory() {
                     </p>
                   </div>
                 </div>
-
-                <button
-                  onClick={() => setSelectedLeave(null)}
-                  className="mt-5 w-full text-sm font-medium text-slate-600 border border-slate-200 rounded-lg py-2.5 hover:bg-slate-50"
-                >
-                  Close
-                </button>
               </div>
             </div>
           );

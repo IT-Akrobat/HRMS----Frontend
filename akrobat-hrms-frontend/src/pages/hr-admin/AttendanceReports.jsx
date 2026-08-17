@@ -907,7 +907,8 @@ function DepartmentGroup({ deptName, records, onExportEmployee }) {
               </button>
             </div>
 
-            <table className="w-full text-sm">
+            {/* Desktop/tablet: unchanged table. */}
+            <table className="hidden sm:table w-full text-sm">
               <tbody>
                 {emp.displayRows.map((r) => (
                   <tr key={r.date} className="border-t border-slate-50">
@@ -933,6 +934,37 @@ function DepartmentGroup({ deptName, records, onExportEmployee }) {
                 ))}
               </tbody>
             </table>
+
+            {/* Mobile: same rows as a stacked list of day cards instead of
+                a cramped 4-column table. Each row gets its own line for
+                the time range so nothing truncates or squishes together. */}
+            <div className="sm:hidden divide-y divide-slate-50">
+              {emp.displayRows.map((r) => (
+                <div key={r.date} className="px-4 py-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-slate-700">
+                      {formatDateLabel(r.date)}
+                    </span>
+                    <span
+                      className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${
+                        STATUS_STYLES[r.status] || "bg-slate-50 text-slate-600"
+                      }`}
+                    >
+                      {r.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>
+                      {formatTime(r.check_in_time)} →{" "}
+                      {formatTime(r.check_out_time)}
+                    </span>
+                    <span className="text-slate-500 font-medium">
+                      {r.working_hours}h
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         );
       })}
@@ -943,60 +975,143 @@ function DepartmentGroup({ deptName, records, onExportEmployee }) {
 function EmployeeSummaryTable({ employees, onExportEmployee }) {
   if (employees.length === 0) return <EmptyState />;
   return (
-    <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-slate-50 text-left text-xs text-slate-500">
-            <th className="px-4 py-2.5 font-medium">Employee</th>
-            <th className="px-4 py-2.5 font-medium">Present</th>
-            <th className="px-4 py-2.5 font-medium">Absent</th>
-            <th className="px-4 py-2.5 font-medium">Late</th>
-            <th className="px-4 py-2.5 font-medium">Leave</th>
-            <th className="px-4 py-2.5 font-medium">Attendance %</th>
-            <th className="px-4 py-2.5"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {employees.map((e) => {
-            return (
-              <tr key={e.employee_id} className="border-t border-slate-50">
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <Avatar
-                      name={e.full_name}
-                      photo={e.profile_photo}
-                      size="w-7 h-7"
-                      textSize="text-[11px]"
-                    />
-                    <div>
-                      <div className="font-medium text-slate-700">
-                        {e.full_name}
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        {e.employee_code}
+    <>
+      {/* Desktop/tablet: unchanged table. */}
+      <div className="hidden sm:block bg-white rounded-xl border border-slate-100 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-left text-xs text-slate-500">
+              <th className="px-4 py-2.5 font-medium">Employee</th>
+              <th className="px-4 py-2.5 font-medium">Present</th>
+              <th className="px-4 py-2.5 font-medium">Absent</th>
+              <th className="px-4 py-2.5 font-medium">Late</th>
+              <th className="px-4 py-2.5 font-medium">Leave</th>
+              <th className="px-4 py-2.5 font-medium">Attendance %</th>
+              <th className="px-4 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {employees.map((e) => {
+              return (
+                <tr key={e.employee_id} className="border-t border-slate-50">
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <Avatar
+                        name={e.full_name}
+                        photo={e.profile_photo}
+                        size="w-7 h-7"
+                        textSize="text-[11px]"
+                      />
+                      <div>
+                        <div className="font-medium text-slate-700">
+                          {e.full_name}
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {e.employee_code}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </td>
-                <td className="px-4 py-2.5 text-green-700">{e.present_days}</td>
-                <td className="px-4 py-2.5 text-red-700">{e.absent_days}</td>
-                <td className="px-4 py-2.5 text-amber-700">{e.late_days}</td>
-                <td className="px-4 py-2.5 text-blue-700">{e.leave_days}</td>
-                <td className="px-4 py-2.5">{e.attendance_percentage}%</td>
-                <td className="px-4 py-2.5 text-right">
-                  <button
-                    onClick={() => onExportEmployee(e)}
-                    className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium ml-auto"
-                  >
-                    <Download size={13} />
-                    Download
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  </td>
+                  <td className="px-4 py-2.5 text-green-700">
+                    {e.present_days}
+                  </td>
+                  <td className="px-4 py-2.5 text-red-700">{e.absent_days}</td>
+                  <td className="px-4 py-2.5 text-amber-700">{e.late_days}</td>
+                  <td className="px-4 py-2.5 text-blue-700">{e.leave_days}</td>
+                  <td className="px-4 py-2.5">{e.attendance_percentage}%</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button
+                      onClick={() => onExportEmployee(e)}
+                      className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium ml-auto"
+                    >
+                      <Download size={13} />
+                      Download
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile: one card per employee. Leads with the attendance % (the
+          number that matters most at a glance on a phone), with the four
+          day-counts laid out as small pills underneath instead of being
+          squeezed into unreadable table columns. */}
+      <div className="sm:hidden flex flex-col gap-3">
+        {employees.map((e) => (
+          <div
+            key={e.employee_id}
+            className="bg-white rounded-xl border border-slate-100 p-4"
+          >
+            <div className="flex items-center gap-3 mb-3.5">
+              <Avatar
+                name={e.full_name}
+                photo={e.profile_photo}
+                size="w-10 h-10"
+                textSize="text-xs"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-slate-700 truncate">
+                  {e.full_name}
+                </div>
+                <div className="text-xs text-slate-400">{e.employee_code}</div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-lg font-semibold text-slate-800">
+                  {e.attendance_percentage}%
+                </div>
+                <div className="text-[10px] text-slate-400">Attendance</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-1.5 mb-3">
+              <MobileStatPill
+                label="Present"
+                value={e.present_days}
+                color="text-green-700"
+                bg="bg-green-50"
+              />
+              <MobileStatPill
+                label="Absent"
+                value={e.absent_days}
+                color="text-red-700"
+                bg="bg-red-50"
+              />
+              <MobileStatPill
+                label="Late"
+                value={e.late_days}
+                color="text-amber-700"
+                bg="bg-amber-50"
+              />
+              <MobileStatPill
+                label="Leave"
+                value={e.leave_days}
+                color="text-blue-700"
+                bg="bg-blue-50"
+              />
+            </div>
+
+            <button
+              onClick={() => onExportEmployee(e)}
+              className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-orange-600 border border-orange-100 bg-orange-50/60 rounded-lg py-2"
+            >
+              <Download size={13} />
+              Download
+            </button>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function MobileStatPill({ label, value, color, bg }) {
+  return (
+    <div className={`rounded-lg py-1.5 text-center ${bg}`}>
+      <div className={`text-sm font-semibold ${color}`}>{value}</div>
+      <div className="text-[9px] text-slate-500">{label}</div>
     </div>
   );
 }
@@ -1009,51 +1124,113 @@ function DepartmentSummaryTable({
   if (rows.length === 0) return <EmptyState />;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-slate-50 text-left text-xs text-slate-500">
-            <th className="px-4 py-2.5 font-medium">Department</th>
-            <th className="px-4 py-2.5 font-medium">Employees</th>
-            <th className="px-4 py-2.5 font-medium">Present</th>
-            <th className="px-4 py-2.5 font-medium">Absent</th>
-            <th className="px-4 py-2.5 font-medium">Late</th>
-            <th className="px-4 py-2.5 font-medium">Leave</th>
-            <th className="px-4 py-2.5"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((totals) => (
-            <tr key={totals.dept} className="border-t border-slate-50">
-              <td className="px-4 py-2.5">
-                {/* Click through to "By employee", pre-filtered to this
-                    department — see selectDepartment() in the parent. */}
-                <button
-                  onClick={() => onSelectDepartment(totals.dept)}
-                  className="font-medium text-slate-700 hover:text-orange-600 hover:underline text-left"
-                >
-                  {totals.dept}
-                </button>
-              </td>
-              <td className="px-4 py-2.5">{totals.count}</td>
-              <td className="px-4 py-2.5 text-green-700">{totals.present}</td>
-              <td className="px-4 py-2.5 text-red-700">{totals.absent}</td>
-              <td className="px-4 py-2.5 text-amber-700">{totals.late}</td>
-              <td className="px-4 py-2.5 text-blue-700">{totals.leave}</td>
-              <td className="px-4 py-2.5 text-right">
-                <button
-                  onClick={() => onExportDepartment(totals.dept)}
-                  className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium ml-auto"
-                >
-                  <Download size={13} />
-                  Download
-                </button>
-              </td>
+    <>
+      {/* Desktop/tablet: unchanged table. */}
+      <div className="hidden sm:block bg-white rounded-xl border border-slate-100 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-left text-xs text-slate-500">
+              <th className="px-4 py-2.5 font-medium">Department</th>
+              <th className="px-4 py-2.5 font-medium">Employees</th>
+              <th className="px-4 py-2.5 font-medium">Present</th>
+              <th className="px-4 py-2.5 font-medium">Absent</th>
+              <th className="px-4 py-2.5 font-medium">Late</th>
+              <th className="px-4 py-2.5 font-medium">Leave</th>
+              <th className="px-4 py-2.5"></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((totals) => (
+              <tr key={totals.dept} className="border-t border-slate-50">
+                <td className="px-4 py-2.5">
+                  {/* Click through to "By employee", pre-filtered to this
+                      department — see selectDepartment() in the parent. */}
+                  <button
+                    onClick={() => onSelectDepartment(totals.dept)}
+                    className="font-medium text-slate-700 hover:text-orange-600 hover:underline text-left"
+                  >
+                    {totals.dept}
+                  </button>
+                </td>
+                <td className="px-4 py-2.5">{totals.count}</td>
+                <td className="px-4 py-2.5 text-green-700">{totals.present}</td>
+                <td className="px-4 py-2.5 text-red-700">{totals.absent}</td>
+                <td className="px-4 py-2.5 text-amber-700">{totals.late}</td>
+                <td className="px-4 py-2.5 text-blue-700">{totals.leave}</td>
+                <td className="px-4 py-2.5 text-right">
+                  <button
+                    onClick={() => onExportDepartment(totals.dept)}
+                    className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium ml-auto"
+                  >
+                    <Download size={13} />
+                    Download
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile: one card per department. Tapping the card itself (not
+          just the name) drills into "By employee" for that department,
+          since a full-width tap target is easier to hit on a phone than
+          a small text link. Download stays a separate button so it
+          doesn't fire the drill-down by accident. */}
+      <div className="sm:hidden flex flex-col gap-3">
+        {rows.map((totals) => (
+          <div
+            key={totals.dept}
+            className="bg-white rounded-xl border border-slate-100 p-4"
+          >
+            <button
+              onClick={() => onSelectDepartment(totals.dept)}
+              className="w-full flex items-center justify-between text-left mb-3"
+            >
+              <span className="font-medium text-slate-700">{totals.dept}</span>
+              <span className="text-xs text-slate-400">
+                {totals.count} {totals.count === 1 ? "employee" : "employees"}
+              </span>
+            </button>
+
+            <div className="grid grid-cols-4 gap-1.5 mb-3">
+              <MobileStatPill
+                label="Present"
+                value={totals.present}
+                color="text-green-700"
+                bg="bg-green-50"
+              />
+              <MobileStatPill
+                label="Absent"
+                value={totals.absent}
+                color="text-red-700"
+                bg="bg-red-50"
+              />
+              <MobileStatPill
+                label="Late"
+                value={totals.late}
+                color="text-amber-700"
+                bg="bg-amber-50"
+              />
+              <MobileStatPill
+                label="Leave"
+                value={totals.leave}
+                color="text-blue-700"
+                bg="bg-blue-50"
+              />
+            </div>
+
+            <button
+              onClick={() => onExportDepartment(totals.dept)}
+              className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-orange-600 border border-orange-100 bg-orange-50/60 rounded-lg py-2"
+            >
+              <Download size={13} />
+              Download
+            </button>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
