@@ -127,6 +127,12 @@ export default function LeaveHistory() {
   // the "Attendance summary" panel on AttendanceHistory.jsx ----------
   const [statsOpen, setStatsOpen] = useState(false);
 
+  // ---------- leave detail panel: opened by tapping a card (mobile) or
+  // the Eye button (desktop table). Replaces the old window.alert(reason)
+  // which only showed the reason and can be silently suppressed inside
+  // some in-app/PWA webviews, making the row look unresponsive. ----------
+  const [selectedLeave, setSelectedLeave] = useState(null);
+
   // Mobile filter card: Leave Type + Status start collapsed so the search
   // box doesn't get pushed below a full screen of filter chrome — same
   // pattern as AttendanceHistory.jsx.
@@ -476,9 +482,7 @@ export default function LeaveHistory() {
               <button
                 key={r.id}
                 type="button"
-                onClick={() =>
-                  window.alert(r.reason || "No additional details.")
-                }
+                onClick={() => setSelectedLeave(r)}
                 className="w-full text-left bg-white rounded-xl border border-slate-200 p-4 active:bg-slate-50"
               >
                 <div className="flex items-start justify-between gap-3 mb-3">
@@ -654,9 +658,7 @@ export default function LeaveHistory() {
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <button
-                          onClick={() =>
-                            window.alert(r.reason || "No additional details.")
-                          }
+                          onClick={() => setSelectedLeave(r)}
                           className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
                         >
                           <Eye size={14} />
@@ -821,6 +823,87 @@ export default function LeaveHistory() {
           </div>
         </div>
       </div>
+
+      {/* ---------- Leave detail modal: opened by tapping a mobile card
+          or the desktop Eye button. Shows the full record instead of the
+          old single-line window.alert(reason). ---------- */}
+      {selectedLeave &&
+        (() => {
+          const r = selectedLeave;
+          const lt = leaveTypeStyle(r.leave_types?.leave_name);
+          const LtIcon = lt.icon;
+          const st = statusStyle(r.status);
+          const StIcon = st.icon;
+          return (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+              <div
+                onClick={() => setSelectedLeave(null)}
+                className="absolute inset-0 bg-slate-900/30"
+              />
+              <div className="relative w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl border border-slate-200 shadow-xl p-5 max-h-[85vh] overflow-y-auto">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center ${lt.bg}`}
+                    >
+                      <LtIcon size={16} className={lt.text} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800">
+                        {r.leave_types?.leave_name || "Leave"}
+                      </div>
+                      <span
+                        className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${st.bg} ${st.text}`}
+                      >
+                        <StIcon size={11} /> {r.status || "—"}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedLeave(null)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <XCircle size={18} />
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Dates</span>
+                    <span className="text-slate-700 font-medium">
+                      {formatShort(r.start_date)} – {formatShort(r.end_date)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Duration</span>
+                    <span className="text-slate-700 font-medium">
+                      {r.total_days} {r.total_days === 1 ? "Day" : "Days"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Applied on</span>
+                    <span className="text-slate-700 font-medium">
+                      {formatShort(r.applied_date)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-1">Reason</span>
+                    <p className="text-slate-700 bg-slate-50 rounded-lg px-3 py-2 whitespace-pre-wrap">
+                      {r.reason || "No reason provided."}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedLeave(null)}
+                  className="mt-5 w-full text-sm font-medium text-slate-600 border border-slate-200 rounded-lg py-2.5 hover:bg-slate-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }
