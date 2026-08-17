@@ -1877,10 +1877,14 @@ export default function MyProfile() {
         {/* ---------------- Main column ---------------- */}
         <div className="lg:col-span-2 space-y-6">
           {/* Header card */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center gap-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 max-lg:p-0 max-lg:overflow-hidden">
+            {/* Mobile-only cover banner — purely decorative, hidden at lg+
+                so the desktop header card is completely untouched. */}
+            <div className="lg:hidden h-16 bg-gradient-to-r from-orange-400 to-orange-500" />
+
+            <div className="flex items-center gap-4 max-lg:flex-col max-lg:text-center max-lg:gap-3 max-lg:-mt-10 max-lg:px-5">
               <div className="relative">
-                <div className="w-16 h-16 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xl font-semibold overflow-hidden">
+                <div className="w-16 h-16 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xl font-semibold overflow-hidden max-lg:w-24 max-lg:h-24 max-lg:text-2xl max-lg:ring-4 max-lg:ring-white max-lg:shadow-md">
                   {photoSrc ? (
                     <img
                       src={photoSrc}
@@ -1898,34 +1902,34 @@ export default function MyProfile() {
                 <button
                   onClick={() => setPhotoModalOpen(true)}
                   title="Change profile photo"
-                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-slate-700"
+                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-slate-700 max-lg:w-8 max-lg:h-8 max-lg:ring-2 max-lg:ring-white"
                 >
                   <Camera size={12} />
                 </button>
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold text-slate-800">
+              <div className="flex-1 max-lg:flex-none max-lg:w-full">
+                <div className="flex items-center gap-2 max-lg:justify-center max-lg:flex-wrap">
+                  <h2 className="text-lg font-semibold text-slate-800 max-lg:text-xl">
                     {name}
                   </h2>
                   <span className="text-xs font-medium bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
                     {p.employment_status || "Active"}
                   </span>
                 </div>
-                <p className="text-sm text-slate-500">
-                  {employeeId} • {designationName}
+                <p className="text-sm text-slate-500 max-lg:mt-1">
+                  {employeeId}
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5 border-t border-slate-100 text-sm">
-              <div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5 border-t border-slate-100 text-sm max-lg:mt-5 max-lg:pt-4 max-lg:px-5 max-lg:pb-5 max-lg:gap-2.5">
+              <div className="max-lg:bg-slate-50 max-lg:rounded-lg max-lg:p-2.5">
                 <p className="text-slate-400 text-xs mb-1 flex items-center gap-1">
                   <Building2 size={12} /> Department
                 </p>
                 <p className="text-slate-700 font-medium">{department}</p>
               </div>
-              <div>
+              <div className="max-lg:bg-slate-50 max-lg:rounded-lg max-lg:p-2.5">
                 <p className="text-slate-400 text-xs mb-1 flex items-center gap-1">
                   <Mail size={12} /> Email
                 </p>
@@ -1933,13 +1937,13 @@ export default function MyProfile() {
                   {displayEmail || "Not set"}
                 </p>
               </div>
-              <div>
+              <div className="max-lg:bg-slate-50 max-lg:rounded-lg max-lg:p-2.5">
                 <p className="text-slate-400 text-xs mb-1 flex items-center gap-1">
                   <Phone size={12} /> Phone
                 </p>
                 <p className="text-slate-700 font-medium">{p.phone || "—"}</p>
               </div>
-              <div>
+              <div className="max-lg:bg-slate-50 max-lg:rounded-lg max-lg:p-2.5">
                 <p className="text-slate-400 text-xs mb-1">Joined On</p>
                 <p className="text-slate-700 font-medium">
                   {formatDate(p.joining_date)}
@@ -1953,23 +1957,26 @@ export default function MyProfile() {
             <div className="flex border-b border-slate-100 overflow-x-auto">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
+                const shortLabel = tab.label.split(" ")[0];
                 return (
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                    className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors max-lg:flex-1 max-lg:flex-col max-lg:gap-1 max-lg:px-2 max-lg:py-2.5 max-lg:text-xs ${
                       activeTab === tab.key
                         ? "border-orange-500 text-orange-600"
                         : "border-transparent text-slate-500 hover:text-slate-700"
                     }`}
                   >
-                    <Icon size={14} /> {tab.label}
+                    <Icon size={14} />
+                    <span className="max-lg:hidden">{tab.label}</span>
+                    <span className="hidden max-lg:inline">{shortLabel}</span>
                   </button>
                 );
               })}
             </div>
 
-            <div className="p-5">
+            <div className="p-5 max-lg:p-4">
               {activeTab === "personal" && (
                 <div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2237,9 +2244,7 @@ export default function MyProfile() {
                   </div>
 
                   {documents.length === 0 ? (
-                    <p className="text-sm text-slate-400">
-                      No documents uploaded yet.
-                    </p>
+                    <p className="text-sm text-slate-400"></p>
                   ) : (
                     <ul className="space-y-2">
                       {documents.slice(0, 4).map((doc) => (

@@ -641,13 +641,14 @@ export default function Users() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 mb-4">
+      <div className="flex sm:grid sm:grid-cols-4 gap-2.5 sm:gap-4 mb-4 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible">
         <StatCard
           icon={UsersIcon}
           label="Total Users"
           color="orange"
           loading={loading}
           value={stats.total}
+          className="w-32 shrink-0 sm:w-auto"
         />
         <StatCard
           icon={UserCheck}
@@ -655,6 +656,7 @@ export default function Users() {
           color="green"
           loading={loading}
           value={stats.active}
+          className="w-32 shrink-0 sm:w-auto"
         />
         <StatCard
           icon={UserX}
@@ -662,6 +664,7 @@ export default function Users() {
           color="red"
           loading={loading}
           value={stats.inactive}
+          className="w-32 shrink-0 sm:w-auto"
         />
         <StatCard
           icon={Shield}
@@ -669,6 +672,7 @@ export default function Users() {
           color="purple"
           loading={loading}
           value={stats.roleCount}
+          className="w-32 shrink-0 sm:w-auto"
         />
       </div>
 
@@ -687,41 +691,47 @@ export default function Users() {
           />
         </div>
 
-        <FilterDropdown
-          allLabel="All Roles"
-          value={roleFilter}
-          onChange={setRoleFilter}
-          options={roles}
-          getKey={(r) => r.id}
-          getLabel={(r) => r.role_name}
-        />
+        {/* Mobile: 2-col grid keeps the four dropdowns to two tidy rows
+            instead of stacking full-width one per row. sm:contents drops
+            this wrapper from the layout on sm+ so the dropdowns fall back
+            to their normal flex-wrap placement, unchanged. */}
+        <div className="grid grid-cols-2 gap-2 basis-full sm:contents">
+          <FilterDropdown
+            allLabel="All Roles"
+            value={roleFilter}
+            onChange={setRoleFilter}
+            options={roles}
+            getKey={(r) => r.id}
+            getLabel={(r) => r.role_name}
+          />
 
-        <FilterDropdown
-          allLabel="All Departments"
-          value={deptFilter}
-          onChange={setDeptFilter}
-          options={departments}
-          getKey={(d) => d.id}
-          getLabel={(d) => d.department_name}
-        />
+          <FilterDropdown
+            allLabel="All Departments"
+            value={deptFilter}
+            onChange={setDeptFilter}
+            options={departments}
+            getKey={(d) => d.id}
+            getLabel={(d) => d.department_name}
+          />
 
-        <FilterDropdown
-          allLabel="All Designations"
-          value={designationFilter}
-          onChange={setDesignationFilter}
-          options={designations}
-          getKey={(d) => d.id}
-          getLabel={(d) => d.designation_name}
-        />
+          <FilterDropdown
+            allLabel="All Designations"
+            value={designationFilter}
+            onChange={setDesignationFilter}
+            options={designations}
+            getKey={(d) => d.id}
+            getLabel={(d) => d.designation_name}
+          />
 
-        <FilterDropdown
-          allLabel="All Status"
-          value={statusFilter}
-          onChange={setStatusFilter}
-          options={["Active", "Inactive"]}
-          getKey={(s) => s}
-          getLabel={(s) => s}
-        />
+          <FilterDropdown
+            allLabel="All Status"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={["Active", "Inactive"]}
+            getKey={(s) => s}
+            getLabel={(s) => s}
+          />
+        </div>
         {(search ||
           roleFilter ||
           deptFilter ||

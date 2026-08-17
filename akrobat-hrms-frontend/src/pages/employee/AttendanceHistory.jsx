@@ -1850,6 +1850,11 @@ export default function AttendanceHistory() {
   // "Back to Attendance" — click it to slide the details in from the right) ----------
   const [statsOpen, setStatsOpen] = useState(false);
 
+  // Mobile filter card: Date Range + Status start collapsed so the search
+  // box (the field people actually use first) doesn't get pushed below a
+  // full screen of filter chrome. Tapping the Filter toggle reveals them.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   function load() {
     // Load everything by default. Date fields are optional narrowing
     // filters, not a prerequisite — previously the page stayed blank until
@@ -1935,6 +1940,16 @@ export default function AttendanceHistory() {
     });
     return s;
   }, [filtered]);
+
+  // Count of non-default filters set — drives the small badge next to
+  // "Filters" on the mobile filter card (mirrors LeaveHistory.jsx).
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (dateFrom || dateTo) n += 1;
+    if (statusFilter !== "All") n += 1;
+    if (search.trim()) n += 1;
+    return n;
+  }, [dateFrom, dateTo, statusFilter, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -2035,19 +2050,20 @@ export default function AttendanceHistory() {
       />
 
       {/* ---------- Filter bar: mobile-only redesign ----------
-          Original wrap-everything-in-one-row layout got cramped on small
-          screens (Date Range + Status + Export all fighting for space on
-          one line). This stacks things in a friendlier order for mobile:
-          Search first (most used), then Date Range, then Status paired
-          with compact icon-only Filter/Export buttons. sm: and up renders
-          the original desktop bar unchanged, right below. */}
-      <div className="sm:hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6 flex flex-col gap-3.5">
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1.5">
-            Search
-          </label>
-          <div className="flex items-center gap-2 border border-slate-200 bg-slate-50/60 hover:border-slate-300 focus-within:ring-2 focus-within:ring-orange-200 focus-within:border-orange-400 rounded-xl px-3.5 py-2.5 transition-colors">
-            <Search size={15} className="text-slate-400" />
+          Search + a Filter toggle + Export all live on one compact row now.
+          Date Range and Status (the two fields people set once and forget)
+          stay collapsed behind the Filter toggle instead of always being
+          expanded — the previous version showed Search, then a full Date
+          Range row, then Status stacked underneath it, which pushed the
+          actual attendance records a full screen down on most phones.
+          Date Range and Status still filter live (see `filtered` above and
+          the [dateFrom, dateTo] load effect) the moment they're changed,
+          collapsed or not. sm: and up renders the original desktop bar
+          unchanged, right below. */}
+      <div className="sm:hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-3 mb-6">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 flex items-center gap-2 bg-slate-50 border border-transparent focus-within:bg-white focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-200 rounded-lg px-3 py-2.5 transition-colors min-w-0">
+            <Search size={15} className="text-slate-400 shrink-0" />
             <input
               value={search}
               onChange={(e) => {
@@ -2055,57 +2071,42 @@ export default function AttendanceHistory() {
                 setPage(1);
               }}
               placeholder="Search by date, status, or location..."
-              className="text-sm text-slate-700 outline-none w-full bg-transparent"
+              className="text-sm text-slate-700 outline-none w-full bg-transparent min-w-0"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setPage(1);
+                }}
+                aria-label="Clear search"
+                className="shrink-0 text-slate-300 hover:text-slate-500"
+              >
+                <XCircle size={15} />
+              </button>
+            )}
           </div>
-        </div>
 
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1.5">
-            Date Range
-          </label>
-          <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50/60 hover:border-slate-300 transition-colors">
-            <DatePicker
-              value={dateFrom ? new Date(dateFrom + "T00:00:00") : null}
-              max={dateTo || todayIso()}
-              placeholder="From"
-              onSelect={(d) => setDateFrom(toLocalISODate(d))}
-            />
-            <span className="text-slate-300">→</span>
-            <DatePicker
-              value={dateTo ? new Date(dateTo + "T00:00:00") : null}
-              min={dateFrom}
-              max={todayIso()}
-              placeholder="To"
-              onSelect={(d) => setDateTo(toLocalISODate(d))}
-            />
-          </div>
-        </div>
-
-        <div className="flex items-end gap-2">
-          <div className="flex-1 min-w-0">
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">
-              Status
-            </label>
-            <StatusDropdown
-              value={statusFilter}
-              options={STATUS_OPTIONS}
-              onChange={(v) => {
-                setStatusFilter(v);
-                setPage(1);
-              }}
-            />
-          </div>
           <button
-            onClick={() => {
-              setPage(1);
-              load();
-            }}
-            aria-label="Filter"
-            className="flex items-center justify-center w-9 h-9 shrink-0 text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 rounded-xl transition-colors"
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            aria-expanded={filtersOpen}
+            aria-label="Toggle filters"
+            className={`relative flex items-center justify-center w-10 h-10 shrink-0 rounded-lg border transition-colors ${
+              filtersOpen
+                ? "border-orange-400 bg-orange-50 text-orange-600"
+                : "border-slate-200 text-slate-500 hover:bg-slate-50"
+            }`}
           >
-            <Filter size={14} />
+            <Filter size={15} />
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 text-[10px] font-medium text-white bg-orange-500 rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
+
           <ExportMenu
             compact
             disabled={filtered.length === 0}
@@ -2113,6 +2114,46 @@ export default function AttendanceHistory() {
             onExportPdf={exportPdf}
           />
         </div>
+
+        {filtersOpen && (
+          <div className="mt-3 pt-3 border-t border-slate-100 space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">
+                Date Range
+              </label>
+              <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2.5 bg-slate-50/60">
+                <DatePicker
+                  value={dateFrom ? new Date(dateFrom + "T00:00:00") : null}
+                  max={dateTo || todayIso()}
+                  placeholder="From"
+                  onSelect={(d) => setDateFrom(toLocalISODate(d))}
+                />
+                <span className="text-slate-300">→</span>
+                <DatePicker
+                  value={dateTo ? new Date(dateTo + "T00:00:00") : null}
+                  min={dateFrom}
+                  max={todayIso()}
+                  placeholder="To"
+                  onSelect={(d) => setDateTo(toLocalISODate(d))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">
+                Status
+              </label>
+              <StatusDropdown
+                value={statusFilter}
+                options={STATUS_OPTIONS}
+                onChange={(v) => {
+                  setStatusFilter(v);
+                  setPage(1);
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ---------- Filter bar: original desktop layout, untouched ---------- */}
@@ -2206,8 +2247,137 @@ export default function AttendanceHistory() {
         </div>
       )}
 
-      {/* ---------- Table ---------- */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* ---------- Records: mobile-only card list ----------
+          Mirrors the pattern already used on LeaveHistory.jsx — the
+          8-column table is unreadable on a phone, so this renders the
+          same pageRows as a stacked list of tappable cards instead.
+          Tapping a card opens the same detail modal the desktop "eye"
+          button opens (setSelected). Desktop/tablet (sm and up) keeps
+          the original table + its own pagination, untouched, right
+          below. */}
+      <div className="sm:hidden space-y-3">
+        {loading &&
+          Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="bg-white rounded-2xl border border-slate-200 p-4"
+            >
+              <div className="h-4 bg-slate-100 rounded animate-pulse w-2/3 mb-2" />
+              <div className="h-3 bg-slate-100 rounded animate-pulse w-1/3" />
+            </div>
+          ))}
+
+        {!loading && pageRows.length === 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200 px-5 py-10 text-center text-slate-400 text-sm">
+            {!dateFrom && !dateTo
+              ? "No attendance records found."
+              : "No attendance records found for this range."}
+          </div>
+        )}
+
+        {!loading &&
+          pageRows.map((r) => {
+            const db = formatDateBlock(r.date);
+            const st = statusStyle(r.status);
+            const StIcon = st.icon;
+            const loc = nearestLocationName(
+              r.check_in_latitude,
+              r.check_in_longitude,
+              locations,
+            );
+            return (
+              <button
+                key={r.id ?? r.date}
+                type="button"
+                onClick={() => setSelected(r)}
+                className="w-full text-left bg-white rounded-2xl border border-slate-200 p-4 active:bg-slate-50"
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-11 shrink-0 text-center bg-slate-50 rounded-lg py-1">
+                      <div className="text-[10px] font-semibold text-orange-500">
+                        {db.month}
+                      </div>
+                      <div className="text-sm font-bold text-slate-700 leading-tight">
+                        {db.day}
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-slate-700 truncate">
+                        {db.weekday}
+                      </div>
+                      <div className="text-xs text-slate-400">{db.year}</div>
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${st.bg} ${st.text}`}
+                  >
+                    <StIcon size={12} /> {r.status || "—"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 mb-2">
+                  <div className="bg-slate-50 rounded-lg px-3 py-2">
+                    <div className="text-[10px] text-slate-400">Check in</div>
+                    <div className="text-xs font-medium text-slate-700">
+                      {formatTime(r.check_in_time)}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg px-3 py-2">
+                    <div className="text-[10px] text-slate-400">Check out</div>
+                    <div className="text-xs font-medium text-slate-700">
+                      {formatTime(r.check_out_time)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 text-xs text-slate-500 mb-2">
+                  <span className="flex items-center gap-1">
+                    <Clock size={12} className="text-slate-400" />
+                    {formatDuration(r.working_minutes)}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Coffee size={12} className="text-slate-400" />
+                    {formatDuration(r.break_minutes)}
+                  </span>
+                </div>
+
+                {loc && (
+                  <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                    <MapPin size={11} className="text-slate-400" /> {loc}
+                  </p>
+                )}
+              </button>
+            );
+          })}
+
+        {/* ---------- Pagination: mobile-only, simplified ---------- */}
+        {!loading && filtered.length > 0 && (
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="flex items-center gap-1 text-xs font-medium text-slate-600 border border-slate-200 disabled:opacity-40 rounded-lg px-3 py-2"
+            >
+              <ChevronLeft size={13} /> Prev
+            </button>
+            <span className="text-xs text-slate-400">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="flex items-center gap-1 text-xs font-medium text-slate-600 border border-slate-200 disabled:opacity-40 rounded-lg px-3 py-2"
+            >
+              Next <ChevronRight size={13} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ---------- Table: original desktop/tablet layout, now scoped to
+          sm and up so the mobile card list above takes over on phones. ---------- */}
+      <div className="hidden sm:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

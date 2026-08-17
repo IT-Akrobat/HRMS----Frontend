@@ -19,6 +19,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
+import SelectDropdown from "../../components/common/SelectDropdown";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
@@ -126,6 +127,11 @@ export default function LeaveHistory() {
   // the "Attendance summary" panel on AttendanceHistory.jsx ----------
   const [statsOpen, setStatsOpen] = useState(false);
 
+  // Mobile filter card: Leave Type + Status start collapsed so the search
+  // box doesn't get pushed below a full screen of filter chrome — same
+  // pattern as AttendanceHistory.jsx.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -162,6 +168,16 @@ export default function LeaveHistory() {
       })
       .sort((a, b) => (a.applied_date < b.applied_date ? 1 : -1));
   }, [rows, leaveType, statusFilter, search]);
+
+  // Count of non-default filters set — drives the small badge next to
+  // "Filters" on the mobile filter card.
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (leaveType !== "All") n += 1;
+    if (statusFilter !== "All") n += 1;
+    if (search.trim()) n += 1;
+    return n;
+  }, [leaveType, statusFilter, search]);
 
   const stats = useMemo(() => {
     const s = {
@@ -241,85 +257,108 @@ export default function LeaveHistory() {
       />
 
       {/* ---------- Filter bar: mobile-only redesign ----------
-          Original wrap-everything-in-one-row layout got cramped on small
-          screens. This stacks things in a friendlier order for mobile:
-          Search first (most used), then Leave Type, then Status paired
-          with compact icon-only Filter/Export buttons. sm: and up renders
-          the original desktop bar unchanged, right below. */}
-      <div className="sm:hidden bg-white rounded-xl border border-slate-200 p-4 mb-6 flex flex-col gap-3">
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">
-            Search by reason
-          </label>
-          <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2">
-            <Search size={15} className="text-slate-400" />
+          Search + a Filter toggle + Export all live on one compact row.
+          Leave Type and Status (set-once-and-forget filters) stay
+          collapsed behind the Filter toggle instead of always being
+          expanded — same pattern as AttendanceHistory.jsx. Both still
+          filter live the moment they're changed, collapsed or not (see
+          the `filtered` useMemo). sm: and up renders the original desktop
+          bar unchanged, right below. */}
+      <div className="sm:hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-3 mb-6">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 flex items-center gap-2 bg-slate-50 border border-transparent focus-within:bg-white focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-200 rounded-lg px-3 py-2.5 transition-colors min-w-0">
+            <Search size={15} className="text-slate-400 shrink-0" />
             <input
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search by reason..."
-              className="text-sm text-slate-700 outline-none w-full bg-transparent"
+              placeholder="Search by reason or leave type..."
+              className="text-sm text-slate-700 outline-none w-full bg-transparent min-w-0"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setPage(1);
+                }}
+                aria-label="Clear search"
+                className="shrink-0 text-slate-300 hover:text-slate-500"
+              >
+                <XCircle size={15} />
+              </button>
+            )}
           </div>
-        </div>
 
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">
-            Leave Type
-          </label>
-          <select
-            value={leaveType}
-            onChange={(e) => {
-              setLeaveType(e.target.value);
-              setPage(1);
-            }}
-            className="w-full text-sm text-slate-700 border border-slate-200 rounded-lg px-3 py-2 outline-none"
-          >
-            {leaveTypeOptions.map((t) => (
-              <option key={t} value={t}>
-                {t === "All" ? "All Leave Types" : t}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-end gap-2">
-          <div className="flex-1 min-w-0">
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Status
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
-              className="w-full text-sm text-slate-700 border border-slate-200 rounded-lg px-3 py-2 outline-none"
-            >
-              <option>All</option>
-              <option>Approved</option>
-              <option>Pending</option>
-              <option>Rejected</option>
-            </select>
-          </div>
           <button
-            onClick={() => setPage(1)}
-            aria-label="Filter"
-            className="flex items-center justify-center w-9 h-9 shrink-0 text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-lg"
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            aria-expanded={filtersOpen}
+            aria-label="Toggle filters"
+            className={`relative flex items-center justify-center w-10 h-10 shrink-0 rounded-lg border transition-colors ${
+              filtersOpen
+                ? "border-orange-400 bg-orange-50 text-orange-600"
+                : "border-slate-200 text-slate-500 hover:bg-slate-50"
+            }`}
           >
-            <Filter size={14} />
+            <Filter size={15} />
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 text-[10px] font-medium text-white bg-orange-500 rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
+
           <button
             onClick={exportCsv}
             disabled={filtered.length === 0}
             aria-label="Export"
-            className="flex items-center justify-center w-9 h-9 shrink-0 text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 rounded-lg"
+            className="flex items-center justify-center w-10 h-10 shrink-0 text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 rounded-lg transition-colors"
           >
-            <Download size={14} />
+            <Download size={15} />
           </button>
         </div>
+
+        {filtersOpen && (
+          <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2.5">
+            <div className="min-w-0">
+              <label className="block text-xs font-medium text-slate-500 mb-1">
+                Leave Type
+              </label>
+              <SelectDropdown
+                value={leaveType}
+                onChange={(v) => {
+                  setLeaveType(v);
+                  setPage(1);
+                }}
+                options={leaveTypeOptions.map((t) => ({
+                  value: t,
+                  label: t === "All" ? "All Types" : t,
+                }))}
+              />
+            </div>
+            <div className="min-w-0">
+              <label className="block text-xs font-medium text-slate-500 mb-1">
+                Status
+              </label>
+              <SelectDropdown
+                value={statusFilter}
+                onChange={(v) => {
+                  setStatusFilter(v);
+                  setPage(1);
+                }}
+                options={[
+                  { value: "All", label: "All" },
+                  { value: "Approved", label: "Approved" },
+                  { value: "Pending", label: "Pending" },
+                  { value: "Rejected", label: "Rejected" },
+                ]}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ---------- Filter bar: original desktop layout, untouched ---------- */}
@@ -403,8 +442,122 @@ export default function LeaveHistory() {
         </div>
       )}
 
-      {/* ---------- Table ---------- */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      {/* ---------- Records: mobile-only card list ----------
+          The 7-column table is unreadable once squeezed onto a phone —
+          this renders the same pageRows as a stacked list of cards
+          instead. Desktop/tablet (sm and up) keeps the original table,
+          untouched, right below. */}
+      <div className="sm:hidden space-y-3">
+        {loading &&
+          Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="bg-white rounded-xl border border-slate-200 p-4"
+            >
+              <div className="h-4 bg-slate-100 rounded animate-pulse w-2/3 mb-2" />
+              <div className="h-3 bg-slate-100 rounded animate-pulse w-1/3" />
+            </div>
+          ))}
+
+        {!loading && pageRows.length === 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 px-5 py-10 text-center text-slate-400 text-sm">
+            No leave records found.
+          </div>
+        )}
+
+        {!loading &&
+          pageRows.map((r) => {
+            const db = formatDateBlock(r.start_date);
+            const st = statusStyle(r.status);
+            const StIcon = st.icon;
+            const lt = leaveTypeStyle(r.leave_types?.leave_name);
+            const LtIcon = lt.icon;
+            return (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() =>
+                  window.alert(r.reason || "No additional details.")
+                }
+                className="w-full text-left bg-white rounded-xl border border-slate-200 p-4 active:bg-slate-50"
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-11 shrink-0 text-center bg-slate-50 rounded-lg py-1">
+                      <div className="text-[10px] font-semibold text-orange-500">
+                        {db.month}
+                      </div>
+                      <div className="text-sm font-bold text-slate-700 leading-tight">
+                        {db.day}
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-slate-700 truncate">
+                        {formatDateRange(r.start_date, r.end_date)}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {db.weekday} · {r.total_days}{" "}
+                        {r.total_days === 1 ? "Day" : "Days"}
+                      </div>
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${st.bg} ${st.text}`}
+                  >
+                    <StIcon size={12} /> {r.status || "—"}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${lt.bg}`}
+                  >
+                    <LtIcon size={12} className={lt.text} />
+                  </div>
+                  <span className="text-sm text-slate-600 truncate">
+                    {r.leave_types?.leave_name || "Leave"}
+                  </span>
+                </div>
+
+                {r.reason && (
+                  <p className="text-xs text-slate-500 line-clamp-2 mb-2">
+                    {r.reason}
+                  </p>
+                )}
+
+                <p className="text-[11px] text-slate-400">
+                  Applied on {formatShort(r.applied_date)}
+                </p>
+              </button>
+            );
+          })}
+
+        {/* ---------- Pagination: mobile-only, simplified ---------- */}
+        {!loading && filtered.length > 0 && (
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="flex items-center gap-1 text-xs font-medium text-slate-600 border border-slate-200 disabled:opacity-40 rounded-lg px-3 py-2"
+            >
+              <ChevronLeft size={13} /> Prev
+            </button>
+            <span className="text-xs text-slate-400">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="flex items-center gap-1 text-xs font-medium text-slate-600 border border-slate-200 disabled:opacity-40 rounded-lg px-3 py-2"
+            >
+              Next <ChevronRight size={13} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ---------- Table: original desktop/tablet layout, untouched ---------- */}
+      <div className="hidden sm:block bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -516,8 +669,8 @@ export default function LeaveHistory() {
           </table>
         </div>
 
-        {/* ---------- Pagination ---------- */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100">
+        {/* ---------- Pagination: desktop/tablet, untouched ---------- */}
+        <div className="hidden sm:flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100">
           <div className="text-xs text-slate-400">
             {filtered.length === 0
               ? "Showing 0 records"

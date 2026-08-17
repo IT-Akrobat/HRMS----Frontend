@@ -1,12 +1,14 @@
 import {
   AlertTriangle,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Circle,
   Clock,
   Coffee,
   History,
   Info,
-  TimerReset,
+  TimerReset
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -120,6 +122,11 @@ export default function Attendance() {
   const [monthRows, setMonthRows] = useState([]);
   const [monthEndpointMissing, setMonthEndpointMissing] = useState(false);
 
+  // Mobile-only: "This week" strip is the default, "Full calendar" swaps
+  // it for the same month grid used on desktop. Desktop is unaffected —
+  // this state only drives the <div className="lg:hidden"> block below.
+  const [mobileCalendarExpanded, setMobileCalendarExpanded] = useState(false);
+
   function loadDay(dateStr) {
     setLoading(true);
     setError(null);
@@ -215,6 +222,21 @@ export default function Attendance() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
 
+  // ---------- mobile week strip (Mon-Sun containing selectedDate) ----------
+  const weekDates = useMemo(() => {
+    const d = new Date(`${selectedDate}T00:00:00`);
+    const dow = d.getDay(); // 0 = Sun .. 6 = Sat
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + mondayOffset);
+    return Array.from({ length: 7 }, (_, i) => {
+      const dt = new Date(monday);
+      dt.setDate(monday.getDate() + i);
+      return toLocalISODate(dt);
+    });
+  }, [selectedDate]);
+  const WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
+
   return (
     <div>
       <PageHeader
@@ -238,13 +260,347 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* Calendar, Summary, and Timeline all in a single row of 3
-          columns — previously the calendar sat alone in its own row
-          (with CheckInOutCard/SiteVisitCard commented out, leaving 1-2
-          empty grid cells beside it) and Summary/Timeline were in a
-          second row below. Merged into one grid so all three sit
-          side-by-side. */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* ==================================================================
+          MOBILE-ONLY layout (< lg). Replaces the stacked Calendar/Summary/
+          Timeline cards with: status header, a Mon-Sun week strip (tap
+          "Full calendar" to swap in the month grid), a 2x2 metrics grid,
+          and a condensed timeline. Reads the same selectedDate/dayData/
+          monthRows state as the desktop view below — nothing new is
+          fetched. Desktop layout (the `hidden lg:grid` block further
+          down) is untouched.
+      ================================================================== */}
+      <div className="lg:hidden space-y-4">
+        {/* ---- Status header ---- */}
+        <div className="bg-[#0B1830] rounded-2xl px-4 pt-4 pb-5 text-white">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-[11px] text-slate-400">
+                {new Date(`${selectedDate}T00:00:00`).toLocaleDateString(
+                  "en-US",
+                  { weekday: "long", month: "short", day: "numeric" },
+                )}
+              </div>
+              <div className="text-base font-semibold">My Attendance</div>
+            </div>
+            <Link
+              to="/employee/attendance/history"
+              title="View History"
+              className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center"
+            >
+              <History size={16} />
+            </Link>
+          </div>
+
+          <div className="bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3">
+            <div className="text-[11px] text-slate-400 mb-0.5">Status</div>
+            <div
+              className={`text-sm font-medium ${
+                checkedOut
+                  ? "text-slate-300"
+                  : checkedIn
+                    ? "text-green-400"
+                    : "text-orange-300"
+              }`}
+            >
+              {statusLabel}
+              {checkedIn && ` - ${formatTime(dayData?.check_in_time)}`}
+              {checkedOut && ` - out ${formatTime(dayData?.check_out_time)}`}
+            </div>
+          </div>
+        </div>
+
+        {/* ---- Week strip / full calendar toggle ---- */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-slate-800">
+              {mobileCalendarExpanded ? "Full calendar" : "This week"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setMobileCalendarExpanded((v) => !v)}
+              className="text-xs text-slate-500 flex items-center gap-1"
+            >
+              {mobileCalendarExpanded ? "This week" : "Full calendar"}
+              <ChevronRight size={13} />
+            </button>
+          </div>
+
+          {!mobileCalendarExpanded ? (
+            <div className="flex gap-1.5">
+              {weekDates.map((dateStr, i) => {
+                const status = rowsByDate[dateStr];
+                const isToday = dateStr === todayIso();
+                const isSelected = dateStr === selectedDate;
+                const isFuture = dateStr > todayIso();
+                const dayNum = Number(dateStr.slice(-2));
+                return (
+                  <button
+                    key={dateStr}
+                    type="button"
+                    disabled={isFuture}
+                    onClick={() => !isFuture && selectDate(dateStr)}
+                    className={`flex-1 text-center py-2 rounded-xl border disabled:cursor-not-allowed ${
+                      isSelected
+                        ? "bg-[#0B1830] border-[#0B1830]"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
+                    <div
+                      className={`text-[10px] ${
+                        isSelected ? "text-slate-400" : "text-slate-400"
+                      }`}
+                    >
+                      {WEEKDAY_LETTERS[i]}
+                    </div>
+                    <div
+                      className={`text-xs font-medium my-1 ${
+                        isFuture
+                          ? "text-slate-300"
+                          : isSelected
+                            ? "text-white"
+                            : isToday
+                              ? "text-blue-600"
+                              : "text-slate-700"
+                      }`}
+                    >
+                      {dayNum}
+                    </div>
+                    <span
+                      className={`block w-1.5 h-1.5 rounded-full mx-auto ${
+                        isSelected
+                          ? "bg-orange-400"
+                          : DOT_COLOR[status] || "bg-transparent"
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  onClick={() => setMonthCursor(new Date(year, month - 1, 1))}
+                  className="p-1 rounded-md hover:bg-orange-50 text-slate-600"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <span className="text-xs font-medium text-slate-600">
+                  {monthCursor.toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </span>
+                <button
+                  onClick={() => setMonthCursor(new Date(year, month + 1, 1))}
+                  className="p-1 rounded-md hover:bg-orange-50 text-slate-600"
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+              <div className="grid grid-cols-7 mb-2 text-[10px] font-bold text-blue-900 text-center">
+                {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                  <span key={i}>{d}</span>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-y-2 text-center">
+                {Array.from({ length: firstDay }).map((_, i) => (
+                  <span key={`mpad-${i}`} />
+                ))}
+                {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(
+                  (day) => {
+                    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                    const status = rowsByDate[dateStr];
+                    const isToday = dateStr === todayIso();
+                    const isSelected = dateStr === selectedDate;
+                    const isFuture = dateStr > todayIso();
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => {
+                          if (isFuture) return;
+                          selectDate(dateStr);
+                          setMobileCalendarExpanded(false);
+                        }}
+                        disabled={isFuture}
+                        className="flex flex-col items-center gap-0.5 disabled:cursor-not-allowed"
+                      >
+                        <span
+                          className={`w-6 h-6 flex items-center justify-center rounded-full text-xs ${
+                            isToday
+                              ? "bg-blue-600 text-white font-semibold"
+                              : isFuture
+                                ? "text-slate-300"
+                                : "text-slate-600"
+                          } ${isSelected && !isToday ? "ring-2 ring-orange-400 ring-offset-1" : ""}`}
+                        >
+                          {day}
+                        </span>
+                        <span
+                          className={`w-1 h-1 rounded-full ${DOT_COLOR[status] || "bg-transparent"}`}
+                        />
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ---- Metrics 2x2 grid ---- */}
+        {loading ? (
+          <div className="grid grid-cols-2 gap-2.5 animate-pulse">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-20 bg-slate-100 rounded-xl" />
+            ))}
+          </div>
+        ) : !dayData && !isViewingToday ? (
+          <div className="bg-white rounded-xl border border-slate-200 py-6 text-center text-sm text-slate-400">
+            No attendance record for {formatShortDate(selectedDate)}.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="bg-white rounded-xl border border-slate-200 p-3">
+              <Clock size={16} className="text-blue-500" />
+              <div className="text-sm font-semibold text-slate-800 mt-2">
+                {formatDuration(dayData?.working_minutes)}
+              </div>
+              <div className="text-[11px] text-slate-400">
+                of {shiftHoursLabel} working
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-3">
+              <Coffee size={16} className="text-purple-500" />
+              <div className="text-sm font-semibold text-slate-800 mt-2">
+                {formatDuration(dayData?.break_minutes)}
+              </div>
+              <div className="text-[11px] text-slate-400">break time</div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-3">
+              <AlertTriangle size={16} className="text-amber-500" />
+              <div className="text-sm font-semibold text-slate-800 mt-2">
+                {dayData?.late_minutes
+                  ? formatDuration(dayData.late_minutes)
+                  : "On time"}
+              </div>
+              <div className="text-[11px] text-slate-400">
+                {dayData?.late_minutes
+                  ? `checked in after ${shiftStartLabel}`
+                  : "arrival"}
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-3">
+              <TimerReset size={16} className="text-orange-500" />
+              <div className="text-sm font-semibold text-slate-800 mt-2">
+                {shiftEndLabel}
+              </div>
+              <div className="text-[11px] text-slate-400">expected out</div>
+            </div>
+          </div>
+        )}
+
+        {/* ---- Condensed timeline ---- */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-slate-800">
+              {isViewingToday ? "Today's timeline" : "Timeline"}
+            </h3>
+            {!isViewingToday && (
+              <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                {formatShortDate(selectedDate)}
+              </span>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="space-y-3 animate-pulse">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-3.5 bg-slate-100 rounded" />
+              ))}
+            </div>
+          ) : !dayData ? (
+            <div className="text-xs text-slate-400 py-4 text-center">
+              {isViewingToday
+                ? "No check-in recorded yet today."
+                : `No attendance record for ${formatShortDate(selectedDate)}.`}
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              <li className="flex items-start gap-2.5">
+                {checkedIn ? (
+                  <CheckCircle2
+                    size={15}
+                    className="text-green-500 mt-0.5 shrink-0"
+                  />
+                ) : (
+                  <Circle
+                    size={15}
+                    className="text-slate-300 mt-0.5 shrink-0"
+                  />
+                )}
+                <div>
+                  <div className="text-xs font-medium text-slate-700">
+                    {checkedIn
+                      ? `${formatTime(dayData?.check_in_time)} - Checked in`
+                      : "Not checked in"}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Office - Main Entrance
+                  </div>
+                </div>
+              </li>
+
+              {(dayData?.breaks || []).map((b, i) => (
+                <li key={i} className="flex items-start gap-2.5">
+                  <Coffee
+                    size={15}
+                    className="text-purple-400 mt-0.5 shrink-0"
+                  />
+                  <div>
+                    <div className="text-xs font-medium text-slate-700">
+                      {formatTime(b.break_start)}
+                      {b.break_end ? ` - ${formatTime(b.break_end)}` : ""} -
+                      Break
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      {b.break_end ? "Ended" : "In progress"}
+                    </div>
+                  </div>
+                </li>
+              ))}
+
+              <li className="flex items-start gap-2.5">
+                {checkedOut ? (
+                  <CheckCircle2
+                    size={15}
+                    className="text-slate-400 mt-0.5 shrink-0"
+                  />
+                ) : (
+                  <Circle
+                    size={15}
+                    className="text-slate-300 mt-0.5 shrink-0"
+                  />
+                )}
+                <div>
+                  <div className="text-xs font-medium text-slate-700">
+                    {checkedOut
+                      ? `${formatTime(dayData?.check_out_time)} - Checked out`
+                      : "Yet to check out"}
+                  </div>
+                </div>
+              </li>
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* ==================================================================
+          DESKTOP layout (lg and up) — unchanged from before, just scoped
+          with `hidden lg:grid` so it no longer renders on mobile.
+      ================================================================== */}
+      <div className="hidden lg:grid lg:grid-cols-3 gap-6">
         {/* CheckInOutCard keeps its own "today" state for the check-in/out
             button widget, but the Summary panel and calendar below read from
             this page's own dayData/monthRows state. Without this callback,

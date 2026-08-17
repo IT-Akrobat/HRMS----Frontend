@@ -13,12 +13,10 @@ import {
   ShieldAlert,
   ShieldCheck,
   Umbrella,
-  Users,
-  XCircle,
+  XCircle
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
-import StatCard from "../../components/common/StatCard";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
@@ -178,7 +176,7 @@ export default function LeavePending() {
         hideSubtitleOnMobile
       />
 
-      <div className="flex md:grid md:grid-cols-4 gap-3 md:gap-4 mb-6 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
+      {/* <div className="flex md:grid md:grid-cols-4 gap-3 md:gap-4 mb-6 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
         <StatCard
           icon={Clock}
           label="Pending"
@@ -211,7 +209,7 @@ export default function LeavePending() {
           value={stats.total}
           className="w-32 shrink-0 md:w-auto"
         />
-      </div>
+      </div> */}
 
       <div className="bg-white rounded-xl border border-slate-200">
         {/* Tabs + search */}

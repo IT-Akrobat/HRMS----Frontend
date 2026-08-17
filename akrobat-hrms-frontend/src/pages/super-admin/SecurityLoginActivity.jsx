@@ -171,7 +171,7 @@ export default function SecurityLoginActivity() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="flex sm:grid sm:grid-cols-3 gap-4 mb-6 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible">
         {/* <StatCard
           icon={LogIn}
           label="Total logins"
@@ -184,6 +184,7 @@ export default function SecurityLoginActivity() {
           value={todayCount}
           loading={records === null}
           color="blue"
+          className="w-40 shrink-0 sm:w-auto"
         />
         <StatCard
           icon={Users}
@@ -191,11 +192,12 @@ export default function SecurityLoginActivity() {
           value={uniqueUsers}
           loading={records === null}
           color="purple"
+          className="w-40 shrink-0 sm:w-auto"
         />
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-slate-100">
           <p className="text-sm font-medium text-slate-700">Recent sign-ins</p>
           <div className="relative w-full sm:w-64">
             <Search
@@ -230,72 +232,125 @@ export default function SecurityLoginActivity() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
-                  <th className="font-medium px-5 py-3">User</th>
-                  <th className="font-medium px-3 py-3">Device</th>
-                  <th className="font-medium px-3 py-3">Browser / OS</th>
-                  <th className="font-medium px-3 py-3">IP Address</th>
-                  <th className="font-medium px-3 py-3 text-right">
-                    Signed in
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filtered.map((log) => {
-                  const email = emailFromDescription(log.description);
-                  const {
-                    device,
-                    icon: DeviceIcon,
-                    browser,
-                    os,
-                  } = parseUserAgent(log.user_agent);
+          <>
+            {/* ---------- Mobile card list (< sm) ---------- */}
+            <ul className="sm:hidden divide-y divide-slate-100">
+              {filtered.map((log) => {
+                const email = emailFromDescription(log.description);
+                const {
+                  device,
+                  icon: DeviceIcon,
+                  browser,
+                  os,
+                } = parseUserAgent(log.user_agent);
 
-                  return (
-                    <tr key={log.id} className="hover:bg-slate-50">
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <Avatar
-                            person={log.employees}
-                            className="w-8 h-8 rounded-full text-[10px]"
-                          />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-700 truncate">
-                              {log.employees?.full_name || "Unknown user"}
-                            </p>
-                            <p className="text-xs text-slate-400 truncate">
-                              {email || "—"}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">
-                          <DeviceIcon size={12} />
-                          {device}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-xs text-slate-500">
-                        {browser} · {os}
-                      </td>
-                      <td className="px-3 py-3 text-xs text-slate-400 font-mono">
-                        {log.ip_address || "—"}
-                      </td>
-                      <td className="px-3 py-3 text-xs text-slate-400 text-right whitespace-nowrap">
+                return (
+                  <li key={log.id} className="px-4 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <Avatar
+                        person={log.employees}
+                        className="w-9 h-9 rounded-full text-[11px]"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-slate-700 truncate">
+                          {log.employees?.full_name || "Unknown user"}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate">
+                          {email || "—"}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-[11px] text-slate-400 text-right leading-tight">
                         {formatDateTime(log.created_at)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center flex-wrap gap-1.5 mt-2.5 pl-11">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
+                        <DeviceIcon size={11} />
+                        {device}
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        {browser} · {os}
+                      </span>
+                      {log.ip_address && (
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          {log.ip_address}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* ---------- Desktop table (sm and up) — unchanged ---------- */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
+                    <th className="font-medium px-5 py-3">User</th>
+                    <th className="font-medium px-3 py-3">Device</th>
+                    <th className="font-medium px-3 py-3">Browser / OS</th>
+                    <th className="font-medium px-3 py-3">IP Address</th>
+                    <th className="font-medium px-3 py-3 text-right">
+                      Signed in
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filtered.map((log) => {
+                    const email = emailFromDescription(log.description);
+                    const {
+                      device,
+                      icon: DeviceIcon,
+                      browser,
+                      os,
+                    } = parseUserAgent(log.user_agent);
+
+                    return (
+                      <tr key={log.id} className="hover:bg-slate-50">
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar
+                              person={log.employees}
+                              className="w-8 h-8 rounded-full text-[10px]"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-700 truncate">
+                                {log.employees?.full_name || "Unknown user"}
+                              </p>
+                              <p className="text-xs text-slate-400 truncate">
+                                {email || "—"}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">
+                            <DeviceIcon size={12} />
+                            {device}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-xs text-slate-500">
+                          {browser} · {os}
+                        </td>
+                        <td className="px-3 py-3 text-xs text-slate-400 font-mono">
+                          {log.ip_address || "—"}
+                        </td>
+                        <td className="px-3 py-3 text-xs text-slate-400 text-right whitespace-nowrap">
+                          {formatDateTime(log.created_at)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {total > PAGE_SIZE && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
+          <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-t border-slate-100">
             <p className="text-xs text-slate-400">
               Page {page} of {totalPages} · {total} total
             </p>

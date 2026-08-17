@@ -1,15 +1,15 @@
 import {
-  ArrowDownCircle,
-  ArrowUpCircle,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  Filter,
-  LogIn,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
+    ArrowDownCircle,
+    ArrowUpCircle,
+    ChevronLeft,
+    ChevronRight,
+    ClipboardList,
+    Filter,
+    LogIn,
+    Pencil,
+    Plus,
+    Search,
+    Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Modal from "../../components/common/Modal";
@@ -19,13 +19,18 @@ import { parseServerDate } from "../../utils/date";
 import { geocodeQueue, placeKey, reverseGeocode } from "../../utils/Geocode";
 
 // ---------------------------------------------------------------------
-// Backend contract (app/audit_logs/routes.py — VIEW_AUDIT_LOGS, which
-// SUPER ADMIN always has via the require_permission() bypass):
+// HR Admin's Audit Logs screen — same data and endpoints as the
+// Super Admin version (src/pages/super-admin/SecurityAuditLogs.jsx),
+// since HR ADMIN is granted VIEW_AUDIT_LOGS in the seeded role
+// permissions (see src/config/Rolepermissionsreference .js). No delete
+// action is exposed here (MANAGE_AUDIT_LOGS stays Super Admin only, and
+// this page never rendered a delete control to begin with).
+//
+// Backend contract (app/audit_logs/routes.py — VIEW_AUDIT_LOGS):
 //   GET /audit-logs/?page&limit                 -> { records, total, page, limit }
 //   GET /audit-logs/module/{module}?page&limit  -> same shape, one module
 //   GET /audit-logs/action/{action}?page&limit  -> same shape, one action
 //   GET /audit-logs/date/{YYYY-MM-DD}           -> { data: [...] } (no paging)
-//   DELETE /audit-logs/{id}                     -> MANAGE_AUDIT_LOGS (Super Admin only)
 //
 // Row shape: { id, employee_id, action, module, record_id, description,
 //   ip_address, user_agent, created_at, employees: { full_name, employee_id } }
@@ -190,7 +195,7 @@ function formatDateTime(dateStr) {
 
 const PAGE_SIZE = 20;
 
-export default function SecurityAuditLogs() {
+export default function AuditLogs() {
   const [records, setRecords] = useState(null); // null = loading
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);

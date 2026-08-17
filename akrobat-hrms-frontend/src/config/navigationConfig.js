@@ -190,6 +190,11 @@ export const NAVIGATION_CONFIG = {
       icon: Clock,
       path: "/hr-admin/attendance/live-tracking",
     },
+    {
+      label: "Audit Logs",
+      icon: ShieldCheck,
+      path: "/hr-admin/security/audit-logs",
+    },
     // {
     //   label: "Reports & Analytics",
     //   icon: BarChart3,

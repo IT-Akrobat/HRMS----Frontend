@@ -44,8 +44,9 @@ import { apiClient } from "../../services/apiClient";
 //                   app/attendance/services.py::get_attendance_reminder_status()
 //                   checks before ever sending a reminder — see the
 //                   periodic poll added in Header.jsx.
-//   Preferences   — language/date-format/theme. Still local-only until
-//                   there's somewhere to save it server-side.
+//   Preferences   — language/date-format/time-format/theme. Still
+//                   local-only until there's somewhere to save it
+//                   server-side.
 
 const TABS = [
   { key: "account", label: "Account", icon: User },
@@ -64,6 +65,7 @@ const NOTIF_DEFAULTS = {
 
 const PREF_DEFAULTS = {
   date_format: "DD/MM/YYYY",
+  time_format: "24h",
   theme: "light",
 };
 
@@ -612,6 +614,33 @@ export default function Settings() {
                         }`}
                       >
                         {fmt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                    Time format
+                  </label>
+                  <div className="flex gap-2">
+                    {[
+                      { value: "12h", label: "12-hour (AM/PM)" },
+                      { value: "24h", label: "24-hour" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() =>
+                          setPrefs((p) => ({ ...p, time_format: opt.value }))
+                        }
+                        className={`text-sm font-medium px-3 py-2 rounded-lg border transition-colors ${
+                          prefs.time_format === opt.value
+                            ? "border-brand-orange bg-orange-50 text-brand-orange"
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {opt.label}
                       </button>
                     ))}
                   </div>

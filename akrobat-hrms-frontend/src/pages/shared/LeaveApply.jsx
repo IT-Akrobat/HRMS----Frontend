@@ -3,16 +3,19 @@ import {
   Baby,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   HeartHandshake,
   HeartPulse,
   Info,
   Loader2,
+  Plus,
   RefreshCcw,
   Send,
   ShieldAlert,
   ShieldCheck,
   Umbrella,
+  X,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -97,6 +100,43 @@ function toDays(fromDate, toDate) {
   return diff > 0 ? diff : null;
 }
 
+// Mobile-only accordion used to tuck "Leave Type Entitlements", "Recent
+// Requests" and the approval note under tappable headers instead of
+// stacking them as three always-open cards below the form — that stack
+// pushed the actual form (the thing people came here to fill in) well
+// off-screen on a phone. Desktop keeps the original always-visible
+// sidebar cards untouched (see the `hidden sm:block` block below).
+function CollapsibleSection({
+  title,
+  icon: Icon,
+  defaultOpen = false,
+  children,
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 px-4 py-3.5"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          {Icon && <Icon size={15} className="text-slate-400" />}
+          {title}
+        </span>
+        <ChevronDown
+          size={16}
+          className={`text-slate-400 shrink-0 transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </div>
+  );
+}
+
 export default function LeaveApply() {
   const navigate = useNavigate();
   const today = toLocalISODate();
@@ -120,6 +160,11 @@ export default function LeaveApply() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
+
+  // Mobile-only: the "Apply for Leave" form starts collapsed behind a
+  // small +/× icon instead of always being expanded — tapping the header
+  // reveals the form. Desktop keeps the form always visible (unchanged).
+  const [applyOpen, setApplyOpen] = useState(false);
 
   const [allLeaves, setAllLeaves] = useState(null); // null = loading
 
@@ -240,6 +285,7 @@ export default function LeaveApply() {
       });
 
       setSuccess(res?.message || "Leave request submitted successfully.");
+      setApplyOpen(false);
       setForm({
         leave_type: entitlements?.[0]?.leave_name || "",
         from_date: "",
@@ -283,7 +329,357 @@ export default function LeaveApply() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      {/* ---------------- Mobile-only layout ----------------
+          Compact single-column form up top (the reason people are on this
+          page), followed by Leave Type Entitlements / Recent Requests /
+          the approval note as tappable accordion sections instead of
+          three separate cards stacked below the form. sm: and up renders
+          the original grid layout unchanged, right below, untouched. */}
+      <div className="sm:hidden space-y-4">
+        {replacementDaysAvailable > 0 &&
+          form.leave_type !== "REPLACEMENT LEAVE" && (
+            <div className="flex items-center gap-2.5 bg-teal-50 border border-teal-100 rounded-lg px-3 py-2.5">
+              <RefreshCcw size={16} className="text-teal-600 shrink-0" />
+              <p className="flex-1 text-xs text-teal-700">
+                <span className="font-semibold">
+                  {replacementDaysAvailable}{" "}
+                  {replacementDaysAvailable === 1 ? "day" : "days"} of
+                  Replacement Leave
+                </span>{" "}
+                available.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  update("leave_type", "REPLACEMENT LEAVE");
+                  setApplyOpen(true);
+                }}
+                className="shrink-0 text-xs font-medium text-teal-700 border border-teal-200 rounded-md px-2.5 py-1 hover:bg-teal-100 transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          )}
+        {success && (
+          <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 text-blue-700 text-sm rounded-lg p-3">
+            <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+            <span>{success}</span>
+          </div>
+        )}
+        {error && (
+          <div className="flex items-start gap-2 bg-orange-50 border border-orange-100 text-orange-600 text-sm rounded-lg p-3">
+            <XCircle size={16} className="mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setApplyOpen(true)}
+          className="w-full flex items-center justify-between gap-2 bg-white rounded-xl border border-slate-200 px-4 py-3.5"
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <Send size={15} className="text-orange-500" />
+            Apply for Leave
+          </span>
+          <span className="flex items-center justify-center w-7 h-7 rounded-full shrink-0 bg-orange-50 text-orange-600">
+            <Plus size={14} />
+          </span>
+        </button>
+
+        {/* ---------- Apply for Leave: mobile popup ----------
+            Tapping the trigger above opens the form as a bottom-sheet-style
+            popup over the page, instead of expanding inline — same fixed
+            overlay pattern as the detail modal on AttendanceHistory.jsx. */}
+        {applyOpen && (
+          <div
+            className="fixed inset-0 bg-slate-900/40 flex items-end justify-center z-50"
+            onClick={() => setApplyOpen(false)}
+          >
+            <div
+              className="bg-white rounded-t-2xl border border-slate-200 w-full max-h-[85vh] overflow-y-auto p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                  <Send size={15} className="text-orange-500" />
+                  Apply for Leave
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setApplyOpen(false)}
+                  aria-label="Close"
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                    Leave Type <span className="text-orange-500">*</span>
+                  </label>
+                  <SelectDropdown
+                    value={form.leave_type}
+                    onChange={(val) => update("leave_type", val)}
+                    options={leaveTypeOptions}
+                    placeholder={leaveTypePlaceholder}
+                    disabled={!entitlements || entitlements.length === 0}
+                    triggerClassName="py-2.5"
+                  />
+                  {fieldErrors.leave_type && (
+                    <p className="text-xs text-orange-500 mt-1">
+                      {fieldErrors.leave_type}
+                    </p>
+                  )}
+                  {entitlementsError && (
+                    <p className="text-xs text-orange-500 mt-1">
+                      {entitlementsError}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                    Date Range <span className="text-orange-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2.5 bg-slate-50/60">
+                    <DatePicker
+                      value={
+                        form.from_date
+                          ? new Date(form.from_date + "T00:00:00")
+                          : null
+                      }
+                      min={today}
+                      placeholder="From"
+                      onSelect={(d) => {
+                        const iso = toLocalISODate(d);
+                        update("from_date", iso);
+                        if (form.to_date && form.to_date < iso) {
+                          update("to_date", "");
+                        }
+                      }}
+                    />
+                    <span className="text-slate-300">→</span>
+                    <DatePicker
+                      value={
+                        form.to_date
+                          ? new Date(form.to_date + "T00:00:00")
+                          : null
+                      }
+                      min={form.from_date || today}
+                      placeholder="To"
+                      onSelect={(d) => update("to_date", toLocalISODate(d))}
+                    />
+                  </div>
+                  {(fieldErrors.from_date || fieldErrors.to_date) && (
+                    <p className="text-xs text-orange-500 mt-1">
+                      {fieldErrors.from_date || fieldErrors.to_date}
+                    </p>
+                  )}
+                  {totalDays !== null && (
+                    <div className="mt-2 inline-flex items-center gap-2 bg-orange-50 text-orange-700 text-xs font-medium rounded-lg px-3 py-1.5">
+                      <CalendarDays size={13} />
+                      {totalDays} {totalDays === 1 ? "day" : "days"} of{" "}
+                      {toTitleCase(selectedType?.leave_name) || form.leave_type}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                    Reason <span className="text-orange-500">*</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    maxLength={500}
+                    value={form.reason}
+                    onChange={(e) => update("reason", e.target.value)}
+                    placeholder="Let your manager know why you're taking leave..."
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                  />
+                  <div className="flex items-center justify-between mt-1">
+                    {fieldErrors.reason ? (
+                      <p className="text-xs text-orange-500">
+                        {fieldErrors.reason}
+                      </p>
+                    ) : (
+                      <span />
+                    )}
+                    <p className="text-xs text-slate-400">
+                      {form.reason.length}/500
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setApplyOpen(false)}
+                    className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 rounded-lg transition-colors"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />{" "}
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Send size={15} /> Submit
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        <CollapsibleSection
+          title="Leave Type Entitlements"
+          icon={CalendarDays}
+          defaultOpen
+        >
+          <p className="text-xs text-slate-400 mb-3">
+            Used / entitled days, this year
+          </p>
+          <div className="space-y-3">
+            {entitlements === null && (
+              <div className="space-y-2">
+                <div className="h-9 bg-slate-100 rounded animate-pulse" />
+                <div className="h-9 bg-slate-100 rounded animate-pulse" />
+                <div className="h-9 bg-slate-100 rounded animate-pulse" />
+              </div>
+            )}
+            {entitlements?.length === 0 && !entitlementsError && (
+              <p className="text-sm text-slate-400">
+                No leave types configured for your profile yet.
+              </p>
+            )}
+            {entitlements?.map((t) => {
+              const { icon: Icon, color } = displayFor(t.leave_name);
+              const remaining = t.remaining_days ?? 0;
+              const used = t.used_days ?? 0;
+              return (
+                <div
+                  key={t.leave_type_id}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${color}`}
+                    >
+                      <Icon size={15} />
+                    </div>
+                    <span className="text-sm text-slate-600 truncate">
+                      {toTitleCase(t.leave_name)}
+                    </span>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {t.unlimited ? (
+                      <span className="text-sm font-semibold text-slate-800">
+                        —
+                      </span>
+                    ) : t.tier_not_assigned ? (
+                      <span className="text-[11px] text-slate-400"> — </span>
+                    ) : (
+                      <>
+                        <span className="text-sm font-semibold text-slate-800">
+                          {Math.max(remaining, 0)}
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          {" "}
+                          / {t.total_days ?? 0} left
+                        </span>
+                        {used > 0 && (
+                          <p className="text-[11px] text-slate-400">
+                            {used} used
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Recent Requests" icon={Clock3}>
+          {recent === null ? (
+            <div className="space-y-2">
+              <div className="h-10 bg-slate-100 rounded animate-pulse" />
+              <div className="h-10 bg-slate-100 rounded animate-pulse" />
+            </div>
+          ) : recent.length === 0 ? (
+            <p className="text-sm text-slate-400">No leave requests yet.</p>
+          ) : (
+            <ul className="space-y-3">
+              {recent.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <div>
+                    <p className="text-slate-700 font-medium">
+                      {r.leave_types?.leave_name || "Leave"}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {new Date(r.start_date).toLocaleDateString([], {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                      {" – "}
+                      {new Date(r.end_date).toLocaleDateString([], {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
+                  </div>
+                  <span
+                    className={`text-xs font-medium px-2 py-1 rounded-full ${
+                      STATUS_STYLES[r.status] || "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {r.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <Link
+            to={leaveHistoryPath}
+            className="block mt-3 text-xs text-orange-600 font-medium"
+          >
+            View All
+          </Link>
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Important Note" icon={Info}>
+          <p className="text-xs text-slate-500">
+            All leave requests are subject to your manager's approval. You can
+            track the status of this request in{" "}
+            <Link
+              to={leaveHistoryPath}
+              className="font-medium underline text-blue-600"
+            >
+              Leave History
+            </Link>
+            .
+          </p>
+        </CollapsibleSection>
+      </div>
+
+      {/* ---------------- Desktop / tablet layout: original, untouched ---------------- */}
+      <div className="hidden sm:grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* ---------------- Form ---------------- */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6">
           {replacementDaysAvailable > 0 &&

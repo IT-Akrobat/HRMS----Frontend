@@ -1,6 +1,7 @@
 import Attendance from "../pages/hr-admin/Attendance.jsx";
 import AttendanceReports from "../pages/hr-admin/AttendanceReports.jsx";
 // import AttendanceShifts from "../pages/hr-admin/AttendanceShifts.jsx";
+import AuditLogs from "../pages/hr-admin/AuditLogs.jsx";
 import Dashboard from "../pages/hr-admin/Dashboard.jsx";
 import Documents from "../pages/hr-admin/Documents.jsx";
 import DocumentsTemplates from "../pages/hr-admin/DocumentsTemplates.jsx";
@@ -45,6 +46,7 @@ export const hrAdminRoutes = [
   { path: "payroll/reports", element: <PayrollReports /> },
   { path: "documents", element: <Documents /> },
   { path: "documents/templates", element: <DocumentsTemplates /> },
+  { path: "security/audit-logs", element: <AuditLogs /> },
   { path: "reports/hr", element: <ReportsHr /> },
   { path: "reports/analytics", element: <ReportsAnalytics /> },
 ];

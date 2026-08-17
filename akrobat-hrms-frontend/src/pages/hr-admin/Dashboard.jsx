@@ -599,17 +599,24 @@
 //   );
 // }
 import {
+  Activity,
   AlertTriangle,
+  ArrowRight,
   Building2,
+  Cake,
+  ChevronDown,
+  LayoutGrid,
   Loader2,
   LogIn,
   LogOut,
   MapPin,
   Megaphone,
+  PlaneTakeoff,
   ShieldCheck,
   UserCheck,
   UserPlus,
   Users,
+  Users2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -786,6 +793,15 @@ function formatTime(value) {
   return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
 
+// An announcement is "expired" once today is past its end_date. Kept
+// visible (greyed out) instead of disappearing, same as Super Admin's
+// dashboard.
+function isAnnouncementExpired(a) {
+  if (!a?.end_date) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return a.end_date < today;
+}
+
 // Colored-circle icon per activity type: check-in = light green,
 // check-out = dark blue, login = blue, logout = orange.
 function LogIcon({ kind }) {
@@ -928,6 +944,20 @@ export default function HrAdminDashboard() {
   // preload, so this can just toggle straight open.
   const [addSiteOpen, setAddSiteOpen] = useState(false);
 
+  // ---------------------------------------------------------------------
+  // Mobile-only layout state (below lg). The mobile view below is a
+  // deliberately different pattern from both the desktop grid on this
+  // page AND the bento-grid/bottom-sheet pattern on the Employee
+  // dashboard: a swipeable stat carousel up top, then a segmented
+  // Overview / Activity / Team switcher, with Team content shown as
+  // inline accordion cards (one open at a time) instead of a bottom
+  // sheet. Same data/components as desktop throughout — only the mobile
+  // presentation differs.
+  // ---------------------------------------------------------------------
+  const [mobileTab, setMobileTab] = useState("overview");
+  const [mobileTeamOpen, setMobileTeamOpen] = useState("onleave");
+  const [statPage, setStatPage] = useState(0);
+
   // Pulled out of the mount effect so it can also be called right after a
   // check-in/out/break action (via CheckInOutCard's onActivityChange) —
   // otherwise Recent Activity only ever reflected whatever was on the page
@@ -994,10 +1024,19 @@ export default function HrAdminDashboard() {
     loadStats();
     loadLogs();
 
+    // All announcements, not just /active — same as Super Admin's
+    // dashboard — so expired ones still show here (greyed out) instead
+    // of just vanishing. Falls back to /active if this HR Admin's role
+    // isn't permitted the full list.
     apiClient
-      .get("/announcements/active")
+      .get("/announcements/")
       .then((res) => setAnnouncements(res.data || []))
-      .catch(() => setAnnouncements([]));
+      .catch(() =>
+        apiClient
+          .get("/announcements/active")
+          .then((res) => setAnnouncements(res.data || []))
+          .catch(() => setAnnouncements([])),
+      );
 
     apiClient
       .get("/dashboard/department-distribution")
@@ -1025,6 +1064,48 @@ export default function HrAdminDashboard() {
       .catch(() => setTrend(null))
       .finally(() => setTrendLoading(false));
   }, [trendRange]);
+
+  // Cards for the mobile stat carousel (see the `lg:hidden` block below).
+  // Same four numbers as the desktop stat row, just carousel cards
+  // instead of a row of small ones — all one consistent light-orange
+  // theme rather than a different color per card.
+  const statItems = [
+    {
+      key: "total",
+      icon: Users,
+      label: "Total Employees",
+      value: stats?.total_employees,
+    },
+    {
+      key: "present",
+      icon: UserCheck,
+      label: "Present Today",
+      value: stats?.present_today,
+    },
+    {
+      key: "late",
+      icon: AlertTriangle,
+      label: "Late Today",
+      value: stats?.late_today,
+    },
+    {
+      key: "depts",
+      icon: Building2,
+      label: "Departments",
+      value: stats?.total_departments,
+    },
+  ];
+
+  // Tracks which stat card is centered so the dot indicator below the
+  // carousel stays in sync while swiping.
+  function handleStatScroll(e) {
+    const el = e.currentTarget;
+    const card = el.firstChild;
+    if (!card) return;
+    const cardWidth = card.offsetWidth + 10; // gap-2.5 = 10px
+    const idx = Math.round(el.scrollLeft / cardWidth);
+    setStatPage(Math.max(0, Math.min(statItems.length - 1, idx)));
+  }
 
   return (
     <div className="overflow-x-hidden">
@@ -1073,10 +1154,12 @@ export default function HrAdminDashboard() {
       </div>
 
       {/* ---------- Mobile header (below lg) ----------
-          Title + subtitle, Quote of the Day stacked full-width below it,
           Title + the two quick-action circles on the same row
-          (right-aligned), subtitle below, then Quote of the Day
-          full-width. */}
+          (right-aligned), subtitle below, then the Quote of the Day
+          card (compact variant, full-width on mobile) — same data/
+          component desktop uses in the page header, just re-laid-out
+          for a narrow screen instead of sitting inline with the
+          quick-action buttons. */}
       <div className="lg:hidden mb-4">
         <div className="flex items-start justify-between gap-2">
           <h1 className="text-2xl font-bold text-slate-800 mb-1">
@@ -1106,12 +1189,318 @@ export default function HrAdminDashboard() {
         <p className="text-sm text-slate-500 mb-3">
           Overview of your system and activity
         </p>
-
         <QuoteOfDayCard compact />
       </div>
 
-      {/* ---------- Top row: stat cards (full width) ---------- */}
-      <div className="flex gap-3 sm:gap-4 mb-4 sm:mb-6 items-stretch">
+      {/* =================================================================
+          MOBILE-ONLY DASHBOARD (below lg)
+          Deliberately a different pattern from both the desktop grid
+          below AND the bento-grid/bottom-sheet pattern on the Employee
+          dashboard: a swipeable stat carousel, a pill quick-action dock,
+          a segmented Overview / Activity / Team switcher, and
+          single-open accordion cards for the secondary content — built
+          from the exact same data/components used on desktop, just
+          presented differently.
+      ================================================================= */}
+      <div className="lg:hidden">
+        {/* ---------- Stat carousel: compact light-orange cards, ~2.3 visible at a time ---------- */}
+        <div
+          onScroll={handleStatScroll}
+          className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory no-scrollbar -mx-4 px-4 pb-1 mb-2"
+        >
+          {statItems.map(({ key, icon: Icon, label, value }) => (
+            <div
+              key={key}
+              className="snap-start shrink-0 w-[42%] rounded-xl bg-orange-50 border border-orange-100 p-3 flex flex-col gap-2 h-[76px]"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-orange-700/80 truncate">
+                  {label}
+                </span>
+                <div className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+                  <Icon size={12} />
+                </div>
+              </div>
+              <p className="text-xl font-bold leading-none text-slate-800">
+                {statsLoading ? (
+                  <span className="inline-block w-8 h-5 bg-orange-100 rounded animate-pulse" />
+                ) : (
+                  (value ?? "—")
+                )}
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-center gap-1.5 mb-4">
+          {statItems.map((_, i) => (
+            <span
+              key={i}
+              className={`h-1.5 rounded-full transition-all ${
+                i === statPage ? "w-4 bg-orange-500" : "w-1.5 bg-slate-200"
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* ---------- Segmented tab switcher ---------- */}
+        <div className="grid grid-cols-3 gap-1 bg-slate-100 rounded-full p-1 mb-4">
+          {[
+            { key: "overview", label: "Overview", icon: LayoutGrid },
+            { key: "activity", label: "Activity", icon: Activity },
+            { key: "team", label: "Team", icon: Users2 },
+          ].map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMobileTab(key)}
+              className={`flex items-center justify-center gap-1.5 rounded-full py-2 text-xs font-semibold transition-colors ${
+                mobileTab === key
+                  ? "bg-white text-orange-600 shadow-sm"
+                  : "text-slate-500"
+              }`}
+            >
+              <Icon size={13} /> {label}
+            </button>
+          ))}
+        </div>
+
+        {/* ---------- Overview tab ---------- */}
+        {mobileTab === "overview" && (
+          <div className="flex flex-col gap-4 mb-6">
+            <CheckInOutCard compact onActivityChange={loadLogs} />
+            <AttendanceTrendChart
+              trend={trend}
+              loading={trendLoading}
+              range={trendRange}
+              onRangeChange={setTrendRange}
+            />
+            <div className="h-72">
+              <TopPerformersCard />
+            </div>
+          </div>
+        )}
+
+        {/* ---------- Activity tab: same Recent Activity feed as desktop,
+            just its own fixed-height scroll area under the tab. ---------- */}
+        {mobileTab === "activity" && (
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col h-[420px] mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <ShieldCheck size={17} className="text-orange-500" /> Recent
+                Activity
+              </h3>
+              <Link
+                to="/hr-admin/security/audit-logs"
+                className="text-xs font-medium text-orange-500 flex items-center gap-1 shrink-0"
+              >
+                View All <ArrowRight size={12} />
+              </Link>
+            </div>
+            {logsLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-10 bg-slate-100 rounded animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : logsError ? (
+              <div className="text-sm text-orange-500">
+                Couldn't load recent activity: {logsError}
+              </div>
+            ) : logs.length === 0 ? (
+              <p className="text-sm text-slate-400">No recent activity.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100 overflow-y-auto no-scrollbar flex-1">
+                {logs.map((log) => {
+                  const entry = parseLogEntry(log, locations);
+                  const geocoded =
+                    entry.lat != null && entry.lon != null
+                      ? placeCache[placeKey(entry.lat, entry.lon)]
+                      : null;
+                  const matchedOffice = resolveLocationName(
+                    entry.lat,
+                    entry.lon,
+                    locations,
+                  );
+                  const locationName =
+                    geocoded ||
+                    matchedOffice ||
+                    (entry.lat != null && entry.lon != null
+                      ? `${entry.lat.toFixed(4)}, ${entry.lon.toFixed(4)}`
+                      : null);
+                  return (
+                    <li key={log.id} className="py-2 flex items-start gap-2.5">
+                      <LogIcon kind={entry.kind} />
+                      <div className="min-w-0 flex-1 flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">
+                            {entry.name}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {entry.action}
+                          </p>
+                          {locationName && (
+                            <p className="text-[11px] text-slate-400 flex items-center gap-0.5 truncate">
+                              <MapPin size={9} className="shrink-0" />{" "}
+                              {locationName}
+                            </p>
+                          )}
+                        </div>
+                        {entry.time && (
+                          <span className="text-xs text-slate-400 whitespace-nowrap">
+                            {formatTime(entry.time)}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* ---------- Team tab: single-open accordion cards — a different
+            mobile pattern than the Employee dashboard's bento grid +
+            bottom sheet, though it borrows the same "same components,
+            different entry point" idea. ---------- */}
+        {mobileTab === "team" && (
+          <div className="flex flex-col gap-2.5 mb-6">
+            {[
+              {
+                key: "onleave",
+                label: "On Leave Today",
+                icon: PlaneTakeoff,
+                accent: "text-violet-500 bg-violet-50",
+                render: () => <OnLeaveTodayCard />,
+              },
+              {
+                key: "announcements",
+                label: "Announcements",
+                icon: Megaphone,
+                accent: "text-orange-500 bg-orange-50",
+                badge:
+                  announcements.filter((a) => !isAnnouncementExpired(a))
+                    .length || null,
+                render: () =>
+                  announcements.length === 0 ? (
+                    <p className="text-sm text-slate-400 px-0.5">
+                      No announcements yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {[...announcements]
+                        .sort((a, b) => {
+                          const aExpired = isAnnouncementExpired(a);
+                          const bExpired = isAnnouncementExpired(b);
+                          if (aExpired !== bExpired) return aExpired ? 1 : -1;
+                          return (b.end_date || "").localeCompare(
+                            a.end_date || "",
+                          );
+                        })
+                        .slice(0, 4)
+                        .map((a) => {
+                          const expired = isAnnouncementExpired(a);
+                          return (
+                            <div
+                              key={a.id}
+                              className={
+                                "rounded-lg p-2.5 border " +
+                                (expired
+                                  ? "bg-slate-50 border-slate-200 opacity-60"
+                                  : "bg-orange-50 border-orange-100")
+                              }
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <p
+                                  className={
+                                    "text-sm font-medium truncate " +
+                                    (expired
+                                      ? "text-slate-500"
+                                      : "text-slate-800")
+                                  }
+                                >
+                                  {a.title}
+                                </p>
+                                {expired && (
+                                  <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
+                                    Expired
+                                  </span>
+                                )}
+                              </div>
+                              <p
+                                className={
+                                  "text-xs mt-0.5 " +
+                                  (expired
+                                    ? "text-slate-400"
+                                    : "text-slate-500")
+                                }
+                              >
+                                {a.description}
+                              </p>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  ),
+              },
+              {
+                key: "birthdays",
+                label: "Upcoming Birthdays",
+                icon: Cake,
+                accent: "text-pink-500 bg-pink-50",
+                render: () => <BirthdaysCard />,
+              },
+            ].map(({ key, label, icon: Icon, accent, badge, render }) => {
+              const isOpen = mobileTeamOpen === key;
+              return (
+                <div
+                  key={key}
+                  className="bg-white rounded-xl border border-slate-200 overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setMobileTeamOpen(isOpen ? null : key)}
+                    className="w-full flex items-center gap-2.5 p-3.5"
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${accent}`}
+                    >
+                      <Icon size={15} />
+                    </div>
+                    <span className="flex-1 text-left text-sm font-semibold text-slate-700">
+                      {label}
+                    </span>
+                    {badge ? (
+                      <span className="rounded-full bg-orange-100 text-orange-600 text-[10px] font-bold px-1.5 py-0.5">
+                        {badge}
+                      </span>
+                    ) : null}
+                    <ChevronDown
+                      size={16}
+                      className={`text-slate-400 transition-transform ${
+                        isOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {isOpen && (
+                    <div className="px-3.5 pb-3.5 h-64 overflow-y-auto no-scrollbar">
+                      {render()}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      {/* ================= END MOBILE-ONLY DASHBOARD ================= */}
+
+      {/* ---------- Top row: stat cards (full width, desktop/tablet only —
+          mobile gets its own swipeable carousel below) ---------- */}
+      <div className="hidden lg:flex gap-3 sm:gap-4 mb-4 sm:mb-6 items-stretch">
         <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1 w-full">
           <div className="min-w-[170px] w-[170px] shrink-0">
             <StatCard
@@ -1177,7 +1566,7 @@ export default function HrAdminDashboard() {
           Right: On Leave Today -> Announcements -> Upcoming Birthdays ->
                  Top Performance
       ---------------------------------------------------------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-[65%_1fr] gap-4 sm:gap-6 items-start min-w-0">
+      <div className="hidden lg:grid lg:grid-cols-[65%_1fr] gap-4 sm:gap-6 items-start min-w-0">
         {/* ================= Left column (65%) ================= */}
         <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
           {/* ---------- Check-in/out (HR Admin is a person too) ---------- */}
@@ -1190,10 +1579,12 @@ export default function HrAdminDashboard() {
                 <ShieldCheck size={17} className="text-orange-500" /> Recent
                 Activity
               </h3>
-              {/* No "View Audit Logs" link here — that page lives under
-                  /super-admin/security/audit-logs and hr-admin has no
-                  equivalent route (see routes/hrAdminRoutes.jsx), so
-                  linking there would 404 for HR Admins. */}
+              <Link
+                to="/hr-admin/security/audit-logs"
+                className="text-xs font-medium text-orange-500 hover:text-orange-600 flex items-center gap-1 shrink-0"
+              >
+                View Audit Logs <ArrowRight size={12} />
+              </Link>
             </div>
 
             {logsLoading ? (
@@ -1301,22 +1692,57 @@ export default function HrAdminDashboard() {
               <Megaphone size={17} className="text-orange-500" /> Announcements
             </h3>
             {announcements.length === 0 ? (
-              <p className="text-sm text-slate-400">No active announcements.</p>
+              <p className="text-sm text-slate-400">No announcements yet.</p>
             ) : (
               <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
-                {announcements.slice(0, 3).map((a) => (
-                  <div
-                    key={a.id}
-                    className="bg-orange-50 border border-orange-100 rounded-lg p-2.5"
-                  >
-                    <p className="text-sm font-medium text-slate-800 truncate">
-                      {a.title}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
-                      {a.description}
-                    </p>
-                  </div>
-                ))}
+                {/* Active first, then expired (most recently ended first) —
+                    expired stay visible, just greyed out. */}
+                {[...announcements]
+                  .sort((a, b) => {
+                    const aExpired = isAnnouncementExpired(a);
+                    const bExpired = isAnnouncementExpired(b);
+                    if (aExpired !== bExpired) return aExpired ? 1 : -1;
+                    return (b.end_date || "").localeCompare(a.end_date || "");
+                  })
+                  .slice(0, 3)
+                  .map((a) => {
+                    const expired = isAnnouncementExpired(a);
+                    return (
+                      <div
+                        key={a.id}
+                        className={
+                          "rounded-lg p-2.5 border " +
+                          (expired
+                            ? "bg-slate-50 border-slate-200 opacity-60"
+                            : "bg-orange-50 border-orange-100")
+                        }
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <p
+                            className={
+                              "text-sm font-medium truncate " +
+                              (expired ? "text-slate-500" : "text-slate-800")
+                            }
+                          >
+                            {a.title}
+                          </p>
+                          {expired && (
+                            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
+                              Expired
+                            </span>
+                          )}
+                        </div>
+                        <p
+                          className={
+                            "text-xs mt-0.5 line-clamp-2 " +
+                            (expired ? "text-slate-400" : "text-slate-500")
+                          }
+                        >
+                          {a.description}
+                        </p>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>
