@@ -1,4 +1,4 @@
-// import Attendance from "../pages/hr-admin/Attendance.jsx";
+import Attendance from "../pages/hr-admin/Attendance.jsx";
 import AttendanceReports from "../pages/hr-admin/AttendanceReports.jsx";
 // import AttendanceShifts from "../pages/hr-admin/AttendanceShifts.jsx";
 import AuditLogs from "../pages/hr-admin/Auditlogs.jsx";
