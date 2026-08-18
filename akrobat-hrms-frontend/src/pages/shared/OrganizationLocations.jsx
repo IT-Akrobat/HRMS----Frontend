@@ -417,7 +417,7 @@ export default function OrganizationLocations() {
           </div>
         )}
 
-        <div className="max-h-[520px] overflow-y-auto">
+        <div className="max-h-[560px] overflow-y-auto">
           {/* ---------- Desktop/tablet table (lg and up) — unchanged ---------- */}
           <table className="hidden lg:table w-full text-sm">
             <thead className="sticky top-0 z-10">
