@@ -1880,7 +1880,7 @@ export default function MyProfile() {
           <div className="bg-white rounded-xl border border-slate-200 p-5 max-lg:p-0 max-lg:overflow-hidden">
             {/* Mobile-only cover banner — purely decorative, hidden at lg+
                 so the desktop header card is completely untouched. */}
-            <div className="lg:hidden h-16 bg-gradient-to-r from-orange-400 to-orange-500" />
+            <div className="lg:hidden h-16 bg-gradient-to-r from-orange-100 to-orange-300" />
 
             <div className="flex items-center gap-4 max-lg:flex-col max-lg:text-center max-lg:gap-3 max-lg:-mt-10 max-lg:px-5">
               <div className="relative">

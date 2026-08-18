@@ -534,7 +534,7 @@ import {
   MapPin,
   Megaphone,
   UserCheck,
-  Users,
+  Users
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -617,6 +617,16 @@ function resolveLocationName(lat, lon, locations) {
   return best ? best.loc.location_name : null;
 }
 
+// Pending -> orange, anything else (namely Expired, once a leave's dates
+// pass without a decision) -> greyed out, same treatment Super Admin's
+// Leave Requests screen gives non-active statuses.
+function leaveBadgeStyle(status) {
+  if (status === "Pending") {
+    return "bg-orange-50 text-orange-600";
+  }
+  return "bg-slate-100 text-slate-500";
+}
+
 // Colored-circle icon per activity type — mirrors the LogIcon used on the
 // Super Admin / HR Admin Recent Activity panels, trimmed to the two kinds
 // team attendance rows can actually produce.
@@ -683,6 +693,12 @@ export default function ManagerDashboard() {
   const [teamLeaves, setTeamLeaves] = useState([]);
   const [leavesLoading, setLeavesLoading] = useState(true);
 
+  // Which team work-list tab is active in the mobile-only segmented
+  // switcher below (Activity / Attendance / Requests). Desktop/tablet
+  // (lg and up) keeps the original always-visible stacked cards
+  // untouched — this only drives the lg:hidden layout.
+  const [mobileTab, setMobileTab] = useState("activity");
+
   // Needed to turn raw check-in/out coordinates in Team Recent Activity
   // into a real location name instead of showing nothing.
   const [locations, setLocations] = useState([]);
@@ -698,7 +714,11 @@ export default function ManagerDashboard() {
     apiClient
       .get("/leaves/team")
       .then((res) =>
-        setTeamLeaves((res.data || []).filter((l) => l.status === "Pending")),
+        setTeamLeaves(
+          (res.data || []).filter(
+            (l) => l.status === "Pending" || l.status === "Expired",
+          ),
+        ),
       )
       .catch(() => setTeamLeaves([]))
       .finally(() => setLeavesLoading(false));
@@ -737,6 +757,13 @@ export default function ManagerDashboard() {
 
   const presentCount = teamAttendance.filter(
     (a) => a.status === "Present",
+  ).length;
+
+  // teamLeaves now also carries Expired requests (greyed out, see
+  // leaveBadgeStyle) alongside Pending ones — the numeric counters
+  // above/below should still reflect Pending only.
+  const pendingLeaveCount = teamLeaves.filter(
+    (l) => l.status === "Pending",
   ).length;
 
   const teamActivity = buildTeamActivity(teamAttendance).slice(0, 25);
@@ -810,68 +837,13 @@ export default function ManagerDashboard() {
           label="Pending Requests"
           color="blue"
           loading={leavesLoading}
-          value={teamLeaves.length}
+          value={pendingLeaveCount}
         />
       </div>
 
-      {/* ---------- Mobile stat strip (below lg) ----------
-          A horizontal, snap-scrolling row of compact stat cards instead of
-          a cramped 2-column grid — each card is wide enough to breathe and
-          the row scrolls sideways with a thumb instead of wrapping. */}
-      <div className="lg:hidden -mx-4 px-4 mb-4">
-        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1">
-          {[
-            {
-              key: "team-size",
-              icon: Users,
-              label: "Team Size",
-              value: teamAttendance.length || "—",
-              loading: attendanceLoading,
-              iconBg: "bg-orange-50",
-              iconFg: "text-orange-500",
-            },
-            {
-              key: "present-today",
-              icon: UserCheck,
-              label: "Present Today",
-              value: presentCount,
-              loading: attendanceLoading,
-              iconBg: "bg-blue-50",
-              iconFg: "text-blue-600",
-            },
-            {
-              key: "pending-requests",
-              icon: CalendarClock,
-              label: "Pending Requests",
-              value: teamLeaves.length,
-              loading: leavesLoading,
-              iconBg: "bg-blue-50",
-              iconFg: "text-blue-600",
-            },
-          ].map((stat) => (
-            <div
-              key={stat.key}
-              className="snap-start shrink-0 w-[150px] bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col gap-2.5"
-            >
-              <div
-                className={`w-9 h-9 rounded-lg flex items-center justify-center ${stat.iconBg} ${stat.iconFg}`}
-              >
-                <stat.icon size={18} />
-              </div>
-              {stat.loading ? (
-                <div className="h-6 w-12 bg-slate-100 rounded animate-pulse" />
-              ) : (
-                <div className="text-xl font-bold text-slate-800 leading-none">
-                  {stat.value}
-                </div>
-              )}
-              <span className="text-xs text-slate-500 leading-tight">
-                {stat.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Mobile stat strip removed on purpose — manager asked for it off
+          the mobile screen; the same numbers still live in the segmented
+          tab badges and the desktop grid below (unaffected). */}
 
       {/* ---------- Two-column body ----------
           Left (65%):  Check-in/out -> Team Recent Activity
@@ -881,7 +853,7 @@ export default function ManagerDashboard() {
                        its own hidden-scrollbar overflow so extra items
                        scroll inside the card instead of growing the row.
       ---------------------------------------------------------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-[65%_1fr] gap-4 sm:gap-6 items-start min-w-0">
+      <div className="hidden lg:grid lg:grid-cols-[65%_1fr] gap-4 sm:gap-6 items-start min-w-0">
         {/* ================= Left column (65%) ================= */}
         <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
           {/* ---------- Check-in/out (a Manager is a person too) ---------- */}
@@ -1017,8 +989,12 @@ export default function ManagerDashboard() {
                         {leave.to_date}
                       </p>
                     </div>
-                    <span className="shrink-0 text-xs font-medium px-2.5 py-1 rounded-full bg-orange-50 text-orange-600">
-                      Pending
+                    <span
+                      className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${leaveBadgeStyle(
+                        leave.status,
+                      )}`}
+                    >
+                      {leave.status}
                     </span>
                   </li>
                 ))}
@@ -1192,6 +1168,346 @@ export default function ManagerDashboard() {
           </div>
         </div>
       </div>
+      {/* ================= END desktop/tablet body ================= */}
+
+      {/* =================================================================
+          MOBILE-ONLY DASHBOARD BODY (below lg)
+          A different pattern from the desktop two-column layout on
+          purpose: Check-in up top, then the three team work-lists
+          (Activity / Attendance / Requests) live behind a segmented tab
+          switcher instead of three separate stacked full-height cards —
+          a manager only looks at one of these at a time, so only one is
+          on screen. The lighter glance content (On Leave, Announcements,
+          Birthdays) is a swipeable card carousel instead of a bento grid
+          + bottom sheet. Same data/components as desktop; only the
+          interaction changes.
+      ================================================================= */}
+      <div className="lg:hidden">
+        {/* ---------- Check-in/out (a Manager is a person too) ----------
+            Deliberately NOT the plain white bordered card used on desktop
+            and on the Employee dashboard — a slim gradient-bordered shell
+            plus the new `ultraCompact` layout on CheckInOutCard itself
+            (single row, no side timeline) keeps this short. The shared
+            component's default rendering (desktop/Employee mobile) is
+            unaffected — `ultraCompact` is opt-in. */}
+        <div className="mb-5 rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
+          <CheckInOutCard ultraCompact onActivityChange={loadTeamAttendance} />
+        </div>
+
+        {/* ---------- Segmented tabs: Activity / Attendance / Requests / On Leave ---------- */}
+        <div className="flex items-center gap-2 mb-2 px-0.5">
+          <span className="h-1.5 w-4 rounded-full bg-orange-500" />
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            Your Team
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1.5 bg-slate-100 rounded-xl p-1 mb-3">
+          {[
+            { key: "activity", label: "Activity", icon: Activity },
+            // { key: "attendance", label: "Attendance", icon: UserCheck },
+            {
+              key: "requests",
+              label: "Requests",
+              icon: ClipboardCheck,
+              badge: pendingLeaveCount || null,
+            },
+            // { key: "onleave", label: "On Leave", icon: PlaneTakeoff },
+          ].map(({ key, label, icon: Icon, badge }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMobileTab(key)}
+              className={`relative flex flex-col items-center justify-center gap-1 rounded-lg py-2 text-[10px] font-medium transition-colors ${
+                mobileTab === key
+                  ? "bg-white text-orange-600 shadow-sm"
+                  : "text-slate-500"
+              }`}
+            >
+              <Icon size={14} />
+              {label}
+              {badge ? (
+                <span className="absolute top-1 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-orange-500 text-white text-[9px] font-semibold flex items-center justify-center">
+                  {badge}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+
+        {/* ---------- Active tab panel ----------
+            "On Leave" reuses OnLeaveTodayCard directly (it already brings
+            its own card chrome/heading), so the wrapper drops its own
+            border/padding for that one tab to avoid a card-in-a-card. */}
+        <div
+          className={
+            mobileTab === "onleave"
+              ? "h-[22rem] flex flex-col mb-6"
+              : "bg-white rounded-xl border border-slate-200 p-3.5 h-[22rem] flex flex-col mb-6"
+          }
+        >
+          {mobileTab === "onleave" && <OnLeaveTodayCard />}
+          {mobileTab === "activity" && (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                  <Activity size={15} className="text-orange-500" /> Team Recent
+                  Activity
+                </h3>
+                <Link
+                  to="/manager/team/members"
+                  className="text-xs text-orange-600 font-medium flex items-center gap-1 shrink-0"
+                >
+                  View Team <ArrowRight size={12} />
+                </Link>
+              </div>
+
+              {attendanceLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="h-10 bg-slate-100 rounded animate-pulse"
+                    />
+                  ))}
+                </div>
+              ) : teamActivity.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  No team check-in/check-out activity yet today.
+                </p>
+              ) : (
+                <ul className="divide-y divide-slate-100 overflow-y-auto no-scrollbar flex-1">
+                  {teamActivity.map((entry) => {
+                    const matchedOffice = resolveLocationName(
+                      entry.lat,
+                      entry.lon,
+                      locations,
+                    );
+                    const locationName =
+                      matchedOffice ||
+                      (entry.lat != null && entry.lon != null
+                        ? `${Number(entry.lat).toFixed(4)}, ${Number(
+                            entry.lon,
+                          ).toFixed(4)}`
+                        : null);
+                    return (
+                      <li
+                        key={entry.key}
+                        className="py-2.5 flex items-start gap-2.5"
+                      >
+                        <LogIcon kind={entry.kind} />
+                        <div className="min-w-0 flex-1 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800 truncate">
+                              {entry.name}
+                            </p>
+                            <p className="text-xs text-slate-500 truncate">
+                              {entry.action}
+                            </p>
+                            {locationName && (
+                              <p className="text-[11px] text-slate-400 flex items-center gap-0.5 truncate">
+                                <MapPin size={9} className="shrink-0" />{" "}
+                                {locationName}
+                              </p>
+                            )}
+                          </div>
+                          {entry.time && (
+                            <span className="text-xs text-slate-400 whitespace-nowrap">
+                              {formatTime(entry.time)}
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </>
+          )}
+
+          {mobileTab === "attendance" && (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-slate-800 text-sm">
+                  Team Attendance — Today
+                </h3>
+                <Link
+                  to="/manager/team/members"
+                  className="text-xs text-orange-600 font-medium flex items-center gap-1 shrink-0"
+                >
+                  View Team <ArrowRight size={12} />
+                </Link>
+              </div>
+
+              {attendanceLoading ? (
+                <div className="h-24 bg-slate-100 rounded animate-pulse" />
+              ) : teamAttendance.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  No attendance records for your team today.
+                </p>
+              ) : (
+                <ul className="divide-y divide-slate-100 overflow-y-auto no-scrollbar flex-1">
+                  {teamAttendance.map((row) => (
+                    <li
+                      key={row.id}
+                      className="py-2.5 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-700 truncate">
+                          {row.employees?.full_name || "—"}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          In{" "}
+                          {row.check_in_time
+                            ? parseServerDate(
+                                row.check_in_time,
+                              )?.toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "—"}
+                          {"  ·  "}
+                          Out{" "}
+                          {row.check_out_time
+                            ? parseServerDate(
+                                row.check_out_time,
+                              )?.toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "—"}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${
+                          row.status === "Present"
+                            ? "bg-blue-50 text-blue-600"
+                            : "bg-orange-50 text-orange-500"
+                        }`}
+                      >
+                        {row.status}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+
+          {mobileTab === "requests" && (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-slate-800 text-sm">
+                  Pending Leave Requests
+                </h3>
+                <Link
+                  to="/manager/leave/pending"
+                  className="text-xs text-orange-600 font-medium flex items-center gap-1 shrink-0"
+                >
+                  View All <ArrowRight size={12} />
+                </Link>
+              </div>
+
+              {leavesLoading ? (
+                <div className="space-y-2">
+                  {[1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="h-12 bg-slate-100 rounded animate-pulse"
+                    />
+                  ))}
+                </div>
+              ) : teamLeaves.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  No pending leave requests from your team.
+                </p>
+              ) : (
+                <ul className="divide-y divide-slate-100 overflow-y-auto no-scrollbar flex-1">
+                  {teamLeaves.map((leave) => (
+                    <li
+                      key={leave.id}
+                      className="py-3 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-700 truncate">
+                          {leave.employees?.full_name}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate">
+                          {leave.leave_types?.leave_name} · {leave.from_date} →{" "}
+                          {leave.to_date}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${leaveBadgeStyle(
+                          leave.status,
+                        )}`}
+                      >
+                        {leave.status}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ---------- Team Pulse: swipeable card carousel ----------
+            On Leave Today / Announcements / Upcoming Birthdays, one
+            full-width card per swipe. Who's on leave is also reachable
+            from the "On Leave" tab above — this is the quick-glance copy. */}
+        <div className="flex items-center gap-2 mb-2 px-0.5">
+          <span className="h-1.5 w-4 rounded-full bg-orange-500" />
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            Team Pulse
+          </h2>
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1 -mx-4 px-4">
+          <div className="snap-start shrink-0 w-[86%]">
+            <div className="h-64">
+              <OnLeaveTodayCard />
+            </div>
+          </div>
+
+          <div className="snap-start shrink-0 w-[86%]">
+            <div className="bg-white rounded-xl border border-slate-200 p-3.5 h-64 flex flex-col">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2 mb-3 text-sm">
+                <Megaphone size={16} className="text-orange-500" />{" "}
+                Announcements
+              </h3>
+              {announcements.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  No active announcements.
+                </p>
+              ) : (
+                <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
+                  {announcements.slice(0, 3).map((a) => (
+                    <div
+                      key={a.id}
+                      className="bg-orange-50 border border-orange-100 rounded-lg p-2.5"
+                    >
+                      <p className="text-sm font-medium text-slate-800 truncate">
+                        {a.title}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                        {a.description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="snap-start shrink-0 w-[86%]">
+            <div className="h-64">
+              <BirthdaysCard />
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* ================= END mobile-only dashboard body ================= */}
     </div>
   );
 }

@@ -1075,6 +1075,12 @@ export default function CheckInOutCard({
   // its own "Today's Summary" panel with the same working-hours numbers, so
   // compact=true just skips both blocks here to keep the dashboard steady.
   compact = false,
+  // Opt-in, defaults to false so every existing caller (Employee/Manager
+  // desktop, Employee mobile, etc.) renders exactly as before. When true,
+  // collapses the big status-circle + timeline layout into a single
+  // horizontal row — for screens where the full card is too tall (e.g.
+  // Manager mobile dashboard).
+  ultraCompact = false,
 } = {}) {
   const { user } = useAuth();
   const isFieldStaff = isFieldEmployee(user);
@@ -1507,7 +1513,7 @@ export default function CheckInOutCard({
 
   return (
     <div
-      className={`bg-white rounded-xl border border-slate-200 p-5${
+      className={`bg-white rounded-xl border border-slate-200 ${ultraCompact ? "p-4" : "p-5"}${
         compact ? " lg:min-h-[280px]" : ""
       }`}
     >
@@ -1531,6 +1537,186 @@ export default function CheckInOutCard({
 
       {loading ? (
         <div className="h-16 bg-slate-100 rounded animate-pulse" />
+      ) : ultraCompact ? (
+        <>
+          {/* ---------- Ultra-compact: one horizontal row ----------
+              Small status circle + label/time on the left, action
+              button(s) on the right — no side-by-side timeline, no
+              full-width stacked buttons. Same runAction/state as the
+              regular layout below, just laid out to fit a short card. */}
+          <div className="flex items-center gap-3 mb-3">
+            <div
+              className={`w-11 h-11 rounded-full ${circleRing} flex items-center justify-center shrink-0`}
+            >
+              <div
+                className={`w-7 h-7 rounded-full ${circleFill} flex items-center justify-center`}
+              >
+                <CircleIcon size={14} className="text-white" />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] text-slate-400">{statusLabel}</div>
+              <div className="font-semibold text-slate-800 text-sm truncate">
+                {statusTime || "—"}
+              </div>
+              {/* ---------- Where they checked in/out — same info the
+                  full (non-ultraCompact) layout shows in its timeline via
+                  ev.sub, just condensed to one line here so it isn't lost
+                  in the mobile manager dashboard's tighter card. ---------- */}
+              {(checkedIn || checkedOut) && (
+                <div className="flex items-center gap-1 text-[11px] text-slate-400 truncate mt-0.5">
+                  <MapPin size={10} className="shrink-0" />
+                  <span className="truncate">
+                    {(checkedOut ? checkOutLocation : checkInLocation) ||
+                      "Location unavailable"}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="shrink-0 flex flex-col gap-1.5 w-[112px]">
+              {!checkedIn && (
+                <button
+                  onClick={() => runAction("/attendance/check-in")}
+                  disabled={busy || !locationReady}
+                  title={
+                    locationReady
+                      ? undefined
+                      : "Waiting for your location to be detected"
+                  }
+                  className="flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-xs font-medium py-2 rounded-lg transition-colors whitespace-nowrap"
+                >
+                  <LogIn size={13} />
+                  {checkInButtonLabel}
+                </button>
+              )}
+
+              {checkedIn && !checkedOut && !onBreakForDot && (
+                <button
+                  onClick={() => runAction("/attendance/break-start")}
+                  disabled={busy}
+                  className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 text-xs font-medium py-2 rounded-lg transition-colors whitespace-nowrap"
+                >
+                  <Coffee size={13} /> Break
+                </button>
+              )}
+
+              {checkedIn && !checkedOut && onBreakForDot && (
+                <button
+                  onClick={() => runAction("/attendance/break-end")}
+                  disabled={busy}
+                  className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 text-xs font-medium py-2 rounded-lg transition-colors whitespace-nowrap"
+                >
+                  <Coffee size={13} /> End Break
+                </button>
+              )}
+
+              {checkedIn && !checkedOut && (
+                <button
+                  onClick={() => runAction("/attendance/check-out")}
+                  disabled={busy}
+                  className="flex items-center justify-center gap-1.5 border border-orange-500 text-orange-600 hover:bg-orange-50 disabled:opacity-50 text-xs font-medium py-2 rounded-lg transition-colors whitespace-nowrap"
+                >
+                  <LogOut size={13} /> Check Out
+                </button>
+              )}
+
+              {checkedOut && (
+                <button
+                  disabled
+                  className="flex items-center justify-center gap-1.5 bg-slate-100 text-slate-400 text-xs font-medium py-2 rounded-lg cursor-not-allowed whitespace-nowrap"
+                >
+                  <LogOut size={13} /> Checked Out
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ---------- Location status — trimmed to one line. Now also
+              shows the resolved place/office once GPS lock succeeds
+              (geoStatus === "ok"), matching the full CheckInOutCard
+              layout below instead of just going silent on success. ---------- */}
+          {!checkedIn && !checkedOut && (
+            <div className="mb-3 flex items-center gap-1.5 text-[11px] rounded-lg px-2.5 py-1.5 bg-slate-50">
+              {geoStatus === "locating" && (
+                <>
+                  <MapPin
+                    size={11}
+                    className="text-slate-400 animate-pulse shrink-0"
+                  />
+                  <span className="text-slate-500">Getting your location…</span>
+                </>
+              )}
+              {geoStatus === "denied" && (
+                <>
+                  <AlertTriangle
+                    size={11}
+                    className="text-orange-500 shrink-0"
+                  />
+                  <span className="text-orange-600">
+                    Location denied — check-in won't be location-verified.
+                  </span>
+                </>
+              )}
+              {geoStatus === "unsupported" && (
+                <>
+                  <AlertTriangle
+                    size={11}
+                    className="text-orange-500 shrink-0"
+                  />
+                  <span className="text-orange-600">
+                    This browser doesn't support location.
+                  </span>
+                </>
+              )}
+              {geoStatus === "ok" && nearest && nearest.withinRadius && (
+                <>
+                  <MapPin size={11} className="text-blue-500 shrink-0" />
+                  <span className="text-blue-600 truncate">
+                    Within range of {nearest.location.location_name}
+                    {place && (
+                      <span className="text-slate-400"> — {place}</span>
+                    )}
+                  </span>
+                </>
+              )}
+              {geoStatus === "ok" && nearest && !nearest.withinRadius && (
+                <>
+                  <MapPin size={11} className="text-slate-400 shrink-0" />
+                  <span className="text-slate-500 truncate">
+                    {place ? `Detected at ${place}` : "Location detected"} (
+                    {Math.round(nearest.distance)}m from{" "}
+                    {nearest.location.location_name})
+                  </span>
+                </>
+              )}
+              {geoStatus === "ok" && !nearest && (
+                <>
+                  <MapPin size={11} className="text-slate-400 shrink-0" />
+                  <span className="text-slate-500 truncate">
+                    {place
+                      ? `Detected at ${place}`
+                      : placeLoading
+                        ? "Location acquired — resolving place…"
+                        : "Location acquired"}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="text-xs text-orange-500 mb-1">
+              {error}
+              {error.toLowerCase().includes("expired") && (
+                <span className="text-slate-400">
+                  {" "}
+                  — your session will refresh automatically; if this persists,
+                  please log in again.
+                </span>
+              )}
+            </div>
+          )}
+        </>
       ) : (
         <>
           {/* ---------- Two-column layout: status circle + action on the
@@ -1661,7 +1847,8 @@ export default function CheckInOutCard({
           </div>
 
           {/* ---------- Assigned site banner ---------- */}
-          {isFieldStaff &&
+          {!ultraCompact &&
+            isFieldStaff &&
             !checkedIn &&
             !checkedOut &&
             assignedSites.length > 0 && (
@@ -1683,7 +1870,7 @@ export default function CheckInOutCard({
               </div>
             )}
           {/* ---------- Location status — the anti-fake-checkin signal ---------- */}
-          {!checkedIn && !checkedOut && (
+          {!ultraCompact && !checkedIn && !checkedOut && (
             <div className="mb-3 text-xs rounded-lg px-3 py-2.5 bg-slate-50">
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div className="flex items-start gap-2 min-w-0">
