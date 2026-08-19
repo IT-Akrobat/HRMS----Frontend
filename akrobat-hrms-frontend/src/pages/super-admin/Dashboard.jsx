@@ -1053,28 +1053,33 @@
 //   );
 // }
 import {
-  AlertTriangle,
-  ArrowRight,
-  Building2,
-  Loader2,
-  LogIn,
-  LogOut,
-  MapPin,
-  Megaphone,
-  Pencil,
-  Plus,
-  ShieldCheck,
-  Trash2,
-  UserCheck,
-  UserPlus,
-  Users,
-  X,
+    Activity,
+    AlertTriangle,
+    ArrowRight,
+    Building2,
+    Clock,
+    LayoutGrid,
+    Loader2,
+    LogIn,
+    LogOut,
+    MapPin,
+    Megaphone,
+    Pencil,
+    Plus,
+    ShieldCheck,
+    Trash2,
+    UserCheck,
+    UserPlus,
+    Users,
+    Users2,
+    X
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import AttendanceTrendChart from "../../components/common/AttendanceTrendChart";
 import BirthdaysCard, {
-  OnLeaveTodayCard,
+    OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 
 import PageHeader from "../../components/common/PageHeader";
@@ -1331,6 +1336,48 @@ export default function SuperAdminDashboard() {
   // coordinate in Recent Activity, keyed by placeKey(lat, lon) — see
   // reverseGeocode() above. Populated lazily once logs load.
   const [placeCache, setPlaceCache] = useState({});
+
+  // ---------------------------------------------------------------------
+  // Mobile-only layout state (below lg). Which Command Center bento tile
+  // has its bottom sheet open — desktop/tablet (lg and up) keeps the
+  // original always-visible two-column layout untouched; this only
+  // drives the lg:hidden layout below.
+  // ---------------------------------------------------------------------
+  const [openSheet, setOpenSheet] = useState(null);
+
+  // Which segmented tab (Overview / Activity / Team) is active, and
+  // which stat carousel card is centered — same mobile pattern as the
+  // HR Admin dashboard (see the `lg:hidden` block below).
+  const [mobileTab, setMobileTab] = useState("overview");
+  const [statPage, setStatPage] = useState(0);
+
+  // (Overview tab now stacks Attendance Trend + Top Performers directly,
+  // no toggle needed between them — see the "overview" tab render below.)
+
+  // Whether the "+" quick-create popup (Create Site / Create User /
+  // Create Announcement) is open — mobile-only, lives next to the
+  // scrollable quick-actions row.
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
+
+  // Live day/date/time shown in the header banner. Ticks every second
+  // off the browser clock (no backend call needed) so the banner never
+  // shows a stale timestamp on a dashboard left open for a while.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const headerDateLabel = now.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const headerTimeLabel = now.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 
   // "Create User" quick action (top-right, before the Quote of the Day
   // card) opens UserFormModal in place instead of navigating to
@@ -1634,6 +1681,86 @@ export default function SuperAdminDashboard() {
       .finally(() => setTrendLoading(false));
   }, [trendRange]);
 
+  // Cards for the mobile KPI bento grid (see the `lg:hidden` block below)
+  // — same four numbers as the desktop stat row, just a bolder
+  // gradient-tile treatment instead of the flat StatCard look.
+  const statItems = [
+    {
+      key: "total",
+      icon: Users,
+      label: "Total Employees",
+      value: stats?.total_employees,
+      cardBg: "bg-orange-50",
+      iconBg: "bg-orange-500",
+    },
+    {
+      key: "present",
+      icon: UserCheck,
+      label: "Present Today",
+      value: stats?.present_today,
+      cardBg: "bg-emerald-50",
+      iconBg: "bg-emerald-500",
+    },
+    {
+      key: "late",
+      icon: AlertTriangle,
+      label: "Late Today",
+      value: stats?.late_today,
+      cardBg: "bg-violet-50",
+      iconBg: "bg-violet-500",
+    },
+    {
+      key: "depts",
+      icon: Building2,
+      label: "Departments",
+      value: stats?.total_departments,
+      cardBg: "bg-slate-100",
+      iconBg: "bg-slate-800",
+    },
+  ];
+
+  // Tiles for the mobile "Command Center" bento grid. Each tile opens
+  // the matching bottom sheet on tap instead of a plain stacked card or
+  // an accordion — reuses the exact same components/data as desktop,
+  // just a different entry interaction.
+  const activeAnnouncementCount = announcements.filter(
+    (a) => !isAnnouncementExpired(a),
+  ).length;
+  const commandTiles = [
+    {
+      key: "announcements",
+      label: "Announcements",
+      icon: Megaphone,
+      bg: "bg-orange-50",
+      iconFg: "text-orange-700",
+      labelFg: "text-orange-900",
+      previewFg: "text-orange-700",
+      preview:
+        announcements.length === 0
+          ? "No announcements yet"
+          : announcements[0].title,
+      badge: activeAnnouncementCount || null,
+    },
+  ];
+
+  // Tracks which stat card is centered so the dot indicator below the
+  // carousel stays in sync while swiping.
+  function handleStatScroll(e) {
+    const el = e.currentTarget;
+    const card = el.firstChild;
+    if (!card) return;
+    const cardWidth = card.offsetWidth + 10; // gap-2.5 = 10px
+    const idx = Math.round(el.scrollLeft / cardWidth);
+    setStatPage(Math.max(0, Math.min(statItems.length - 1, idx)));
+  }
+
+  const sheetTitles = {
+    activity: "Recent Activity",
+    onleave: "On Leave Today",
+    announcements: "Announcements",
+    birthdays: "Upcoming Birthdays",
+  };
+
   return (
     <div className="overflow-x-hidden">
       {/* Hides the scrollbar visually on the horizontal stat-card row and
@@ -1643,7 +1770,10 @@ export default function SuperAdminDashboard() {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* ---------- Desktop/tablet header (lg and up) — unchanged ---------- */}
+      {/* ---------- Desktop/tablet header (lg and up) — back to the
+          original plain PageHeader. The dark-navy banner treatment
+          is mobile-only now (see below); desktop keeps its original
+          look, unchanged. ---------- */}
       <div className="hidden lg:block">
         <PageHeader
           title="System Dashboard"
@@ -1681,48 +1811,669 @@ export default function SuperAdminDashboard() {
       </div>
 
       {/* ---------- Mobile header (below lg) ----------
-          Title + the two quick-action circles share the same line (like
-          the desktop header), Quote of the Day stacked full-width below —
-          same pattern as the Employee/Manager dashboards' mobile header. */}
+          Same dark-navy banner treatment as desktop, scaled down —
+          this is what's in the "System Dashboard" screenshot: a solid
+          navy card with the Shield badge, "SUPER ADMIN" eyebrow, title
+          and quick actions, instead of sitting directly on the white
+          page background like HR Admin's mobile header does. ---------- */}
       <div className="lg:hidden mb-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-800 mb-1">
-              System Dashboard
-            </h1>
-            <p className="text-sm text-slate-500">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#0F2242] to-[#16305A] px-4 pt-4 pb-4 mb-3 shadow-lg shadow-[#0B1830]/20">
+          <div className="pointer-events-none absolute -top-14 -right-10 w-40 h-40 rounded-full bg-orange-500/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-16 left-1/4 w-48 h-48 rounded-full bg-sky-500/10 blur-3xl" />
+
+          <div className="relative flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+                <ShieldCheck size={17} className="text-orange-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider">
+                  Super Admin
+                </p>
+                <h1 className="text-xl font-bold text-white leading-tight truncate">
+                  System Dashboard
+                </h1>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={openAddUser}
+                title="Create User"
+                aria-label="Create User"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-orange-500 text-white flex items-center justify-center transition-colors shrink-0 border border-white/10"
+              >
+                <UserPlus size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddSiteOpen(true)}
+                title="Create Site"
+                aria-label="Create Site"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-orange-500 text-white flex items-center justify-center transition-colors shrink-0 border border-white/10"
+              >
+                <Building2 size={15} />
+              </button>
+            </div>
+          </div>
+          <div className="relative flex items-center justify-between gap-2 mt-2">
+            <p className="text-xs text-slate-300/80">
               Overview of your system and activity
             </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={openAddUser}
-              title="Create User"
-              aria-label="Create User"
-              className="w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
-            >
-              <UserPlus size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddSiteOpen(true)}
-              title="Create Site"
-              aria-label="Create Site"
-              className="w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
-            >
-              <Building2 size={16} />
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Clock size={12} className="text-orange-400 shrink-0" />
+              <p className="text-[11px] font-medium text-slate-200 whitespace-nowrap tabular-nums">
+                {headerDateLabel} · {headerTimeLabel}
+              </p>
+            </div>
           </div>
         </div>
-
-        <div className="mt-3">
-          <QuoteOfDayCard compact />
-        </div>
+        <QuoteOfDayCard compact />
       </div>
 
-      {/* ---------- Top row: stat cards (full width) ---------- */}
-      <div className="flex gap-3 sm:gap-4 mb-4 sm:mb-6 items-stretch">
+      {/* =================================================================
+          MOBILE-ONLY DASHBOARD (below lg)
+          Same pattern as the HR Admin dashboard: a swipeable stat
+          carousel, a segmented Overview / Activity / Team switcher, and
+          the "+" quick-create FAB pinned bottom-right — built from the
+          exact same data/components used on desktop, just presented
+          the same way HR Admin's mobile dashboard is.
+      ================================================================= */}
+      <div className="lg:hidden">
+        {/* ---------- Stat carousel: compact light-orange cards, ~2.3 visible at a time ---------- */}
+        <div
+          onScroll={handleStatScroll}
+          className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory no-scrollbar -mx-4 px-4 pb-1 mb-2"
+        >
+          {statItems.map(({ key, icon: Icon, label, value }) => (
+            <div
+              key={key}
+              className="snap-start shrink-0 w-[42%] rounded-xl bg-orange-50 border border-orange-100 p-3 flex flex-col gap-2 h-[76px]"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-orange-700/80 truncate">
+                  {label}
+                </span>
+                <div className="w-6 h-6 rounded-full bg-[#16305A] text-white flex items-center justify-center shrink-0">
+                  <Icon size={12} />
+                </div>
+              </div>
+              <p className="text-xl font-bold leading-none text-slate-800">
+                {statsLoading ? (
+                  <span className="inline-block w-8 h-5 bg-orange-100 rounded animate-pulse" />
+                ) : (
+                  (value ?? "—")
+                )}
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-center gap-1.5 mb-4">
+          {statItems.map((_, i) => (
+            <span
+              key={i}
+              className={`h-1.5 rounded-full transition-all ${
+                i === statPage ? "w-4 bg-orange-500" : "w-1.5 bg-slate-200"
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* ---------- Segmented tab switcher ---------- */}
+        <div className="grid grid-cols-3 gap-1 bg-slate-100 rounded-full p-1 mb-4">
+          {[
+            { key: "overview", label: "Overview", icon: LayoutGrid },
+            { key: "activity", label: "Activity", icon: Activity },
+            { key: "team", label: "Team", icon: Users2 },
+          ].map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMobileTab(key)}
+              className={`flex items-center justify-center gap-1.5 rounded-full py-2 text-xs font-semibold transition-colors ${
+                mobileTab === key
+                  ? "bg-[#16305A] text-orange-400 shadow-sm"
+                  : "text-slate-500"
+              }`}
+            >
+              <Icon size={13} /> {label}
+            </button>
+          ))}
+        </div>
+
+        {/* ---------- Overview tab ----------
+            Attendance Trend chart, then the Top Performers card
+            stacked directly below it (same pattern HR Admin uses) —
+            previously this was a Trend/Top 5 toggle showing one panel
+            at a time, and Top Performers was also duplicated as its
+            own tile under the Team tab. Now there's a single place to
+            see it, right under the attendance chart, full-width. ---------- */}
+        {mobileTab === "overview" && (
+          <div className="mb-6 space-y-4">
+            <div className="flex items-center gap-2 px-0.5">
+              <span className="h-1.5 w-4 rounded-full bg-orange-500" />
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                System Insights
+              </h2>
+            </div>
+
+            <AttendanceTrendChart
+              trend={trend}
+              loading={trendLoading}
+              range={trendRange}
+              onRangeChange={setTrendRange}
+            />
+
+            <div className="h-80">
+              <TopPerformersCard />
+            </div>
+
+            {/* ---------- Today: On Leave + Birthdays ----------
+                Moved below Top Performers, and switched from a fixed
+                2-up grid to a horizontally swipeable strip (same swipe
+                pattern as the KPI cards up top) with a shorter card
+                height — a compact "swipe for more" row instead of a
+                tall block competing with the chart/Top Performers for
+                space at the top of the tab. ---------- */}
+            <div className="flex items-center gap-2 px-0.5">
+              <span className="h-1.5 w-4 rounded-full bg-[#16305A]" />
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Today
+              </h2>
+            </div>
+            <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar -mx-4 px-4">
+              <div className="snap-start shrink-0 w-[86%] h-48">
+                <OnLeaveTodayCard />
+              </div>
+              <div className="snap-start shrink-0 w-[86%] h-48">
+                <BirthdaysCard />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ---------- Activity tab: same Recent Activity feed as desktop,
+            just its own fixed-height scroll area under the tab. ---------- */}
+        {mobileTab === "activity" && (
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col h-[420px] mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <ShieldCheck size={17} className="text-orange-500" /> Recent
+                Activity
+              </h3>
+              <Link
+                to="/super-admin/security/audit-logs"
+                className="text-xs font-medium text-orange-500 flex items-center gap-1 shrink-0"
+              >
+                View All <ArrowRight size={12} />
+              </Link>
+            </div>
+            {logsLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-10 bg-slate-100 rounded animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : logsError ? (
+              <div className="text-sm text-orange-500">
+                Couldn't load recent activity: {logsError}
+              </div>
+            ) : logs.length === 0 ? (
+              <p className="text-sm text-slate-400">No recent activity.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100 overflow-y-auto no-scrollbar flex-1">
+                {logs.map((log) => {
+                  const entry = parseLogEntry(log, locations);
+                  const geocoded =
+                    entry.lat != null && entry.lon != null
+                      ? placeCache[placeKey(entry.lat, entry.lon)]
+                      : null;
+                  const matchedOffice = resolveLocationName(
+                    entry.lat,
+                    entry.lon,
+                    locations,
+                  );
+                  const locationName =
+                    geocoded ||
+                    matchedOffice ||
+                    (entry.lat != null && entry.lon != null
+                      ? `${entry.lat.toFixed(4)}, ${entry.lon.toFixed(4)}`
+                      : null);
+                  return (
+                    <li key={log.id} className="py-2 flex items-start gap-2.5">
+                      <LogIcon kind={entry.kind} />
+                      <div className="min-w-0 flex-1 flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">
+                            {entry.name}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {entry.action}
+                          </p>
+                          {locationName && (
+                            <p className="text-[11px] text-slate-400 flex items-center gap-0.5 truncate">
+                              <MapPin size={9} className="shrink-0" />{" "}
+                              {locationName}
+                            </p>
+                          )}
+                        </div>
+                        {entry.time && (
+                          <span className="text-xs text-slate-400 whitespace-nowrap">
+                            {formatTime(entry.time)}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* ---------- Team tab: Announcements management ----------
+            On Leave Today and Birthdays used to live here too, as tap
+            tiles behind a bottom sheet — they now render as real,
+            always-visible cards on the Overview tab instead (see
+            above), since "who's out" / "who's celebrating" is info
+            people should see at a glance, not have to tap into. Only
+            Announcements stays as a tap-through tile here, since
+            creating/editing/deleting needs the extra room a sheet
+            gives it. ---------- */}
+        {mobileTab === "team" && (
+          <div
+            className={`grid gap-3 mb-6 ${commandTiles.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
+          >
+            {commandTiles.map(
+              ({
+                key,
+                label,
+                icon: Icon,
+                bg,
+                iconFg,
+                labelFg,
+                previewFg,
+                preview,
+                badge,
+              }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setOpenSheet(key)}
+                  className={`text-left rounded-2xl ${bg} p-4 active:scale-[0.97] transition-transform`}
+                >
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span
+                      className={`w-9 h-9 rounded-xl bg-white flex items-center justify-center ${iconFg}`}
+                    >
+                      <Icon size={17} />
+                    </span>
+                    {badge ? (
+                      <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                        {badge}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className={`text-xs font-semibold ${labelFg}`}>{label}</p>
+                  <p className={`text-[11px] mt-0.5 line-clamp-1 ${previewFg}`}>
+                    {preview}
+                  </p>
+                </button>
+              ),
+            )}
+          </div>
+        )}
+
+        {/* ---------- Floating "+" (bottom-right) + speed-dial bubbles ----------
+            Rendered through a portal straight onto document.body (see
+            createPortal below) so it's genuinely pinned to the real
+            viewport corner — nesting it inside the page's own DOM was
+            letting it drift and land on top of card content instead of
+            staying put as the page scrolled. Tapping "+" no longer opens
+            a solid white list — each create-action pops up as its own
+            separate, semi-transparent round bubble with a label next to
+            it, stacked above the button.
+
+            Hidden entirely whenever any modal/bottom-sheet is already
+            open (Add User, Create Site, Announcement, or a command-tile
+            sheet) — it used to sit at z-[999], above every modal's
+            z-50 overlay, so it kept floating on top of whatever popup
+            was open and could be tapped right through it. Unmounting it
+            here removes both the visual overlap and the ability to
+            accidentally trigger a second popup while one is already up. */}
+        {typeof document !== "undefined" &&
+          !addUserOpen &&
+          !addSiteOpen &&
+          !announceOpen &&
+          !openSheet &&
+          createPortal(
+            <div className="fixed bottom-6 right-5 z-[999] flex flex-col items-end gap-2.5 lg:hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickMenuOpen(false);
+                  setAddSiteOpen(true);
+                }}
+                title="Create Site"
+                aria-label="Create Site"
+                className={`flex items-center gap-2 transition-all duration-150 ${
+                  quickMenuOpen
+                    ? "opacity-100 translate-y-0"
+                    : "opacity-0 translate-y-2 pointer-events-none"
+                }`}
+              >
+                <span className="text-xs font-medium text-white bg-[#0B1830]/95 px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
+                  Create Site
+                </span>
+                <span className="w-11 h-11 rounded-full bg-[#0B1830]/95 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform shrink-0">
+                  <Building2 size={17} />
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickMenuOpen(false);
+                  openAddUser();
+                }}
+                title="Create User"
+                aria-label="Create User"
+                className={`flex items-center gap-2 transition-all duration-150 delay-75 ${
+                  quickMenuOpen
+                    ? "opacity-100 translate-y-0"
+                    : "opacity-0 translate-y-2 pointer-events-none"
+                }`}
+              >
+                <span className="text-xs font-medium text-white bg-[#0B1830]/95 px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
+                  Create User
+                </span>
+                <span className="w-11 h-11 rounded-full bg-[#0B1830]/95 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform shrink-0">
+                  <UserPlus size={17} />
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickMenuOpen(false);
+                  openAnnounce();
+                }}
+                title="Create Announcement"
+                aria-label="Create Announcement"
+                className={`flex items-center gap-2 transition-all duration-150 delay-100 ${
+                  quickMenuOpen
+                    ? "opacity-100 translate-y-0"
+                    : "opacity-0 translate-y-2 pointer-events-none"
+                }`}
+              >
+                <span className="text-xs font-medium text-white bg-orange-600/95 px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
+                  Announcement
+                </span>
+                <span className="w-11 h-11 rounded-full bg-orange-500 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform shrink-0">
+                  <Megaphone size={17} />
+                </span>
+              </button>
+
+              {/* Backdrop — tapping anywhere outside the bubbles closes them. */}
+              {quickMenuOpen && (
+                <div
+                  className="fixed inset-0 -z-10"
+                  onClick={() => setQuickMenuOpen(false)}
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={() => setQuickMenuOpen((v) => !v)}
+                title="Quick create"
+                aria-label="Quick create"
+                aria-expanded={quickMenuOpen}
+                className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-colors shrink-0 ${
+                  quickMenuOpen
+                    ? "bg-orange-600 text-white"
+                    : "bg-orange-500 text-white"
+                }`}
+              >
+                <Plus
+                  size={22}
+                  className={`transition-transform ${quickMenuOpen ? "rotate-45" : ""}`}
+                />
+              </button>
+            </div>,
+            document.body,
+          )}
+      </div>
+      {/* ================= END MOBILE-ONLY DASHBOARD ================= */}
+
+      {/* ---------- Bottom sheet (mobile only) ----------
+          Slides up over the page for whichever Command Center tile was
+          tapped. Reuses the exact same components/data as the desktop
+          columns further down, just presented one panel at a time in an
+          overlay instead of stacked inline. ---------- */}
+      {openSheet && (
+        <div
+          className="fixed inset-0 z-50 lg:hidden flex items-end justify-center"
+          onClick={() => setOpenSheet(null)}
+        >
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-md bg-white rounded-t-2xl shadow-xl max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 rounded-full bg-slate-200 mx-auto mt-3" />
+            <div className="flex items-center justify-between px-5 pt-3 pb-2">
+              <h3 className="font-semibold text-slate-800">
+                {sheetTitles[openSheet]}
+              </h3>
+              <div className="flex items-center gap-2">
+                {openSheet === "announcements" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenSheet(null);
+                      openAnnounce();
+                    }}
+                    title="Create announcement"
+                    aria-label="Create announcement"
+                    className="w-7 h-7 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center shrink-0"
+                  >
+                    <Plus size={14} />
+                  </button>
+                )}
+                <button
+                  onClick={() => setOpenSheet(null)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 shrink-0"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="px-5 pb-6 overflow-y-auto no-scrollbar">
+              {openSheet === "activity" && (
+                <>
+                  {logsLoading ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="h-10 bg-slate-100 rounded animate-pulse"
+                        />
+                      ))}
+                    </div>
+                  ) : logsError ? (
+                    <div className="text-sm text-orange-500">
+                      Couldn't load recent activity: {logsError}
+                    </div>
+                  ) : logs.length === 0 ? (
+                    <p className="text-sm text-slate-400">
+                      No recent activity.
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100">
+                      {logs.map((log) => {
+                        const entry = parseLogEntry(log, locations);
+                        const geocoded =
+                          entry.lat != null && entry.lon != null
+                            ? placeCache[placeKey(entry.lat, entry.lon)]
+                            : null;
+                        const matchedOffice = resolveLocationName(
+                          entry.lat,
+                          entry.lon,
+                          locations,
+                        );
+                        const locationName =
+                          geocoded ||
+                          matchedOffice ||
+                          (entry.lat != null && entry.lon != null
+                            ? `${entry.lat.toFixed(4)}, ${entry.lon.toFixed(4)}`
+                            : null);
+                        return (
+                          <li
+                            key={log.id}
+                            className="py-2 flex items-start gap-2.5"
+                          >
+                            <LogIcon kind={entry.kind} />
+                            <div className="min-w-0 flex-1 flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-slate-800 truncate">
+                                  {entry.name}
+                                </p>
+                                <p className="text-xs text-slate-500 truncate">
+                                  {entry.action}
+                                </p>
+                                {locationName && (
+                                  <p className="text-[11px] text-slate-400 flex items-center gap-0.5 truncate">
+                                    <MapPin size={9} className="shrink-0" />{" "}
+                                    {locationName}
+                                  </p>
+                                )}
+                              </div>
+                              {entry.time && (
+                                <span className="text-xs text-slate-400 whitespace-nowrap">
+                                  {formatTime(entry.time)}
+                                </span>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  <Link
+                    to="/super-admin/security/audit-logs"
+                    onClick={() => setOpenSheet(null)}
+                    className="mt-3 flex items-center justify-center gap-1 text-xs font-medium text-orange-500"
+                  >
+                    View Audit Logs <ArrowRight size={12} />
+                  </Link>
+                </>
+              )}
+
+              {openSheet === "onleave" && (
+                <div className="h-72">
+                  <OnLeaveTodayCard />
+                </div>
+              )}
+
+              {openSheet === "announcements" &&
+                (announcements.length === 0 ? (
+                  <p className="text-sm text-slate-400">
+                    No announcements yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {[...announcements]
+                      .sort((a, b) => {
+                        const aExpired = isAnnouncementExpired(a);
+                        const bExpired = isAnnouncementExpired(b);
+                        if (aExpired !== bExpired) return aExpired ? 1 : -1;
+                        return (b.end_date || "").localeCompare(
+                          a.end_date || "",
+                        );
+                      })
+                      .map((a) => {
+                        const expired = isAnnouncementExpired(a);
+                        return (
+                          <div
+                            key={a.id}
+                            className={
+                              "group relative rounded-lg p-2.5 pr-14 border " +
+                              (expired
+                                ? "bg-slate-50 border-slate-200 opacity-60"
+                                : "bg-orange-50 border-orange-100")
+                            }
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <p
+                                className={
+                                  "text-sm font-medium truncate " +
+                                  (expired
+                                    ? "text-slate-500"
+                                    : "text-slate-800")
+                                }
+                              >
+                                {a.title}
+                              </p>
+                              {expired && (
+                                <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
+                                  Expired
+                                </span>
+                              )}
+                            </div>
+                            <p
+                              className={
+                                "text-xs mt-0.5 " +
+                                (expired ? "text-slate-400" : "text-slate-500")
+                              }
+                            >
+                              {a.description}
+                            </p>
+                            <div className="absolute top-2 right-2 flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenSheet(null);
+                                  openEditAnnounce(a);
+                                }}
+                                title="Edit announcement"
+                                aria-label="Edit announcement"
+                                className="w-6 h-6 rounded-md bg-white border border-orange-200 text-orange-500 flex items-center justify-center shrink-0"
+                              >
+                                <Pencil size={11} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteAnnounceItem(a)}
+                                disabled={deletingAnnounceId === a.id}
+                                title="Delete announcement"
+                                aria-label="Delete announcement"
+                                className="w-6 h-6 rounded-md bg-white border border-red-200 text-red-500 flex items-center justify-center shrink-0 disabled:opacity-50"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                ))}
+
+              {openSheet === "birthdays" && (
+                <div className="h-72">
+                  <BirthdaysCard />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- Top row: stat cards (full width, desktop/tablet only —
+          mobile gets its own gradient KPI carousel above) ---------- */}
+      <div className="hidden lg:flex gap-3 sm:gap-4 mb-4 sm:mb-6 items-stretch">
         <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1 w-full">
           <div className="min-w-[170px] w-[170px] shrink-0">
             <StatCard
@@ -1782,13 +2533,14 @@ export default function SuperAdminDashboard() {
         </div>
       </div>
 
-      {/* ---------- Two-column body ----------
+      {/* ---------- Two-column body (desktop/tablet only — mobile gets its
+          own Overview / Activity / Team tabs above) ----------
           Left:  Check-in/out -> Recent Activity -> Attendance Trend (+ Dept
                  Distribution, same "chart" grouping)
           Right: On Leave Today -> Announcements -> Upcoming Birthdays ->
                  Top Performance
       ---------------------------------------------------------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-[65%_1fr] gap-4 sm:gap-6 items-start min-w-0">
+      <div className="hidden lg:grid lg:grid-cols-[65%_1fr] gap-4 sm:gap-6 items-start min-w-0">
         {/* ================= Left column (65%) ================= */}
         <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
           {/* ---------- Check-in/out (HR Admin is a person too) ---------- */}

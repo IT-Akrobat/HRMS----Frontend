@@ -43,9 +43,6 @@
 import Dashboard from "../pages/super-admin/Dashboard.jsx";
 import LeaveRequests from "../pages/super-admin/LeaveRequests.jsx";
 import LiveTracking from "../pages/super-admin/LiveTracking.jsx";
-import OrganizationCompanyProfile from "../pages/super-admin/OrganizationCompanyProfile.jsx";
-import OrganizationDepartments from "../pages/super-admin/OrganizationDepartments.jsx";
-import OrganizationLocations from "../pages/super-admin/OrganizationLocations.jsx";
 import Reports from "../pages/super-admin/Reports.jsx";
 import SecurityAccessControl from "../pages/super-admin/SecurityAccessControl.jsx";
 import SecurityAuditLogs from "../pages/super-admin/SecurityAuditLogs.jsx";
@@ -62,12 +59,12 @@ export const superAdminRoutes = [
   { path: "users", element: <Users /> },
   // { path: "users/roles", element: <UsersRoles /> },
   { path: "users/permissions", element: <UsersPermissions /> },
-  {
-    path: "organization/company-profile",
-    element: <OrganizationCompanyProfile />,
-  },
-  { path: "organization/departments", element: <OrganizationDepartments /> },
-  { path: "organization/locations", element: <OrganizationLocations /> },
+  // {
+  //   path: "organization/company-profile",
+  //   element: <OrganizationCompanyProfile />,
+  // },
+  // { path: "organization/departments", element: <OrganizationDepartments /> },
+  // { path: "organization/locations", element: <OrganizationLocations /> },
   // { path: "employees", element: <Employees /> },
   // { path: "employees/hr-admins", element: <EmployeesHrAdmins /> },
   // { path: "employees/managers", element: <EmployeesManagers /> },

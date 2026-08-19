@@ -85,8 +85,11 @@ export function OnLeaveTodayCard() {
         <p className="text-sm text-slate-400">No one is on leave today.</p>
       ) : (
         <ul className="divide-y divide-slate-100 overflow-y-auto max-h-64">
-          {employees.map((p) => (
-            <li key={p.employee_id} className="flex items-center gap-3 py-2.5">
+          {employees.map((p, i) => (
+            <li
+              key={p.employee_id ?? `on-leave-${i}`}
+              className="flex items-center gap-3 py-2.5"
+            >
               <Avatar person={p} />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-slate-800 truncate">

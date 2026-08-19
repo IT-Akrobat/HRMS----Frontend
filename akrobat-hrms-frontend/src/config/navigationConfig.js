@@ -1,7 +1,6 @@
 import {
   BarChart3,
   Bell,
-  Building2,
   Clock,
   FileText,
   LayoutDashboard,
@@ -9,7 +8,7 @@ import {
   Settings,
   ShieldCheck,
   User,
-  Users,
+  Users
 } from "lucide-react";
 import { ROLES } from "./roles";
 
@@ -222,18 +221,18 @@ export const NAVIGATION_CONFIG = {
         { label: "Permissions", path: "/super-admin/users/permissions" },
       ],
     },
-    {
-      label: "Organization Setup",
-      icon: Building2,
-      children: [
-        {
-          label: "Company Profile",
-          path: "/super-admin/organization/company-profile",
-        },
-        { label: "Departments", path: "/super-admin/organization/departments" },
-        { label: "Locations", path: "/super-admin/organization/locations" },
-      ],
-    },
+    // {
+    //   label: "Organization Setup",
+    //   icon: Building2,
+    //   children: [
+    //     {
+    //       label: "Company Profile",
+    //       path: "/super-admin/organization/company-profile",
+    //     },
+    //     { label: "Departments", path: "/super-admin/organization/departments" },
+    //     { label: "Locations", path: "/super-admin/organization/locations" },
+    //   ],
+    // },
     // {
     //   label: "Employee Management",
     //   icon: User,

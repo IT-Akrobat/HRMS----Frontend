@@ -1267,7 +1267,15 @@ export default function HrAdminDashboard() {
         {/* ---------- Overview tab ---------- */}
         {mobileTab === "overview" && (
           <div className="flex flex-col gap-4 mb-6">
-            <CheckInOutCard compact onActivityChange={loadLogs} />
+            {/* ---------- Check-in/out ----------
+                Same treatment as the Manager dashboard's mobile
+                check-in: a slim gradient-bordered shell plus the
+                `ultraCompact` layout on CheckInOutCard itself (single
+                row, no side timeline) instead of the plain white
+                `compact` card. Desktop (below) is unaffected. */}
+            <div className="rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
+              <CheckInOutCard ultraCompact onActivityChange={loadLogs} />
+            </div>
             <AttendanceTrendChart
               trend={trend}
               loading={trendLoading}
