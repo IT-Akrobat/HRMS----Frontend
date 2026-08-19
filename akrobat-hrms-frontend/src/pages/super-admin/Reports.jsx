@@ -762,29 +762,40 @@ export default function Reports() {
       });
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Current tab's search text (Attendance intentionally has no search
-  // box, so this is always "" there — see the search bar below).
+  // Current tab's search text — kept per-tab so switching tabs doesn't
+  // carry one tab's query over to another.
   const search = searchByTab[activeTab] || "";
   const setSearch = (value) =>
     setSearchByTab((prev) => ({ ...prev, [activeTab]: value }));
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, search]);
+  }, [activeTab, search, monthlyEmployeeId]);
 
   const rows = reportData[activeTab] || [];
   const loading = !!loadingTabs[activeTab];
   const error = errorTabs[activeTab];
 
   const filtered = useMemo(() => {
-    // Attendance has no search box — the visible table (and its
-    // "current view" export) is always the full, unfiltered dataset.
-    if (activeTab === "attendance" || !search.trim()) return rows;
+    if (activeTab === "attendance") {
+      // Attendance's "search" is the Employee picker above the table
+      // (it already exists for the monthly-download panel) — reuse it
+      // to filter the visible table instead of a second search box.
+      if (!monthlyEmployeeId) return rows;
+      const picked = employeeOptions.find((e) => e.id === monthlyEmployeeId);
+      const code = picked?.employee_id;
+      return rows.filter(
+        (r) =>
+          r.employees?.id === monthlyEmployeeId ||
+          (code && r.employees?.employee_id === code),
+      );
+    }
+    if (!search.trim()) return rows;
     const q = search.trim().toLowerCase();
     return rows.filter((r) =>
       searchText(activeTab, r).toLowerCase().includes(q),
     );
-  }, [rows, search, activeTab]);
+  }, [rows, search, activeTab, monthlyEmployeeId, employeeOptions]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -796,10 +807,9 @@ export default function Reports() {
       return;
     }
     if (activeTab === "attendance") {
-      // No search box on this tab, so "current view" is always the
-      // full dataset anyway — export `rows` explicitly (not `filtered`)
-      // so this stays true even if that ever changes.
-      downloadAttendanceExcel(rows);
+      // Export whatever's currently visible (respects the Employee
+      // picker above, same as the table itself).
+      downloadAttendanceExcel(filtered);
       return;
     }
     const csv = toCsv(activeTab, filtered);
@@ -1274,12 +1284,13 @@ export default function Reports() {
               <div className="flex items-center gap-3 ml-auto">
                 {!loading && !error && (
                   <span className="text-xs text-slate-400">
-                    {rows.length} {rows.length === 1 ? "record" : "records"}
+                    {filtered.length}{" "}
+                    {filtered.length === 1 ? "record" : "records"}
                   </span>
                 )}
                 <button
                   onClick={handleExport}
-                  disabled={loading || !!error || rows.length === 0}
+                  disabled={loading || !!error || filtered.length === 0}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Download size={14} />
@@ -1333,7 +1344,7 @@ export default function Reports() {
                   </button>
                   <button
                     onClick={handleExport}
-                    disabled={loading || !!error || rows.length === 0}
+                    disabled={loading || !!error || filtered.length === 0}
                     title="Export Excel"
                     className="flex items-center justify-center w-9 h-9 shrink-0 rounded-lg border border-slate-200 text-slate-600 active:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -1344,7 +1355,8 @@ export default function Reports() {
                 <div className="flex items-center justify-between pt-0.5">
                   {!loading && !error && (
                     <span className="text-[11px] text-slate-400">
-                      {rows.length} {rows.length === 1 ? "record" : "records"}
+                      {filtered.length}{" "}
+                      {filtered.length === 1 ? "record" : "records"}
                     </span>
                   )}
                   {monthlyError && (
@@ -1360,8 +1372,8 @@ export default function Reports() {
 
         {/* Search + export (desktop/tablet — unchanged) —
             Employees/Leave Requests/Payroll/Projects only; Attendance
-            has its own export next to Download Month above instead
-            (no free-text search on that tab). */}
+            uses the Employee picker in the panel above instead of a
+            second search box. */}
         {activeTab !== "attendance" && (
           <div className="hidden sm:flex sm:items-center gap-3 p-4 border-b border-slate-100">
             <div className="relative flex-1 max-w-sm">
