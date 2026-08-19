@@ -1048,8 +1048,8 @@ export default function Reports() {
         subtitle="Company-wide data across employees, attendance, leave, payroll and projects."
       />
 
-      {/* ---------- KPI strip ---------- */}
-      <div className="flex gap-4 mb-6 overflow-x-auto no-scrollbar pb-1">
+      {/* ---------- KPI strip (desktop/tablet — unchanged) ---------- */}
+      <div className="hidden sm:flex gap-4 mb-6 overflow-x-auto no-scrollbar pb-1">
         <div className="min-w-[170px] w-[170px] shrink-0">
           <StatCard
             icon={Users}
@@ -1097,10 +1097,83 @@ export default function Reports() {
         </div>
       </div>
 
+      {/* ---------- KPI strip (mobile only) ----------
+          Snap-scrolling carousel of compact tiles instead of the
+          desktop StatCard grid — peeking edges hint there's more to
+          scroll, and each tile is sized for a thumb-swipe rather than
+          a mouse-drag. Desktop block above is untouched. ---------- */}
+      <div className="sm:hidden -mx-4 px-4 mb-5">
+        <div className="flex gap-2.5 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1">
+          {[
+            {
+              icon: Users,
+              label: "Employees",
+              value: stats?.employees,
+              color: "orange",
+            },
+            {
+              icon: Clock3,
+              label: "Attendance",
+              value: stats?.attendance,
+              color: "blue",
+            },
+            {
+              icon: CalendarClock,
+              label: "Leave Reqs",
+              value: stats?.leaves,
+              color: "purple",
+            },
+            {
+              icon: Wallet,
+              label: "Payroll",
+              value: stats?.payroll,
+              color: "green",
+            },
+            {
+              icon: Briefcase,
+              label: "Projects",
+              value: stats?.projects,
+              color: "slate",
+            },
+          ].map((kpi) => {
+            const Icon = kpi.icon;
+            const tileColors = {
+              orange: "bg-orange-50 text-orange-600",
+              blue: "bg-blue-50 text-blue-600",
+              purple: "bg-blue-50 text-blue-600",
+              green: "bg-blue-50 text-blue-600",
+              slate: "bg-slate-100 text-slate-600",
+            };
+            return (
+              <div
+                key={kpi.label}
+                className="snap-start shrink-0 w-[124px] rounded-2xl border border-slate-200 bg-white p-3"
+              >
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2.5 ${tileColors[kpi.color]}`}
+                >
+                  <Icon size={15} />
+                </div>
+                {statsLoading ? (
+                  <div className="h-5 w-10 bg-slate-100 rounded animate-pulse mb-1" />
+                ) : (
+                  <div className="text-lg font-bold text-slate-800 leading-none mb-1">
+                    {kpi.value ?? "—"}
+                  </div>
+                )}
+                <div className="text-[10.5px] text-slate-500 leading-tight">
+                  {kpi.label}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ---------- Report card: tabs + search/export + table ---------- */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        {/* Segmented tab control */}
-        <div className="flex items-center gap-1 p-2 border-b border-slate-100 overflow-x-auto no-scrollbar">
+        {/* Segmented tab control (desktop/tablet — unchanged) */}
+        <div className="hidden sm:flex items-center gap-1 p-2 border-b border-slate-100 overflow-x-auto no-scrollbar">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = tab.key === activeTab;
@@ -1115,6 +1188,37 @@ export default function Reports() {
                 }`}
               >
                 <Icon size={15} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Segmented tab control (mobile only) — snap-scrolling chips
+            with a colored icon chip so the active tab reads clearly
+            even mid-scroll, sized for a thumb tap. Desktop block
+            above is untouched. */}
+        <div className="sm:hidden flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 overflow-x-auto no-scrollbar snap-x snap-mandatory">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = tab.key === activeTab;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`snap-start shrink-0 flex items-center gap-1.5 pl-1.5 pr-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                  isActive
+                    ? "bg-orange-500 text-white shadow-sm"
+                    : "bg-slate-50 text-slate-500"
+                }`}
+              >
+                <span
+                  className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                    isActive ? "bg-white/20" : "bg-white"
+                  }`}
+                >
+                  <Icon size={12} />
+                </span>
                 {tab.label}
               </button>
             );
@@ -1184,12 +1288,13 @@ export default function Reports() {
               </div>
             </div>
 
-            {/* ---- Mobile (below sm) — employee+export on one line,
-                month+download on another ---- */}
-            <div className="sm:hidden p-4 border-b border-slate-100 bg-slate-50/60 space-y-3">
-              <div className="flex items-end gap-2">
-                <div className="flex-1 min-w-0">
-                  <label className="block text-xs font-medium text-slate-500 mb-1.5">
+            {/* ---- Mobile (below sm) — redesigned as a single filter
+                card: employee search full-width, month + the two
+                actions (download / export) as a compact row below. ---- */}
+            <div className="sm:hidden p-3 border-b border-slate-100 bg-slate-50/60">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2.5">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1.5">
                     Employee
                   </label>
                   <EmployeeSearchSelect
@@ -1199,65 +1304,66 @@ export default function Reports() {
                     placeholder="All employees (optional)..."
                   />
                 </div>
-                <button
-                  onClick={handleExport}
-                  disabled={loading || !!error || rows.length === 0}
-                  title="Export Excel"
-                  className="flex items-center justify-center w-[38px] h-[38px] shrink-0 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Download size={15} />
-                </button>
-              </div>
 
-              <div className="flex items-end gap-2">
-                <div className="shrink-0">
-                  <label className="block text-xs font-medium text-slate-500 mb-1.5">
-                    Month
-                  </label>
-                  <input
-                    type="month"
-                    value={monthlyMonth}
-                    onChange={(e) => setMonthlyMonth(e.target.value)}
-                    className="w-[140px] border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-                  />
-                </div>
-                <button
-                  onClick={downloadMonthlyAttendance}
-                  disabled={monthlyDownloading || !monthlyMonth}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {monthlyDownloading ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
+                <div className="flex items-end gap-2">
+                  <div className="shrink-0">
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1.5">
+                      Month
+                    </label>
+                    <input
+                      type="month"
+                      value={monthlyMonth}
+                      onChange={(e) => setMonthlyMonth(e.target.value)}
+                      className="w-[128px] border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                    />
+                  </div>
+                  <button
+                    onClick={downloadMonthlyAttendance}
+                    disabled={monthlyDownloading || !monthlyMonth}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-orange-500 active:bg-orange-600 text-white text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {monthlyDownloading ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Download size={14} />
+                    )}
+                    <span className="truncate">
+                      {monthlyEmployeeId ? "Download" : "Download All"}
+                    </span>
+                  </button>
+                  <button
+                    onClick={handleExport}
+                    disabled={loading || !!error || rows.length === 0}
+                    title="Export Excel"
+                    className="flex items-center justify-center w-9 h-9 shrink-0 rounded-lg border border-slate-200 text-slate-600 active:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
                     <Download size={14} />
-                  )}
-                  <span className="truncate">
-                    {monthlyEmployeeId
-                      ? "Download Monthly Attendance"
-                      : "Download Month (All )"}
-                  </span>
-                </button>
-              </div>
+                  </button>
+                </div>
 
-              {!loading && !error && (
-                <span className="text-xs text-slate-400">
-                  {rows.length} {rows.length === 1 ? "record" : "records"}
-                </span>
-              )}
-              {monthlyError && (
-                <span className="text-xs text-orange-600 flex items-center gap-1">
-                  <AlertTriangle size={13} /> {monthlyError}
-                </span>
-              )}
+                <div className="flex items-center justify-between pt-0.5">
+                  {!loading && !error && (
+                    <span className="text-[11px] text-slate-400">
+                      {rows.length} {rows.length === 1 ? "record" : "records"}
+                    </span>
+                  )}
+                  {monthlyError && (
+                    <span className="text-[11px] text-orange-600 flex items-center gap-1">
+                      <AlertTriangle size={12} /> {monthlyError}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </>
         )}
 
-        {/* Search + export — Employees/Leave Requests/Payroll/Projects
-            only; Attendance has its own export next to Download Month
-            above instead (no free-text search on that tab). */}
+        {/* Search + export (desktop/tablet — unchanged) —
+            Employees/Leave Requests/Payroll/Projects only; Attendance
+            has its own export next to Download Month above instead
+            (no free-text search on that tab). */}
         {activeTab !== "attendance" && (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border-b border-slate-100">
+          <div className="hidden sm:flex sm:items-center gap-3 p-4 border-b border-slate-100">
             <div className="relative flex-1 max-w-sm">
               <Search
                 size={15}
@@ -1289,14 +1395,51 @@ export default function Reports() {
           </div>
         )}
 
-        {/* Table */}
+        {/* Search + export (mobile only) — search input full width on
+            its own row, record count + export as a compact row below
+            so both stay comfortably tappable. Desktop block above is
+            untouched. */}
+        {activeTab !== "attendance" && (
+          <div className="sm:hidden p-3 border-b border-slate-100 space-y-2">
+            <div className="relative">
+              <Search
+                size={15}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={`Search ${TABS.find((t) => t.key === activeTab)?.label.toLowerCase()}...`}
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              {!loading && !error && (
+                <span className="text-[11px] text-slate-400">
+                  {filtered.length}{" "}
+                  {filtered.length === 1 ? "record" : "records"}
+                </span>
+              )}
+              <button
+                onClick={handleExport}
+                disabled={loading || !!error || filtered.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 active:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 ml-auto"
+              >
+                <Download size={13} />
+                {activeTab === "employees" ? "Export Excel" : "Export CSV"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Table (desktop/tablet — unchanged) */}
         {error ? (
           <div className="flex items-center gap-2 text-orange-600 bg-orange-50 px-4 py-3 text-sm">
             <AlertTriangle size={16} />
             {error}
           </div>
         ) : (
-          <div className="max-h-[480px] overflow-y-auto">
+          <div className="hidden sm:block max-h-[480px] overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
@@ -1376,8 +1519,89 @@ export default function Reports() {
           </div>
         )}
 
+        {/* ---------- Mobile card list ----------
+            A data table with 5-7 columns doesn't fit a phone screen —
+            it either forces horizontal scrolling or shrinks text to
+            unreadable sizes. Below `sm`, the same `columns` definitions
+            (still driven by COLUMNS[activeTab] above, so this stays in
+            sync with the table automatically) render as a stacked card
+            per row instead: the first column (always the
+            employee/project identity cell) as the card's header, the
+            rest as label/value pairs underneath. Desktop table above
+            is untouched. ---------- */}
+        {!error && (
+          <div className="sm:hidden max-h-[560px] overflow-y-auto bg-slate-50/60 p-3 space-y-2.5">
+            {loading ? (
+              [...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl border border-slate-200 bg-white p-3.5"
+                >
+                  <div className="h-4 bg-slate-100 rounded animate-pulse w-2/3 mb-3" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="h-3 bg-slate-100 rounded animate-pulse" />
+                    <div className="h-3 bg-slate-100 rounded animate-pulse" />
+                    <div className="h-3 bg-slate-100 rounded animate-pulse" />
+                    <div className="h-3 bg-slate-100 rounded animate-pulse" />
+                  </div>
+                </div>
+              ))
+            ) : pageItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 px-4 py-14 text-center">
+                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                  <Search size={16} className="text-slate-400" />
+                </div>
+                <div className="text-slate-500 text-sm font-medium">
+                  No records found
+                </div>
+                <div className="text-slate-400 text-xs">
+                  Try a different search or check back later.
+                </div>
+              </div>
+            ) : (
+              pageItems.map((row, i) => (
+                <div
+                  key={row.id || i}
+                  className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm"
+                >
+                  <div className="mb-3 pb-3 border-b border-slate-50 text-sm [&_.w-8]:w-9 [&_.h-8]:h-9">
+                    {columns[0].render(row)}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                    {columns.slice(1).map((c) => (
+                      <div key={c.header} className="min-w-0">
+                        <div className="text-[10px] font-medium text-slate-400 mb-0.5 uppercase tracking-wide">
+                          {c.header}
+                        </div>
+                        <div className="text-[12.5px] text-slate-700 truncate">
+                          {c.render(row)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {activeTab === "employees" && (
+                    <button
+                      onClick={() => downloadEmployeeFullReport(row)}
+                      disabled={downloadingEmployeeId === row.id}
+                      className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-orange-200 bg-orange-50 text-xs font-medium text-orange-600 active:bg-orange-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {downloadingEmployeeId === row.id ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Download size={13} />
+                      )}
+                      Download Report
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Pagination footer (desktop/tablet — unchanged) */}
         {!loading && !error && filtered.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 text-xs text-slate-500">
+          <div className="hidden sm:flex items-center justify-between px-4 py-3 border-t border-slate-100 text-xs text-slate-500">
             <span>
               Showing {(page - 1) * PAGE_SIZE + 1}–
               {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
@@ -1401,6 +1625,40 @@ export default function Reports() {
                 <ChevronRight size={14} />
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Pagination footer (mobile only) — full-width Prev/Next
+            buttons sized for a thumb tap, with the range readout
+            centered between them. Desktop block above is untouched. */}
+        {!loading && !error && filtered.length > 0 && (
+          <div className="sm:hidden flex items-center gap-2 px-3 py-3 border-t border-slate-100">
+            <button
+              disabled={page === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="flex items-center justify-center gap-1 h-10 px-3 rounded-xl border border-slate-200 disabled:opacity-40 active:bg-slate-50 text-xs font-medium text-slate-600"
+            >
+              <ChevronLeft size={15} />
+              Prev
+            </button>
+            <div className="flex-1 text-center text-[11px] text-slate-400 leading-tight">
+              <div className="text-slate-600 font-medium text-xs">
+                {(page - 1) * PAGE_SIZE + 1}–
+                {Math.min(page * PAGE_SIZE, filtered.length)} of{" "}
+                {filtered.length}
+              </div>
+              <div>
+                page {page} of {totalPages}
+              </div>
+            </div>
+            <button
+              disabled={page === totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="flex items-center justify-center gap-1 h-10 px-3 rounded-xl border border-slate-200 disabled:opacity-40 active:bg-slate-50 text-xs font-medium text-slate-600"
+            >
+              Next
+              <ChevronRight size={15} />
+            </button>
           </div>
         )}
         {loading && (

@@ -1,5 +1,4 @@
 import {
-  Calendar,
   ChevronLeft,
   ChevronRight,
   Laptop,
@@ -7,12 +6,10 @@ import {
   Monitor,
   Search,
   Smartphone,
-  Tablet,
-  Users,
+  Tablet
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
-import StatCard from "../../components/common/StatCard";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 
@@ -170,14 +167,14 @@ export default function SecurityLoginActivity() {
           {error}
         </div>
       )}
-
+      {/* 
       <div className="flex sm:grid sm:grid-cols-3 gap-4 mb-6 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible">
-        {/* <StatCard
+        <StatCard
           icon={LogIn}
           label="Total logins"
           value={total}
           loading={records === null}
-        /> */}
+        />
         <StatCard
           icon={Calendar}
           label="Logins today (this page)"
@@ -194,7 +191,7 @@ export default function SecurityLoginActivity() {
           color="purple"
           className="w-40 shrink-0 sm:w-auto"
         />
-      </div>
+      </div> */}
 
       <div className="bg-white rounded-xl border border-slate-200">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-slate-100">

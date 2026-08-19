@@ -43,6 +43,7 @@
 import Dashboard from "../pages/super-admin/Dashboard.jsx";
 import LeaveRequests from "../pages/super-admin/LeaveRequests.jsx";
 import LiveTracking from "../pages/super-admin/LiveTracking.jsx";
+import OrganizationDepartments from "../pages/super-admin/OrganizationDepartments.jsx";
 import Reports from "../pages/super-admin/Reports.jsx";
 import SecurityAccessControl from "../pages/super-admin/SecurityAccessControl.jsx";
 import SecurityAuditLogs from "../pages/super-admin/SecurityAuditLogs.jsx";
@@ -63,7 +64,10 @@ export const superAdminRoutes = [
   //   path: "organization/company-profile",
   //   element: <OrganizationCompanyProfile />,
   // },
-  // { path: "organization/departments", element: <OrganizationDepartments /> },
+  {
+    path: "organization/departments",
+    element: <OrganizationDepartments />,
+  },
   // { path: "organization/locations", element: <OrganizationLocations /> },
   // { path: "employees", element: <Employees /> },
   // { path: "employees/hr-admins", element: <EmployeesHrAdmins /> },

@@ -1072,7 +1072,7 @@ import {
     UserPlus,
     Users,
     Users2,
-    X
+    X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -1857,9 +1857,7 @@ export default function SuperAdminDashboard() {
             </div>
           </div>
           <div className="relative flex items-center justify-between gap-2 mt-2">
-            <p className="text-xs text-slate-300/80">
-              Overview of your system and activity
-            </p>
+            <p className="text-xs text-slate-300/80"></p>
             <div className="flex items-center gap-1.5 shrink-0">
               <Clock size={12} className="text-orange-400 shrink-0" />
               <p className="text-[11px] font-medium text-slate-200 whitespace-nowrap tabular-nums">
