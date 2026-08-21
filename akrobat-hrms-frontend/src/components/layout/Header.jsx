@@ -471,6 +471,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { useNotificationLiveUpdates } from "../../hooks/useNotificationLiveUpdates";
 import { apiClient } from "../../services/apiClient";
+import { initNotificationFallback } from "../../services/Notificationfallback · JS";
 import { parseServerDate } from "../../utils/date";
 
 // Notification bell now backed by the real API (see app/notifications —
@@ -610,11 +611,12 @@ function NotificationBell() {
     navigate(`${ROLE_BASE_PATH[role] || ""}/notifications`);
   }
 
-  // Real-time push (see app/notifications/services.py::notify_employee()
-  // -> app/core/realtime.py::broadcast_to_employee_threadsafe()) instead
-  // of polling on a timer — a new notification shows up as a toast the
-  // instant it's written, with no delay to wait out.
-  useNotificationLiveUpdates((n) => {
+  // Shared by every delivery path below (WebSocket live-update, and the
+  // API-activity fallback) so a notification only ever gets one toast /
+  // one sound / one OS popup no matter which channel happens to surface
+  // it first — seenIdsRef is the single source of truth for "have we
+  // already shown this one".
+  function handleIncoming(n) {
     if (seenIdsRef.current.has(n.id)) return;
     seenIdsRef.current.add(n.id);
 
@@ -636,7 +638,24 @@ function NotificationBell() {
     if (document.hidden) {
       showBrowserNotification(n, openNotifications);
     }
-  });
+  }
+
+  // Real-time push (see app/notifications/services.py::notify_employee()
+  // -> app/core/realtime.py::broadcast_to_employee_threadsafe()) — a new
+  // notification shows up as a toast the instant it's written, with no
+  // delay to wait out.
+  useNotificationLiveUpdates(handleIncoming);
+
+  // Safety net under the WebSocket above: some networks/proxies block or
+  // silently drop WS upgrades, and real Web Push (pushService.js) needs
+  // HTTPS + VAPID keys configured server-side, neither of which this tab
+  // can detect or fix on its own. This piggybacks on ordinary API
+  // traffic instead — see notificationFallback.js — so a notification
+  // still arrives (with up to ~15s of lag) even if both of those
+  // channels are broken in a given environment.
+  useEffect(() => {
+    initNotificationFallback(handleIncoming);
+  }, []);
 
   // "Have I forgotten to check in?" — GET /attendance/reminder-check
   // (see app/attendance/services.py::get_attendance_reminder_status()).

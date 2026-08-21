@@ -55,62 +55,6 @@ export function clearCsrfToken() {
   inMemoryCsrfToken = null;
 }
 
-// --- Standalone (installed home-screen) PWA refresh-token fallback ---
-//
-// iOS's WKWebView, which powers "Add to Home Screen" apps, doesn't
-// reliably flush httpOnly cookies to disk before the OS kills a
-// backgrounded/swiped-away app process -- SameSite=None cookies (what
-// we use in production) are especially prone to this. The refresh
-// cookie's 30-day Max-Age is correct, but on iOS standalone the cookie
-// itself can simply be gone on next launch even though nothing expired,
-// which shows up as "closing the app logs me out."
-//
-// The backend already supports a non-cookie fallback for exactly this
-// (see app/auth/schemas.py::RefreshRequest.refresh_token / the `or
-// data.refresh_token` in app/auth/routes.py::refresh) -- it just wasn't
-// wired up here. localStorage, unlike the WKWebView cookie store, is
-// explicitly exempted from iOS's inactive-site data purge for installed
-// PWAs (Apple, iOS 13.4 release notes), so it's the more durable place
-// to keep this specific value.
-//
-// Deliberate scope: ONLY the refresh token, ONLY in standalone mode.
-// This does put a token back into JS-readable storage, which is the
-// exact tradeoff the httpOnly cookie migration was meant to avoid (see
-// app/core/cookies.py) -- but it's a bounded, documented exception for
-// a real platform limitation, not a reversion of that decision.
-const STANDALONE_REFRESH_TOKEN_KEY = "akrobat_standalone_refresh_token";
-
-function isStandalone() {
-  return (
-    window.matchMedia?.("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true // iOS Safari's own flag
-  );
-}
-
-export function getStandaloneRefreshToken() {
-  if (!isStandalone()) return null;
-  try {
-    return window.localStorage.getItem(STANDALONE_REFRESH_TOKEN_KEY);
-  } catch {
-    // Private mode / storage disabled -- fall back to cookie-only.
-    return null;
-  }
-}
-
-export function setStandaloneRefreshToken(token) {
-  if (!isStandalone()) return;
-  try {
-    if (token) {
-      window.localStorage.setItem(STANDALONE_REFRESH_TOKEN_KEY, token);
-    } else {
-      window.localStorage.removeItem(STANDALONE_REFRESH_TOKEN_KEY);
-    }
-  } catch {
-    // Nothing we can do if storage is unavailable -- cookie-only auth
-    // still applies, this is only ever a fallback.
-  }
-}
-
 function readCsrfCookie() {
   // Kept as a fallback for same-domain / same-origin deployments (e.g.
   // frontend and backend both on localhost, or proxied behind one
@@ -132,20 +76,35 @@ function captureCsrfToken(data) {
   if (data && typeof data === "object" && typeof data.csrf_token === "string") {
     inMemoryCsrfToken = data.csrf_token;
   }
-  // Login and refresh also hand back the current refresh_token, purely
-  // as the standalone-PWA fallback described above. Only ever persisted
-  // when actually running standalone (setStandaloneRefreshToken no-ops
-  // otherwise) -- every other client just ignores this field.
-  if (
-    data &&
-    typeof data === "object" &&
-    typeof data.refresh_token === "string"
-  ) {
-    setStandaloneRefreshToken(data.refresh_token);
-  }
 }
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+// ---------------------------------------------------------------------
+// Lightweight "something just happened" signal for parts of the app
+// that want to react to ordinary API traffic without running their own
+// setInterval poll -- see src/services/notificationFallback.js. This is
+// deliberately generic (not notification-specific) so any successful
+// request can double as a trigger, and deliberately cheap (a Set of
+// callbacks, no payload) so it costs nothing when nobody's listening.
+// ---------------------------------------------------------------------
+const activityListeners = new Set();
+
+export function onApiActivity(fn) {
+  activityListeners.add(fn);
+  return () => activityListeners.delete(fn);
+}
+
+function notifyActivity() {
+  for (const fn of activityListeners) {
+    try {
+      fn();
+    } catch {
+      // A listener throwing should never break the request that
+      // triggered it.
+    }
+  }
+}
 
 // De-dupes concurrent 401s (e.g. a dashboard firing 6 requests at once)
 // into a single refresh call instead of 6.
@@ -153,14 +112,6 @@ let refreshInFlight = null;
 
 async function refreshAccessToken() {
   if (!refreshInFlight) {
-    // Cookie is still the primary mechanism for everyone. The stored
-    // value here is only ever non-null in standalone mode, and only
-    // matters as a fallback for the case the cookie didn't survive
-    // (see getStandaloneRefreshToken's comment) -- the backend prefers
-    // its own cookie and only falls back to this body field if that
-    // cookie is missing (see app/auth/routes.py::refresh).
-    const standaloneRefreshToken = getStandaloneRefreshToken();
-
     refreshInFlight = fetch(`${BASE_URL}/auth/refresh`, {
       method: "POST",
       credentials: "include",
@@ -168,9 +119,11 @@ async function refreshAccessToken() {
         "Content-Type": "application/json",
         [CSRF_HEADER_NAME]: getCsrfToken() || "",
       },
-      body: JSON.stringify(
-        standaloneRefreshToken ? { refresh_token: standaloneRefreshToken } : {},
-      ),
+      // Backend prefers the refresh_token cookie and only falls back to
+      // the body if it's missing (see app/auth/routes.py::refresh) --
+      // this project still needs *a* JSON body since the route always
+      // parses one, even though there's nothing to put in it now.
+      body: JSON.stringify({}),
     })
       .then(async (res) => {
         // Supabase rotates the refresh token (and this route re-issues
@@ -193,11 +146,10 @@ async function refreshAccessToken() {
 export function clearSession() {
   // Cookies are httpOnly, so only the server can remove those (see
   // authService.logout(), which calls POST /auth/logout). The in-memory
-  // CSRF token and the standalone-PWA fallback token are the two things
-  // that *do* live here, so drop both -- otherwise either could linger
-  // and get echoed on a future request for a different session.
+  // CSRF token is the one thing that *does* live here, so drop it too --
+  // otherwise a stale token could linger and get echoed on a future
+  // request for a different session.
   clearCsrfToken();
-  setStandaloneRefreshToken(null);
 }
 
 async function request(
@@ -235,6 +187,13 @@ async function request(
   // GET /auth/csrf) so nothing has to special-case which call it came
   // from -- see the comment on captureCsrfToken above.
   captureCsrfToken(data);
+
+  // Skip the /notifications endpoints themselves -- otherwise the
+  // fallback poll's own GET /notifications/my would trigger another
+  // activity tick, which could schedule another check, etc.
+  if (response.ok && !path.startsWith("/notifications")) {
+    notifyActivity();
+  }
 
   if (!response.ok) {
     // Only ever attempt the refresh-and-retry dance once per call, and

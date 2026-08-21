@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { authService } from "../services/authService";
+import { resetNotificationFallback } from "../services/Notificationfallback · JS";
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -52,6 +53,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     disablePushNotifications();
+    resetNotificationFallback();
     await authService.logout();
     setUser(null);
   };
