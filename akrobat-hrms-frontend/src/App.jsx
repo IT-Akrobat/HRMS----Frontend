@@ -14,7 +14,17 @@ import { superAdminRoutes } from "./routes/superAdminRoutes.jsx";
 
 // Root path sends people to their own dashboard (or to login if signed out)
 function RootRedirect() {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, role, loading } = useAuth();
+  // Same reasoning as ProtectedRoute: on first mount, restoreSession()
+  // hasn't resolved yet, so `user` (and therefore isAuthenticated) is
+  // still its default `false`. Without this check, "/" -- which is
+  // exactly where an installed PWA's start_url lands on every launch --
+  // was bouncing straight to /login before the cookie/refresh-token
+  // check even ran, regardless of whether the session was actually
+  // still valid. Login.jsx has no logic to notice `user` becoming
+  // truthy afterwards and send you back, so it looked like a real
+  // logout every single time, not an occasional storage hiccup.
+  if (loading) return null; // could render a splash/spinner here
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Navigate to={DEFAULT_ROUTE_BY_ROLE[role]} replace />;
 }

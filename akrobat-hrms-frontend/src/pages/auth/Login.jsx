@@ -11,7 +11,7 @@ import { useAuth } from "../../context/AuthContext";
 const SLIDES = [slide1, slide2, slide3];
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, isAuthenticated, role, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -22,6 +22,22 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({ employeeCode: "", password: "" });
+
+  // Belt-and-suspenders alongside the RootRedirect fix in App.jsx: if
+  // this page is ever reached while a session actually restores as
+  // valid (e.g. a stale bookmark/link straight to /login, or a future
+  // route change that lands here mid-restore), send the user on to
+  // their dashboard instead of leaving them looking at the login form
+  // for a session that's already active. Waits for authLoading the same
+  // way ProtectedRoute/RootRedirect do, so it doesn't fire on the false
+  // "not authenticated yet" read before restoreSession() resolves.
+  useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+    const redirectTo =
+      location.state?.from?.pathname ?? DEFAULT_ROUTE_BY_ROLE[role] ?? "/";
+    navigate(redirectTo, { replace: true });
+  }, [authLoading, isAuthenticated, role, location.state, navigate]);
+
   useEffect(() => {
     const savedCode = localStorage.getItem("remember_employee_code");
 
