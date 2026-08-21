@@ -1,5 +1,5 @@
 import { normalizeRole } from "../config/roles";
-import { apiClient, clearCsrfToken } from "./apiClient";
+import { apiClient, clearSession } from "./apiClient";
 
 // Real backend wiring for POST /auth/login + GET /auth/me.
 // /auth/login sets the access/refresh tokens as httpOnly cookies (see
@@ -55,7 +55,10 @@ export const authService = {
     } catch (e) {
       console.warn("Logout request failed:", e);
     } finally {
-      clearCsrfToken();
+      // Also clears the standalone-PWA fallback refresh token, if any
+      // (see apiClient.js) -- a manual logout has to end the session on
+      // this device even if the server call itself failed.
+      clearSession();
     }
   },
 
