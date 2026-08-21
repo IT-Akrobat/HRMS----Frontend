@@ -363,6 +363,20 @@ export default function SiteVisitCard({
   const [error, setError] = useState(null);
   const [coords, setCoords] = useState(null);
 
+  // Sites the manager was already notified about for today (shift over,
+  // no visit logged) — see GET /attendance/site-visit/compliance-today.
+  // Once a site lands here, "Arrived" is locked for it for the rest of
+  // today so the employee can't quietly log a late arrival after their
+  // manager's already been told it was missed.
+  const [missedSiteIds, setMissedSiteIds] = useState([]);
+
+  function loadCompliance() {
+    apiClient
+      .get("/attendance/site-visit/compliance-today")
+      .then((res) => setMissedSiteIds(res?.data?.missed_site_ids || []))
+      .catch(() => {}); // best-effort, same as the reminder-check poll
+  }
+
   // Auto-dismiss any error banner (e.g. "You are 491m from awfis, outside
   // the allowed 100m radius.") after 3s, so it doesn't sit on screen
   // forever — the person can just retry (move closer / re-detect / pick a
@@ -384,6 +398,7 @@ export default function SiteVisitCard({
 
   useEffect(() => {
     load();
+    loadCompliance();
 
     apiClient
       .get("/site-assignments/my")
@@ -394,6 +409,12 @@ export default function SiteVisitCard({
       )
       .catch(() => setAssignedSites([]))
       .finally(() => setAssignedSitesLoaded(true));
+
+    // Same cadence as Header.jsx's /attendance/reminder-check poll — the
+    // compliance check only actually does anything once this employee's
+    // shift is over, so polling every few minutes (rather than every
+    // 60s like the live presence ping) is plenty.
+    const complianceId = setInterval(loadCompliance, 5 * 60 * 1000);
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -406,6 +427,8 @@ export default function SiteVisitCard({
         { enableHighAccuracy: true, timeout: 10000 },
       );
     }
+
+    return () => clearInterval(complianceId);
   }, []);
 
   // Reload whenever the day's check-in state changes elsewhere (e.g. the
@@ -567,13 +590,13 @@ export default function SiteVisitCard({
         )}
       </div>
 
-      <p className="text-xs text-slate-400 mb-3">
+      <p className="hidden lg:block text-xs text-slate-400 mb-3">
         Visiting more than one site today? Log each arrival — moving to a new
         site automatically closes the time on the last one.
       </p>
 
       {assignedSites.length > 0 && (
-        <p className="text-xs text-orange-600 bg-orange-50 rounded-lg px-3 py-2 mb-3">
+        <p className="hidden lg:block text-xs text-orange-600 bg-orange-50 rounded-lg px-3 py-2 mb-3">
           Only showing sites your manager assigned you to.
         </p>
       )}
@@ -608,6 +631,7 @@ export default function SiteVisitCard({
             <div className="space-y-2 mb-4">
               {siteOptions.map((site) => {
                 const isOpenHere = openVisit?.location_id === site.id;
+                const isMissed = missedSiteIds.includes(site.id);
                 const lastAtSite = [...visits]
                   .reverse()
                   .find((v) => v.location_id === site.id);
@@ -618,7 +642,9 @@ export default function SiteVisitCard({
                     className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 border ${
                       isOpenHere
                         ? "bg-blue-50/60 border-blue-100"
-                        : "bg-slate-50 border-transparent"
+                        : isMissed
+                          ? "bg-orange-50/60 border-orange-100"
+                          : "bg-slate-50 border-transparent"
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -630,19 +656,28 @@ export default function SiteVisitCard({
                         <div className="text-sm font-medium text-slate-700 truncate">
                           {site.location_name}
                         </div>
-                        <div className="text-[11px] text-slate-400">
+                        <div
+                          className={`text-[11px] ${isMissed ? "text-orange-600 font-medium" : "text-slate-400"}`}
+                        >
                           {isOpenHere
                             ? `${formatTime(openVisit.arrival_time)} – now · ${formatVisitDuration(openVisit)}`
-                            : lastAtSite
-                              ? `Last visit ${formatTime(lastAtSite.arrival_time)}–${formatTime(lastAtSite.departure_time)} · ${formatVisitDuration(lastAtSite)}`
-                              : "Not visited yet today"}
+                            : isMissed
+                              ? "Missed today — your manager has been notified"
+                              : lastAtSite
+                                ? `Last visit ${formatTime(lastAtSite.arrival_time)}–${formatTime(lastAtSite.departure_time)} · ${formatVisitDuration(lastAtSite)}`
+                                : "Not visited yet today"}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         onClick={() => arrive(site.id)}
-                        disabled={busy || isOpenHere}
+                        disabled={busy || isOpenHere || isMissed}
+                        title={
+                          isMissed
+                            ? "Today's visit to this site was already flagged as missed to your manager."
+                            : undefined
+                        }
                         className="flex items-center gap-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap"
                       >
                         <LogIn size={12} /> Arrived
