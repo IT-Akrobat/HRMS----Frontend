@@ -11,7 +11,7 @@ import { useAuth } from "../../context/AuthContext";
 const SLIDES = [slide1, slide2, slide3];
 
 export default function Login() {
-  const { login, isAuthenticated, role, loading: authLoading } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -22,22 +22,6 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({ employeeCode: "", password: "" });
-
-  // Belt-and-suspenders alongside the RootRedirect fix in App.jsx: if
-  // this page is ever reached while a session actually restores as
-  // valid (e.g. a stale bookmark/link straight to /login, or a future
-  // route change that lands here mid-restore), send the user on to
-  // their dashboard instead of leaving them looking at the login form
-  // for a session that's already active. Waits for authLoading the same
-  // way ProtectedRoute/RootRedirect do, so it doesn't fire on the false
-  // "not authenticated yet" read before restoreSession() resolves.
-  useEffect(() => {
-    if (authLoading || !isAuthenticated) return;
-    const redirectTo =
-      location.state?.from?.pathname ?? DEFAULT_ROUTE_BY_ROLE[role] ?? "/";
-    navigate(redirectTo, { replace: true });
-  }, [authLoading, isAuthenticated, role, location.state, navigate]);
-
   useEffect(() => {
     const savedCode = localStorage.getItem("remember_employee_code");
 
@@ -81,9 +65,26 @@ export default function Login() {
         "/";
       navigate(redirectTo, { replace: true });
     } catch (err) {
+      // The backend can be cold-starting (Render free/low tier spins the
+      // service down after inactivity), which surfaces here as either a
+      // network failure (apiClient's "Could not reach the server..."
+      // message, no err.status) or a 502 from the proxy. Either way,
+      // tell people to wait rather than let them assume it's a wrong
+      // password and immediately retry -- repeated quick retries are
+      // what trip the backend's 5-attempts/minute login rate limit
+      // (429) on top of the slow start.
+      const isColdStartLikely = !err.status || err.status === 502;
+      const isRateLimited = err.status === 429;
+
+      const message = isRateLimited
+        ? "Too many attempts. Please wait a minute before trying again."
+        : isColdStartLikely
+          ? "Server is starting up, this can take up to a minute on the first try. Please wait and try again."
+          : err.message || "Login failed.";
+
       setErrors({
         employeeCode: "",
-        password: err.message || "Login failed.",
+        password: message,
       });
 
       setTimeout(() => {

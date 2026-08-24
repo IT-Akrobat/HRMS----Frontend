@@ -1,29 +1,35 @@
-import Attendance from "../pages/hr-admin/Attendance.jsx";
-import AttendanceReports from "../pages/hr-admin/AttendanceReports.jsx";
-// import AttendanceShifts from "../pages/hr-admin/AttendanceShifts.jsx";
-import AuditLogs from "../pages/hr-admin/Auditlogs.jsx";
-import Dashboard from "../pages/hr-admin/Dashboard.jsx";
-import Documents from "../pages/hr-admin/Documents.jsx";
-import DocumentsTemplates from "../pages/hr-admin/DocumentsTemplates.jsx";
-import Employees from "../pages/hr-admin/Employees.jsx";
-// import EmployeesAdd from "../pages/hr-admin/EmployeesAdd.jsx";
-// import EmployeesProfile from "../pages/hr-admin/EmployeesProfile.jsx";
-import LeaveBalance from "../pages/hr-admin/LeaveBalance.jsx";
-import LeaveRequests from "../pages/hr-admin/LeaveRequests.jsx";
-import LiveTracking from "../pages/hr-admin/LiveTracking.jsx";
+// Auto-generated route list for the hr-admin role.
+// Add a page: create the component in ../pages/hr-admin/, import it here, add a { path, element } entry.
+//
+// All page imports are React.lazy() so this role's pages only download
+// when an HR admin actually navigates to them, not upfront on login.
+import { lazy } from "react";
+import { commonRoutes } from "./commonRoutes.jsx";
+
+const Attendance = lazy(() => import("../pages/hr-admin/Attendance.jsx"));
+const AttendanceReports = lazy(
+  () => import("../pages/hr-admin/AttendanceReports.jsx"),
+);
+// const AttendanceShifts = lazy(() => import("../pages/hr-admin/AttendanceShifts.jsx"));
+const AuditLogs = lazy(() => import("../pages/hr-admin/Auditlogs.jsx"));
+const Dashboard = lazy(() => import("../pages/hr-admin/Dashboard.jsx"));
+const Documents = lazy(() => import("../pages/hr-admin/Documents.jsx"));
+
+const Employees = lazy(() => import("../pages/hr-admin/Employees.jsx"));
+// const EmployeesAdd = lazy(() => import("../pages/hr-admin/EmployeesAdd.jsx"));
+// const EmployeesProfile = lazy(() => import("../pages/hr-admin/EmployeesProfile.jsx"));
+const LeaveBalance = lazy(() => import("../pages/hr-admin/LeaveBalance.jsx"));
+const LeaveRequests = lazy(() => import("../pages/hr-admin/LeaveRequests.jsx"));
+const LiveTracking = lazy(() => import("../pages/hr-admin/LiveTracking.jsx"));
 // Organization (Departments / Designations / Locations) was removed from
 // the HR sidebar and routes on purpose — HR no longer gets a "create
 // site/location" or org-structure screen. Super Admin still owns that
 // under src/pages/super-admin/Organization*.jsx / superAdminRoutes.jsx.
-// import OrganizationDepartments from "../pages/hr-admin/OrganizationDepartments.jsx";
-// import OrganizationDesignations from "../pages/hr-admin/OrganizationDesignations.jsx";
-// import OrganizationLocations from "../pages/hr-admin/OrganizationLocations.jsx";
-import PayrollGeneratePayslip from "../pages/hr-admin/PayrollGeneratePayslip.jsx";
-import PayrollReports from "../pages/hr-admin/PayrollReports.jsx";
-import PayrollSalaryStructure from "../pages/hr-admin/PayrollSalaryStructure.jsx";
-import ReportsAnalytics from "../pages/hr-admin/ReportsAnalytics.jsx";
-import ReportsHr from "../pages/hr-admin/ReportsHr.jsx";
-import { commonRoutes } from "./commonRoutes.jsx";
+// const OrganizationDepartments = lazy(() => import("../pages/hr-admin/OrganizationDepartments.jsx"));
+// const OrganizationDesignations = lazy(() => import("../pages/hr-admin/OrganizationDesignations.jsx"));
+// const OrganizationLocations = lazy(() => import("../pages/hr-admin/OrganizationLocations.jsx"));
+
+const ReportsHr = lazy(() => import("../pages/hr-admin/ReportsHr.jsx"));
 
 export const hrAdminRoutes = [
   { path: "dashboard", element: <Dashboard /> },
@@ -41,12 +47,9 @@ export const hrAdminRoutes = [
   { path: "leave/requests", element: <LeaveRequests /> },
   // { path: "leave/policies", element: <LeavePolicies /> },
   { path: "leave/balance", element: <LeaveBalance /> },
-  { path: "payroll/salary-structure", element: <PayrollSalaryStructure /> },
-  { path: "payroll/generate-payslip", element: <PayrollGeneratePayslip /> },
-  { path: "payroll/reports", element: <PayrollReports /> },
+
   { path: "documents", element: <Documents /> },
-  { path: "documents/templates", element: <DocumentsTemplates /> },
+
   { path: "security/audit-logs", element: <AuditLogs /> },
   { path: "reports/hr", element: <ReportsHr /> },
-  { path: "reports/analytics", element: <ReportsAnalytics /> },
 ];

@@ -195,14 +195,16 @@ export const NAVIGATION_CONFIG = {
       icon: ShieldCheck,
       path: "/hr-admin/security/audit-logs",
     },
-    // {
-    //   label: "Reports & Analytics",
-    //   icon: BarChart3,
-    //   children: [
-    //     { label: "HR Reports", path: "/hr-admin/reports/hr" },
-    //     { label: "Employee Analytics", path: "/hr-admin/reports/analytics" },
-    //   ],
-    // },
+    {
+      label: "Reports",
+      icon: BarChart3,
+      path: "/hr-admin/reports/hr",
+    },
+    // "Employee Analytics" isn't a separate built page yet (see
+    // pages/hr-admin/ReportsAnalytics.jsx, still a PlaceholderPage) --
+    // Super Admin doesn't have one either, just the single "Reports" link
+    // above, so this stays a single link the same way rather than a
+    // submenu with one dead child.
     { label: "Notifications", icon: Bell, path: "/hr-admin/notifications" },
     { label: "Settings", icon: Settings, path: "/hr-admin/settings" },
   ],

@@ -26,7 +26,7 @@ import { filterShiftsForSelection } from "../../utils/shiftMapping";
 // ---------------------------------------------------------------------
 
 export const inputCls =
-  "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400";
+  "w-full rounded-lg border border-slate-200 px-3 py-2.5 sm:py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400";
 
 export function Field({ label, required, error, children }) {
   return (
@@ -75,7 +75,7 @@ export function FilterDropdown({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`${fullWidth ? "w-full" : "w-full sm:w-48"} flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-100`}
+        className={`${fullWidth ? "w-full" : "w-full sm:w-48"} flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 sm:py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-100`}
       >
         <span className={`truncate ${!selected ? "text-slate-400" : ""}`}>
           {selected ? getLabel(selected) : allLabel}
@@ -87,7 +87,16 @@ export function FilterDropdown({
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-full min-w-[200px] rounded-lg border border-slate-200 bg-white shadow-lg">
+        // No forced min-width on mobile: with the Add User form's grids
+        // now stacking to a single column below the `sm` breakpoint (see
+        // UserformModal.jsx), this panel's own field is already the full
+        // modal width there, so a hardcoded 200px min-width isn't needed
+        // -- it was previously what made the options list spill out past
+        // its half-width column and overlap the fields next to/below it
+        // (e.g. Designation's list covering Basic Information) on narrow
+        // screens. sm:min-w-[200px] keeps the old behavior for the
+        // narrower fixed-width (non-fullWidth) selects on desktop.
+        <div className="absolute z-20 mt-1 w-full sm:min-w-[200px] rounded-lg border border-slate-200 bg-white shadow-lg">
           <div className="max-h-56 overflow-y-auto py-1 scrollbar-hide">
             {showAllOption && (
               <button
@@ -96,7 +105,7 @@ export function FilterDropdown({
                   onChange("");
                   setOpen(false);
                 }}
-                className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-slate-50 ${
+                className={`block w-full truncate px-3 py-2.5 sm:py-2 text-left text-sm hover:bg-slate-50 ${
                   !value ? "font-medium text-orange-600" : "text-slate-600"
                 }`}
               >
@@ -111,7 +120,7 @@ export function FilterDropdown({
                   onChange(getKey(o));
                   setOpen(false);
                 }}
-                className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-slate-50 ${
+                className={`block w-full truncate px-3 py-2.5 sm:py-2 text-left text-sm hover:bg-slate-50 ${
                   value === getKey(o)
                     ? "font-medium text-orange-600"
                     : "text-slate-600"
@@ -822,7 +831,7 @@ export default function UserFormModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-100">
           <div>
             <h2 className="text-lg font-bold text-slate-800">
               {isEdit ? "Edit User" : "Add New User"}
@@ -835,7 +844,7 @@ export default function UserFormModal({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="w-10 h-10 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 shrink-0"
           >
             <X size={18} />
           </button>
@@ -843,7 +852,7 @@ export default function UserFormModal({
 
         <form
           onSubmit={handleSubmit}
-          className="overflow-y-auto px-6 py-5 space-y-6"
+          className="overflow-y-auto px-4 sm:px-6 py-5 space-y-6"
         >
           {error && (
             <div className="flex items-start gap-2 rounded-lg bg-orange-50 border border-orange-100 text-orange-600 text-sm px-3 py-2">
@@ -856,7 +865,7 @@ export default function UserFormModal({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Role & Access
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {!isEdit ? (
                 <Field label="Role" required>
                   <FilterDropdown
@@ -902,7 +911,7 @@ export default function UserFormModal({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Department & Designation
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Department">
                 <FilterDropdown
                   fullWidth
@@ -949,7 +958,7 @@ export default function UserFormModal({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Basic Information
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Full Name" required>
                 <input
                   className={inputCls}
@@ -995,7 +1004,7 @@ export default function UserFormModal({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Personal Details
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Gender" required={!isEdit}>
                 <FilterDropdown
                   fullWidth
@@ -1046,7 +1055,7 @@ export default function UserFormModal({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Work Details
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Reporting Manager">
                 <FilterDropdown
                   fullWidth
@@ -1108,7 +1117,7 @@ export default function UserFormModal({
                 <span>{tiersError}</span>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Annual Leave Tier" required={!isEdit}>
                 {tiersLoading ? (
                   <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400">
@@ -1176,7 +1185,7 @@ export default function UserFormModal({
                 </Field>
               )}
               {childcareEligible === false && (
-                <div className="col-span-2 text-xs text-slate-400">
+                <div className="sm:col-span-2 text-xs text-slate-400">
                   Childcare Leave tier hidden — this user isn't eligible (must
                   be married).
                 </div>
@@ -1185,17 +1194,17 @@ export default function UserFormModal({
           </div>
         </form>
 
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 px-4 sm:px-6 py-4 border-t border-slate-100">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+            className="order-2 sm:order-1 px-4 py-2.5 sm:py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-60 flex items-center gap-2"
+            className="order-1 sm:order-2 px-4 py-2.5 sm:py-2 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {saving && <Loader2 size={14} className="animate-spin" />}
             {isEdit ? "Save Changes" : "Create User"}
