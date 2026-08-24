@@ -8,7 +8,11 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../../services/apiClient";
-import { filterShiftsForSelection } from "../../utils/shiftMapping";
+import {
+  filterShiftsForSelection,
+  formatTime12h,
+  resolveSaturdayShift,
+} from "../../utils/shiftMapping";
 
 // ---------------------------------------------------------------------
 // Shared "Add / Edit user" modal — originally lived only inside
@@ -417,6 +421,7 @@ export default function UserFormModal({
     annual_leave_tier_id: "",
     childcare_leave_tier_id: "",
     working_days_per_week: user?.working_days_per_week || 5,
+    works_saturday: user?.works_saturday || false,
     // Eligibility inputs for the leave policy engine (see
     // app/leaves/policy_services.py evaluate_leave_eligibility() /
     // leave_eligibility_rules seed). These used to only be settable
@@ -631,6 +636,32 @@ export default function UserFormModal({
     );
   }, [shifts, departments, form.department_id, selectedDesignation]);
 
+  // The weekday shift currently in effect — either the one HR explicitly
+  // picked (Office's two-timing case) or the single fixed option for
+  // Inspection/Operation/Work Shop. Used to derive the read-only Saturday
+  // line below; not re-fetched from `shifts` by id so it stays in sync
+  // with filteredShifts even before form.shift_id has been set.
+  const selectedWeekdayShift = useMemo(() => {
+    if (filteredShifts.length === 1) return filteredShifts[0];
+    return filteredShifts.find((s) => s.id === form.shift_id) || null;
+  }, [filteredShifts, form.shift_id]);
+
+  // "Works Saturdays?" is a separate yes/no from weekday timing — every
+  // area has some staff who work Saturdays and some who don't (see
+  // resolveSaturdayShift's doc comment). Derived from the area's sibling
+  // "<AREA> - SATURDAY" shift row so the hours shown always match
+  // whichever department/timing is currently selected.
+  // "Works Saturdays?" is its own independent field (employees.works_saturday)
+  // -- deliberately NOT derived from working_days_per_week. That field is
+  // payroll's Unpaid Leave deduction denominator and has no defined
+  // relationship to Saturday shift hours in the source Leave Info doc, so
+  // the two are kept fully separate rather than one implying the other.
+  const worksSaturday = form.works_saturday;
+  const saturdayShift = useMemo(
+    () => resolveSaturdayShift(shifts, selectedWeekdayShift?.shift_name),
+    [shifts, selectedWeekdayShift],
+  );
+
   // If the currently-picked designation no longer belongs to the newly-picked
   // department, clear it (and its shift) rather than leaving a stale mismatch.
   const didMountDept = useRef(false);
@@ -739,6 +770,7 @@ export default function UserFormModal({
           annual_leave_tier_id: orUndefined(form.annual_leave_tier_id),
           childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
           working_days_per_week: form.working_days_per_week,
+          works_saturday: form.works_saturday,
           gender: orUndefined(form.gender),
           marital_status: orUndefined(form.marital_status),
           nationality: orUndefined(form.nationality),
@@ -765,6 +797,7 @@ export default function UserFormModal({
           annual_leave_tier_id: form.annual_leave_tier_id,
           childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
           working_days_per_week: form.working_days_per_week,
+          works_saturday: form.works_saturday,
           gender: form.gender,
           marital_status: form.marital_status,
           nationality: form.nationality,
@@ -1067,24 +1100,44 @@ export default function UserFormModal({
                   getLabel={(u) => `${u.full_name} (${u.employee_id})`}
                 />
               </Field>
-              <Field label="Shift">
-                <FilterDropdown
-                  fullWidth
-                  allLabel={
-                    form.department_id
-                      ? "Select shift"
-                      : "Select department first"
-                  }
-                  value={form.shift_id}
-                  onChange={(v) => set("shift_id", v)}
-                  options={filteredShifts}
-                  getKey={(s) => s.id}
-                  getLabel={(s) => s.shift_name}
-                />
-                {selectedDesignation?.shifts && (
+              <Field label="Weekday Hours">
+                {!form.department_id ? (
+                  <div className="text-sm text-slate-400 border border-slate-200 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50">
+                    Select department first
+                  </div>
+                ) : filteredShifts.length <= 1 ? (
+                  // Inspection / Operation / Work Shop — one fixed timing,
+                  // nothing for HR to choose, so show it read-only instead
+                  // of a dropdown with a single, unclickable-feeling option.
+                  <div className="text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50">
+                    {filteredShifts[0]
+                      ? `${formatTime12h(filteredShifts[0].start_time)} – ${formatTime12h(filteredShifts[0].end_time)} (fixed)`
+                      : "No matching shift configured"}
+                  </div>
+                ) : (
+                  // Office — the one area with a real choice.
+                  <div className="flex gap-2">
+                    {filteredShifts.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => set("shift_id", s.id)}
+                        className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                          form.shift_id === s.id
+                            ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                            : "border-slate-200 text-slate-600 hover:border-slate-300"
+                        }`}
+                      >
+                        {formatTime12h(s.start_time)} –{" "}
+                        {formatTime12h(s.end_time)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedDesignation?.shifts && filteredShifts.length > 1 && (
                   <span className="text-xs text-slate-400 mt-1 block">
-                    Auto-set to {selectedDesignation.shifts.shift_name}'s timing
-                    for this designation.
+                    Defaults to {selectedDesignation.shifts.shift_name}'s timing
+                    for this designation — pick the other option to override.
                   </span>
                 )}
               </Field>
@@ -1143,7 +1196,46 @@ export default function UserFormModal({
                   />
                 )}
               </Field>
+              <Field label="Works Saturdays?">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => set("works_saturday", false)}
+                    className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                      !worksSaturday
+                        ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                        : "border-slate-200 text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    No
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => set("works_saturday", true)}
+                    className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                      worksSaturday
+                        ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                        : "border-slate-200 text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    Yes
+                  </button>
+                </div>
+                {worksSaturday && saturdayShift && (
+                  <span className="text-xs text-slate-400 mt-1 block">
+                    Saturday: {formatTime12h(saturdayShift.start_time)} –{" "}
+                    {formatTime12h(saturdayShift.end_time)}
+                  </span>
+                )}
+                <span className="text-xs text-slate-400 mt-1 block">
+                  Controls this employee's Saturday shift assignment only.
+                </span>
+              </Field>
               <Field label="Working Days / Week">
+                {/* Fully independent of "Works Saturdays?" above --
+                    payroll's Unpaid Leave deduction denominator, with no
+                    defined relationship to Saturday shift hours in the
+                    source Leave Info doc. HR sets this on its own. */}
                 <FilterDropdown
                   fullWidth
                   showAllOption={false}
