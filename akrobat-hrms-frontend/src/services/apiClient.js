@@ -116,38 +116,6 @@ function notifyActivity() {
   }
 }
 
-// ---------------------------------------------------------------------
-// Narrower sibling of the activity signal above, fired ONLY for
-// successful writes (POST/PUT/PATCH/DELETE) -- never for GETs. This is
-// what pages should subscribe to when they want "the list I'm showing
-// might now be stale, go refetch it" (see hooks/useLiveRefetch.js).
-// Keeping this separate from onApiActivity matters: that one already
-// fires on every GET too (by design, for the notification fallback
-// poll), and a refetch-on-any-activity subscriber built on top of it
-// would refetch in response to its own read -- an infinite loop. Only
-// counting actual writes avoids that while still catching every case
-// that leaves a page showing stale data after an edit/update/approve/
-// apply-leave/etc: the page's own mutation, another open tab's
-// mutation, or a different page's mutation to the same underlying data.
-// ---------------------------------------------------------------------
-const mutationListeners = new Set();
-
-export function onApiMutation(fn) {
-  mutationListeners.add(fn);
-  return () => mutationListeners.delete(fn);
-}
-
-function notifyMutation(path) {
-  for (const fn of mutationListeners) {
-    try {
-      fn(path);
-    } catch {
-      // Same rule as notifyActivity -- a bad subscriber can't break the
-      // request that triggered it.
-    }
-  }
-}
-
 // De-dupes concurrent 401s (e.g. a dashboard firing 6 requests at once)
 // into a single refresh call instead of 6.
 let refreshInFlight = null;
@@ -265,9 +233,6 @@ async function request(
   // activity tick, which could schedule another check, etc.
   if (response.ok && !path.startsWith("/notifications")) {
     notifyActivity();
-    if (MUTATING_METHODS.has(method)) {
-      notifyMutation(path);
-    }
   }
 
   if (!response.ok) {

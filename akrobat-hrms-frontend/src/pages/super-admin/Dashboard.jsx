@@ -34,7 +34,6 @@ import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import UserFormModal from "../../components/common/UserformModal ";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
-import { useLiveRefetch } from "../../hooks/useLiveRefetch";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 import { geocodeQueue, placeKey } from "../../utils/Geocode";
@@ -591,9 +590,7 @@ export default function SuperAdminDashboard() {
   useEffect(() => {
     loadStats();
     loadLogs();
-  }, []);
 
-  function loadAnnouncementsDeptsLocations() {
     // Super Admin sees every announcement here, not just currently-active
     // ones (see /announcements/active filtering in get_active_announcements)
     // — expired ones are rendered greyed-out below instead of disappearing,
@@ -615,15 +612,7 @@ export default function SuperAdminDashboard() {
       .get("/locations/")
       .then((res) => setLocations(res.data || []))
       .catch(() => setLocations([]));
-  }
-
-  // loadStats/loadLogs above already stay live via the /ws/dashboard
-  // socket (see useAttendanceLiveUpdates below). Announcements, dept
-  // distribution, and locations have no socket of their own, so this
-  // covers them: load on mount, then again automatically whenever any
-  // write anywhere succeeds (posting/editing an announcement, adding a
-  // department or site) -- see hooks/useLiveRefetch.js.
-  useLiveRefetch(loadAnnouncementsDeptsLocations);
+  }, []);
 
   // Separate effect (rather than folded into the mount effect above) so
   // toggling the Week/Month control on the Attendance Trend chart just
