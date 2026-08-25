@@ -80,6 +80,16 @@ function captureCsrfToken(data) {
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+// Mobile-specific failure mode this guards against: the phone locks, or
+// switches from WiFi to cellular, or the signal drops out, right in the
+// middle of a fetch. Without a timeout, that fetch's promise just never
+// settles -- it doesn't resolve, doesn't reject, doesn't throw. Any code
+// awaiting it (most importantly AuthContext's restoreSession(), which
+// gates the app's initial `loading` screen) hangs forever, and the only
+// way out is force-closing and reopening the app. This timeout guarantees
+// every request settles one way or another within REQUEST_TIMEOUT_MS.
+const REQUEST_TIMEOUT_MS = 15000;
+
 // ---------------------------------------------------------------------
 // Lightweight "something just happened" signal for parts of the app
 // that want to react to ordinary API traffic without running their own
@@ -112,6 +122,9 @@ let refreshInFlight = null;
 
 async function refreshAccessToken() {
   if (!refreshInFlight) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
     refreshInFlight = fetch(`${BASE_URL}/auth/refresh`, {
       method: "POST",
       credentials: "include",
@@ -124,6 +137,7 @@ async function refreshAccessToken() {
       // this project still needs *a* JSON body since the route always
       // parses one, even though there's nothing to put in it now.
       body: JSON.stringify({}),
+      signal: controller.signal,
     })
       .then(async (res) => {
         // Supabase rotates the refresh token (and this route re-issues
@@ -136,6 +150,7 @@ async function refreshAccessToken() {
       })
       .catch(() => false)
       .finally(() => {
+        clearTimeout(timeoutId);
         refreshInFlight = null;
       });
   }
@@ -163,6 +178,9 @@ async function request(
     if (csrfToken) finalHeaders[CSRF_HEADER_NAME] = csrfToken;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   let response;
   try {
     response = await fetch(`${BASE_URL}${path}`, {
@@ -170,12 +188,20 @@ async function request(
       headers: finalHeaders,
       credentials: "include", // send/receive the httpOnly + CSRF cookies
       body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     });
   } catch (networkErr) {
+    // AbortError => our own timeout fired, not a real network failure --
+    // worth a distinct message so it's clear a retry is reasonable.
+    if (networkErr.name === "AbortError") {
+      throw new Error("The server took too long to respond. Please try again.");
+    }
     // Backend down / CORS blocked / wrong URL
     throw new Error(
       "Could not reach the server. Please check your connection and try again.",
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const isJson = response.headers
