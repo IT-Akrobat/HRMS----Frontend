@@ -33,7 +33,16 @@ import { superAdminRoutes } from "./routes/superAdminRoutes.jsx";
 
 // Root path sends people to their own dashboard (or to login if signed out)
 function RootRedirect() {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, role, loading } = useAuth();
+  // Same race ProtectedRoute already guards against: on a cold app
+  // open, user starts null and restoreSession() (GET /auth/me reading
+  // the httpOnly cookie) hasn't resolved yet, so isAuthenticated is
+  // still false for a moment even when the session is actually valid.
+  // "/" is the PWA's start_url, so this route renders first on every
+  // cold start -- without this guard it would redirect to /login
+  // before the cookie check finishes, and nothing brings the user back
+  // afterward since Login.jsx doesn't watch isAuthenticated itself.
+  if (loading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Navigate to={DEFAULT_ROUTE_BY_ROLE[role]} replace />;
 }
