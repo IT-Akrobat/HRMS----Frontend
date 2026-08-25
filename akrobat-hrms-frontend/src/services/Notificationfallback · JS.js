@@ -33,7 +33,17 @@ let checking = false;
 let seenIds = new Set();
 let primed = false;
 let initialized = false;
-let deliver = null;
+// Was a single `deliver` function -- fine when only Header.jsx's bell
+// used this module. Now that the Notifications list page (see
+// Notificationpage.jsx) also wants live updates while it's open, a
+// second initNotificationFallback() call would just overwrite the
+// first caller's handler and silently cut off its fallback delivery
+// (still fine via WebSocket, but not via this fallback) for as long as
+// both were mounted -- and leave a stale reference behind after the
+// second one unmounted. A Set of subscribers lets every registered
+// listener hear every genuinely-new row, same as the WebSocket path
+// already does (each caller opens its own socket).
+const subscribers = new Set();
 
 async function checkNow() {
   if (checking) return;
@@ -53,7 +63,14 @@ async function checkNow() {
     for (const n of rows) {
       if (seenIds.has(n.id)) continue;
       seenIds.add(n.id);
-      deliver?.(n);
+      for (const deliver of subscribers) {
+        try {
+          deliver(n);
+        } catch {
+          // One subscriber throwing shouldn't stop the others from
+          // getting this row.
+        }
+      }
     }
   } catch {
     // Best-effort -- the next activity tick just tries again.
@@ -63,24 +80,31 @@ async function checkNow() {
 }
 
 /**
- * Wire the fallback up once. `onNew(notification)` is called for every
+ * Wire the fallback up. `onNew(notification)` is called for every
  * genuinely-new row this fallback discovers -- pass it the same handler
- * used for the WebSocket path (see Header.jsx) so toast / sound / the
- * OS-level popup all go through one place and stay de-duplicated against
- * each other, regardless of which channel actually delivered a given
- * notification first.
+ * used for the WebSocket path (see Header.jsx / Notificationpage.jsx)
+ * so toast / sound / the OS-level popup / the list all go through one
+ * place and stay de-duplicated against each other, regardless of which
+ * channel actually delivered a given notification first. Safe to call
+ * from more than one component at once -- each gets its own
+ * subscription. Returns an unsubscribe function; callers that mount and
+ * unmount (like the Notifications page) should call it on cleanup so a
+ * stale handler doesn't keep firing after the component's gone.
  */
 export function initNotificationFallback(onNew) {
-  deliver = onNew;
-  if (initialized) return;
-  initialized = true;
+  subscribers.add(onNew);
 
-  onApiActivity(() => {
-    const now = Date.now();
-    if (now - lastCheck < MIN_INTERVAL_MS) return;
-    lastCheck = now;
-    checkNow();
-  });
+  if (!initialized) {
+    initialized = true;
+    onApiActivity(() => {
+      const now = Date.now();
+      if (now - lastCheck < MIN_INTERVAL_MS) return;
+      lastCheck = now;
+      checkNow();
+    });
+  }
+
+  return () => subscribers.delete(onNew);
 }
 
 // Call on logout so a shared/kiosk device doesn't keep delivering the

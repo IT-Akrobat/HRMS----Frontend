@@ -8,9 +8,11 @@ import {
   Megaphone,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useNotificationLiveUpdates } from "../../hooks/useNotificationLiveUpdates";
 import { apiClient } from "../../services/apiClient";
+import { initNotificationFallback } from "../../services/Notificationfallback · JS";
 import { parseServerDate } from "../../utils/date";
 import PageHeader from "./PageHeader";
 
@@ -102,11 +104,35 @@ export default function NotificationsPage({
   function load() {
     apiClient
       .get("/notifications/my")
-      .then((res) => setNotifications(res?.data || []))
+      .then((res) => {
+        const rows = res?.data || [];
+        setNotifications(rows);
+        seenIdsRef.current = new Set(rows.map((n) => n.id));
+      })
       .catch(() => setNotifications([]));
   }
 
   useEffect(load, []);
+
+  // Same channels the bell in Header.jsx listens on (WebSocket +
+  // API-activity fallback). Without this, this page only ever showed
+  // what GET /notifications/my returned on mount, so a notification
+  // that arrived while you were sitting on this page never showed up
+  // until you refreshed / navigated away and back.
+  const seenIdsRef = useRef(new Set());
+
+  function handleIncoming(n) {
+    if (seenIdsRef.current.has(n.id)) return;
+    seenIdsRef.current.add(n.id);
+    setNotifications((prev) => [n, ...(prev || [])]);
+  }
+
+  useNotificationLiveUpdates(handleIncoming);
+
+  useEffect(() => {
+    const unsubscribe = initNotificationFallback(handleIncoming);
+    return unsubscribe;
+  }, []);
 
   const unreadCount = useMemo(
     () => (notifications || []).filter((n) => !n.is_read).length,

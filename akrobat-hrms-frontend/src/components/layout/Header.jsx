@@ -51,22 +51,40 @@ function playNotificationSound() {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
-    const now = ctx.currentTime;
-    [880, 1174].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      const start = now + i * 0.12;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.15, start + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.18);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(start);
-      osc.stop(start + 0.2);
-    });
-    setTimeout(() => ctx.close(), 500);
+
+    // Chrome/Safari/Firefox all create a new AudioContext in the
+    // "suspended" state until it's explicitly resumed at least once —
+    // scheduling oscillators on a suspended context doesn't throw, it
+    // just never actually produces sound, which is why this silently
+    // "did nothing" before. resume() is async, so the actual scheduling
+    // has to happen after it resolves, not before.
+    const schedule = () => {
+      const now = ctx.currentTime;
+      [880, 1174].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        const start = now + i * 0.12;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.15, start + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.18);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.2);
+      });
+      setTimeout(() => ctx.close(), 500);
+    };
+
+    if (ctx.state === "suspended") {
+      ctx
+        .resume()
+        .then(schedule)
+        .catch(() => {});
+    } else {
+      schedule();
+    }
   } catch {
     // Web Audio unsupported/blocked — non-fatal, toast still shows.
   }
@@ -180,8 +198,15 @@ function NotificationBell() {
     // Only fire the OS-level popup when this tab isn't the one the
     // person is actually looking at — if they're already on the site,
     // the toast above is enough and a native popup on top would just be
-    // noisy.
-    if (document.hidden) {
+    // noisy. document.hidden alone isn't enough here: switching to
+    // another app (Slack, Outlook, etc.) while the browser window stays
+    // open leaves the tab "visible" as far as the Page Visibility API is
+    // concerned on most desktop browsers, so document.hidden stays false
+    // and the popup silently never fired — the exact "desktop
+    // notification not working" symptom. document.hasFocus() catches
+    // that case too: it's false whenever the browser window itself
+    // isn't the focused window, tab hidden or not.
+    if (document.hidden || !document.hasFocus()) {
       showBrowserNotification(n, openNotifications);
     }
   }
