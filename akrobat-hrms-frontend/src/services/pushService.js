@@ -53,35 +53,46 @@ export async function enablePushNotifications() {
   try {
     const registration = await registerServiceWorker();
 
-    // Already subscribed on this device -- nothing to do. Covers the
-    // common case of logging in again on the same phone.
-    const existing = await registration.pushManager.getSubscription();
-    if (existing) {
-      return { enabled: true, reason: "already-subscribed" };
-    }
+    // IMPORTANT: a subscription object already existing in the browser
+    // is NOT proof the backend has it saved. subscribe() (below) creates
+    // the browser-side subscription FIRST, then a separate POST saves it
+    // server-side -- if that POST ever failed even once (slow network,
+    // backend cold-starting, a CSRF timing hiccup, app closed mid-call),
+    // the browser keeps the subscription forever, but push_subscriptions
+    // never got the row. Every later call used to see `existing` here
+    // and return early without ever retrying the save -- silently and
+    // permanently breaking push for that device, while everything else
+    // (in-app bell, email) kept working since neither depends on this
+    // table. So: if a local subscription exists, re-sync it below
+    // instead of trusting it -- the backend upserts on endpoint
+    // (see push_subscriptions/services.py), so resending an
+    // already-saved subscription is a harmless no-op.
+    let subscription = await registration.pushManager.getSubscription();
 
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") {
-      return { enabled: false, reason: "denied" };
-    }
+    if (!subscription) {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        return { enabled: false, reason: "denied" };
+      }
 
-    const { data } = await apiClient.get(
-      "/push-subscriptions/vapid-public-key",
-      {
-        auth: false,
-      },
-    );
-    if (!data?.public_key) {
-      // Backend hasn't configured VAPID keys yet (see
-      // app/core/config.py) -- degrade silently, same as the backend
-      // does for push_configured() being false.
-      return { enabled: false, reason: "not-configured" };
-    }
+      const { data } = await apiClient.get(
+        "/push-subscriptions/vapid-public-key",
+        {
+          auth: false,
+        },
+      );
+      if (!data?.public_key) {
+        // Backend hasn't configured VAPID keys yet (see
+        // app/core/config.py) -- degrade silently, same as the backend
+        // does for push_configured() being false.
+        return { enabled: false, reason: "not-configured" };
+      }
 
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(data.public_key),
-    });
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(data.public_key),
+      });
+    }
 
     const json = subscription.toJSON();
     await apiClient.post("/push-subscriptions/subscribe", {
