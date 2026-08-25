@@ -37,6 +37,21 @@ async function registerServiceWorker() {
   return navigator.serviceWorker.register("/sw.js", { scope: "/" });
 }
 
+// Byte-for-byte comparison -- used to detect a subscription that was
+// created under a VAPID key pair that's since been rotated. Browsers
+// expose the key actually used at subscribe-time via
+// subscription.options.applicationServerKey (an ArrayBuffer); if that
+// doesn't match the key the backend is serving right now, the
+// subscription is permanently dead (the push service will reject every
+// send with "VAPID credentials ... do not correspond", forever -- see
+// app/core/push.py) and must be replaced, not reused.
+function sameKey(existingKeyBuffer, currentKeyBytes) {
+  if (!existingKeyBuffer) return false;
+  const existingBytes = new Uint8Array(existingKeyBuffer);
+  if (existingBytes.length !== currentKeyBytes.length) return false;
+  return existingBytes.every((b, i) => b === currentKeyBytes[i]);
+}
+
 // Call this once after login. Deliberately never throws -- a user who
 // denies the permission prompt, or a browser that doesn't support push
 // at all (older Safari, some in-app webviews), should just silently not
@@ -53,21 +68,52 @@ export async function enablePushNotifications() {
   try {
     const registration = await registerServiceWorker();
 
+    // Fetch the CURRENT key up front (not just when creating a brand
+    // new subscription) -- we need it either way, to check whether any
+    // existing subscription still matches it.
+    const { data } = await apiClient.get(
+      "/push-subscriptions/vapid-public-key",
+      {
+        auth: false,
+      },
+    );
+    if (!data?.public_key) {
+      // Backend hasn't configured VAPID keys yet (see
+      // app/core/config.py) -- degrade silently, same as the backend
+      // does for push_configured() being false.
+      return { enabled: false, reason: "not-configured" };
+    }
+    const currentKeyBytes = urlBase64ToUint8Array(data.public_key);
+
     // IMPORTANT: a subscription object already existing in the browser
-    // is NOT proof the backend has it saved. subscribe() (below) creates
-    // the browser-side subscription FIRST, then a separate POST saves it
-    // server-side -- if that POST ever failed even once (slow network,
-    // backend cold-starting, a CSRF timing hiccup, app closed mid-call),
-    // the browser keeps the subscription forever, but push_subscriptions
-    // never got the row. Every later call used to see `existing` here
-    // and return early without ever retrying the save -- silently and
-    // permanently breaking push for that device, while everything else
-    // (in-app bell, email) kept working since neither depends on this
-    // table. So: if a local subscription exists, re-sync it below
-    // instead of trusting it -- the backend upserts on endpoint
-    // (see push_subscriptions/services.py), so resending an
-    // already-saved subscription is a harmless no-op.
+    // is NOT proof the backend can actually use it. Two distinct ways
+    // that can be false:
+    //  1. The POST below (which saves it server-side) failed at some
+    //     point in the past -- slow network, backend cold-starting, a
+    //     CSRF timing hiccup, app closed mid-call -- so the browser kept
+    //     the subscription, but push_subscriptions never got the row.
+    //  2. VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY were rotated on the backend
+    //     AFTER this subscription was created. A subscription is
+    //     cryptographically bound to whatever key was used at
+    //     subscribe-time -- once the backend's key changes, that
+    //     subscription can never succeed again, no matter how many
+    //     times it's resent, and just re-saving it (case 1's fix) does
+    //     nothing here because the browser-side object itself is the
+    //     stale part, not just the database row.
+    // Case 1 is handled by re-POSTing below regardless. Case 2 needs the
+    // old subscription actually torn down and replaced.
     let subscription = await registration.pushManager.getSubscription();
+
+    if (subscription) {
+      const opts = subscription.options || {};
+      if (!sameKey(opts.applicationServerKey, currentKeyBytes)) {
+        // Stale key -- this subscription will never work again. Tear it
+        // down so the code below creates a fresh one against the
+        // current key instead of quietly resaving a dead endpoint.
+        await subscription.unsubscribe().catch(() => {});
+        subscription = null;
+      }
+    }
 
     if (!subscription) {
       const permission = await Notification.requestPermission();
@@ -75,22 +121,9 @@ export async function enablePushNotifications() {
         return { enabled: false, reason: "denied" };
       }
 
-      const { data } = await apiClient.get(
-        "/push-subscriptions/vapid-public-key",
-        {
-          auth: false,
-        },
-      );
-      if (!data?.public_key) {
-        // Backend hasn't configured VAPID keys yet (see
-        // app/core/config.py) -- degrade silently, same as the backend
-        // does for push_configured() being false.
-        return { enabled: false, reason: "not-configured" };
-      }
-
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(data.public_key),
+        applicationServerKey: currentKeyBytes,
       });
     }
 
