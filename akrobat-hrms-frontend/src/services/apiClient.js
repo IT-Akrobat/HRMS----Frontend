@@ -169,7 +169,14 @@ export function clearSession() {
 
 async function request(
   path,
-  { method = "GET", body, auth = true, headers = {}, _retried = false } = {},
+  {
+    method = "GET",
+    body,
+    auth = true,
+    headers = {},
+    _retried = false,
+    timeoutMs = REQUEST_TIMEOUT_MS,
+  } = {},
 ) {
   const finalHeaders = { "Content-Type": "application/json", ...headers };
 
@@ -179,7 +186,7 @@ async function request(
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   let response;
   try {
@@ -192,9 +199,16 @@ async function request(
     });
   } catch (networkErr) {
     // AbortError => our own timeout fired, not a real network failure --
-    // worth a distinct message so it's clear a retry is reasonable.
+    // worth a distinct message/flag so callers (restoreSession
+    // especially) can tell "server hasn't answered yet, maybe still
+    // waking up" apart from an actual rejection, instead of treating
+    // both the same way.
     if (networkErr.name === "AbortError") {
-      throw new Error("The server took too long to respond. Please try again.");
+      const err = new Error(
+        "The server took too long to respond. Please try again.",
+      );
+      err.isTimeout = true;
+      throw err;
     }
     // Backend down / CORS blocked / wrong URL
     throw new Error(

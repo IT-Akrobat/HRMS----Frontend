@@ -9,6 +9,16 @@ import { apiClient, clearSession } from "./apiClient";
 // Everything about "who is this user and what can they see" still comes
 // from GET /auth/me, same as before.
 
+// Some hosting (e.g. Render's free tier) spins the backend down after a
+// period of inactivity and takes 20-50s to cold-start on the next
+// request. That's exactly the situation restoreSession() runs into most:
+// someone closes the app for a while, reopens it, and this is the very
+// first request that has to wake the backend up. A short timeout here
+// would wrongly look identical to "session expired" and bounce the
+// person to the login screen even though they're still logged in -- so
+// restoreSession uses a longer budget than ordinary requests.
+const RESTORE_TIMEOUT_MS = 45000;
+
 export const authService = {
   async login(employeeCode, password) {
     const loginData = await apiClient.post(
@@ -74,32 +84,64 @@ export const authService = {
   // session would still restore fine via the httpOnly cookie, but the
   // very next check-in / leave request would 403 with "CSRF token
   // missing" until something else happened to refresh it.
-  async restoreSession() {
-    try {
-      const [meEnvelope] = await Promise.all([
-        apiClient.get("/auth/me"),
-        apiClient.get("/auth/csrf").catch((e) => {
+  async _restoreSessionOnce() {
+    const [meEnvelope] = await Promise.all([
+      apiClient.get("/auth/me", { timeoutMs: RESTORE_TIMEOUT_MS }),
+      apiClient
+        .get("/auth/csrf", { timeoutMs: RESTORE_TIMEOUT_MS })
+        .catch((e) => {
           console.warn("Could not refresh CSRF token:", e);
           return null;
         }),
-      ]);
-      const me = meEnvelope.data;
-      return {
-        id: me.id,
-        name: me.name,
-        email: me.email,
-        role: normalizeRole(me.role),
-        backendRole: me.role,
-        redirectPath: me.redirect_path,
-        permissions: me.permissions,
-        allowedModules: me.allowed_modules,
-        sidebar: me.sidebar,
-        department: me.department,
-        profile: me.profile,
-        theme: me.theme,
-      };
+    ]);
+    const me = meEnvelope.data;
+    return {
+      id: me.id,
+      name: me.name,
+      email: me.email,
+      role: normalizeRole(me.role),
+      backendRole: me.role,
+      redirectPath: me.redirect_path,
+      permissions: me.permissions,
+      allowedModules: me.allowed_modules,
+      sidebar: me.sidebar,
+      department: me.department,
+      profile: me.profile,
+      theme: me.theme,
+    };
+  },
+
+  async restoreSession() {
+    try {
+      return await this._restoreSessionOnce();
     } catch (e) {
-      return null;
+      // A genuine 401 means the backend actually rejected the session
+      // (cookie missing/expired/force-logged-out elsewhere) -- that's a
+      // real "please log in again", so give up immediately.
+      if (e.status === 401) return null;
+
+      // Anything else (timeout, offline, cold-starting backend, CORS
+      // hiccup, ...) never got a real answer from the server at all --
+      // it is NOT evidence the session is invalid, just that this
+      // attempt didn't complete. Worth one retry after a short pause
+      // (e.g. the backend may still be waking up) before giving up.
+      console.warn("Session restore failed, retrying once:", e);
+      try {
+        return await this._restoreSessionOnce();
+      } catch (e2) {
+        if (e2.status === 401) return null;
+        // Still couldn't reach the backend after a retry. Returning
+        // null here would show the login screen for someone who's
+        // actually still logged in -- surface this as a distinct
+        // "couldn't connect" case instead so the caller can show a
+        // retry option rather than silently signing them out.
+        console.error("Session restore failed after retry:", e2);
+        const err = new Error(
+          "Could not reach the server to restore your session.",
+        );
+        err.isConnectionError = true;
+        throw err;
+      }
     }
   },
 };

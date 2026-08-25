@@ -19,18 +19,40 @@ export function AuthProvider({ children }) {
     // asks the backend rather than reading anything out of storage.
     let cancelled = false;
 
-    authService.restoreSession().then((restoredUser) => {
-      if (cancelled) return;
-      if (restoredUser) {
-        setUser(restoredUser);
-        // Covers reopening the app on a device that granted permission
-        // before but doesn't have an active subscription anymore (e.g.
-        // browser data was cleared) -- enablePushNotifications() itself
-        // no-ops quickly if a subscription already exists.
-        enablePushNotifications();
-      }
-      setLoading(false);
-    });
+    function attemptRestore() {
+      authService
+        .restoreSession()
+        .then((restoredUser) => {
+          if (cancelled) return;
+          if (restoredUser) {
+            setUser(restoredUser);
+            // Covers reopening the app on a device that granted
+            // permission before but doesn't have an active subscription
+            // anymore (e.g. browser data was cleared) --
+            // enablePushNotifications() itself no-ops quickly if a
+            // subscription already exists.
+            enablePushNotifications();
+          }
+          setLoading(false);
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          // restoreSession() already retries once internally -- this
+          // only fires if the backend genuinely couldn't be reached
+          // twice in a row (e.isConnectionError), which is NOT the same
+          // as "not logged in". Dropping to the login screen here would
+          // sign out someone who's actually still authenticated, just
+          // because the backend was slow to wake up or the connection
+          // was briefly down. Keep the loading state and try again
+          // shortly instead, rather than guessing at a logout.
+          console.warn("Could not restore session, will retry:", e?.message);
+          setTimeout(() => {
+            if (!cancelled) attemptRestore();
+          }, 5000);
+        });
+    }
+
+    attemptRestore();
 
     return () => {
       cancelled = true;
