@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { authService } from "../services/authService";
-import { resetNotificationFallback } from "../services/Notificationfallback · JS";
+import { resetNotificationFallback } from "../services/Notificationfallback";
 import {
-  disablePushNotifications,
-  enablePushNotifications,
+    disablePushNotifications,
+    enablePushNotifications,
 } from "../services/pushService";
 
 const AuthContext = createContext(null);

@@ -1,18 +1,18 @@
 import {
-  Bell,
-  CalendarClock,
-  CheckCheck,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Megaphone,
-  Trash2,
+    Bell,
+    CalendarClock,
+    CheckCheck,
+    ChevronLeft,
+    ChevronRight,
+    Clock,
+    Megaphone,
+    Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useNotificationLiveUpdates } from "../../hooks/useNotificationLiveUpdates";
 import { apiClient } from "../../services/apiClient";
-import { initNotificationFallback } from "../../services/Notificationfallback · JS";
+import { initNotificationFallback } from "../../services/Notificationfallback";
 import { parseServerDate } from "../../utils/date";
 import PageHeader from "./PageHeader";
 
