@@ -1,16 +1,16 @@
 import {
-    AlertTriangle,
-    Building2,
-    Calendar,
-    CheckCircle2,
-    Clock,
-    ExternalLink,
-    Layers,
-    LogIn,
-    LogOut,
-    MapPin,
-    Navigation,
-    X
+  AlertTriangle,
+  Building2,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  Layers,
+  LogIn,
+  LogOut,
+  MapPin,
+  Navigation,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
@@ -250,8 +250,11 @@ export default function ProfileSites() {
         </div>
       ) : (
         <>
-          {/* Summary strip */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+          {/* Summary strip — 3 cards fit on one line even on a narrow
+              phone screen (below sm) since SummaryCard shrinks its
+              padding/icon/text there; sm: and up are untouched, still the
+              original sizing. */}
+          <div className="grid grid-cols-3 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4 mb-6">
             <SummaryCard
               icon={Layers}
               label="Distinct Sites"
@@ -299,13 +302,18 @@ export default function ProfileSites() {
 
 function SummaryCard({ icon: Icon, label, value }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
-      <div className="w-9 h-9 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-        <Icon size={16} />
+    <div className="bg-white rounded-xl border border-slate-200 p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3">
+      <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+        <Icon size={13} className="sm:hidden" />
+        <Icon size={16} className="hidden sm:block" />
       </div>
-      <div>
-        <p className="text-xs text-slate-400">{label}</p>
-        <p className="text-lg font-semibold text-slate-800">{value}</p>
+      <div className="min-w-0">
+        <p className="text-[10px] sm:text-xs text-slate-400 truncate">
+          {label}
+        </p>
+        <p className="text-sm sm:text-lg font-semibold text-slate-800 truncate">
+          {value}
+        </p>
       </div>
     </div>
   );
