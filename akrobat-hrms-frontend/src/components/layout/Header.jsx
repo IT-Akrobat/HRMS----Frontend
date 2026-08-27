@@ -17,7 +17,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { useNotificationLiveUpdates } from "../../hooks/useNotificationLiveUpdates";
 import { apiClient } from "../../services/apiClient";
-import { initNotificationFallback } from "../../services/Notificationfallback · JS";
+import { initNotificationFallback } from "../../services/Notificationfallback";
 import { parseServerDate } from "../../utils/date";
 
 // Notification bell now backed by the real API (see app/notifications —
