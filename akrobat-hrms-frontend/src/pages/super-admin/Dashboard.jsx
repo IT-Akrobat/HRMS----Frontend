@@ -579,18 +579,7 @@ export default function SuperAdminDashboard() {
       .finally(() => setStatsLoading(false));
   }
 
-  // Refetches stats + Recent Activity the instant any employee checks
-  // in/out or starts/ends a break, anywhere in the company — not just
-  // from this admin's own actions.
-  useAttendanceLiveUpdates(() => {
-    loadStats();
-    loadLogs();
-  });
-
-  useEffect(() => {
-    loadStats();
-    loadLogs();
-
+  function loadAnnouncements() {
     // Super Admin sees every announcement here, not just currently-active
     // ones (see /announcements/active filtering in get_active_announcements)
     // — expired ones are rendered greyed-out below instead of disappearing,
@@ -599,6 +588,22 @@ export default function SuperAdminDashboard() {
       .get("/announcements/")
       .then((res) => setAnnouncements(res.data || []))
       .catch(() => setAnnouncements([]));
+  }
+
+  // Refetches stats + Recent Activity + Announcements the instant any
+  // employee checks in/out or starts/ends a break, applies for/has a
+  // leave decided on, or an announcement changes, anywhere in the
+  // company — not just from this admin's own actions.
+  useAttendanceLiveUpdates(() => {
+    loadStats();
+    loadLogs();
+    loadAnnouncements();
+  });
+
+  useEffect(() => {
+    loadStats();
+    loadLogs();
+    loadAnnouncements();
 
     apiClient
       .get("/dashboard/department-distribution")

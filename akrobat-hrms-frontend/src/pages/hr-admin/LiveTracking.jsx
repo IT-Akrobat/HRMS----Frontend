@@ -13,6 +13,7 @@ import {
   useState,
 } from "react";
 import PageHeader from "../../components/common/PageHeader";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 
@@ -426,6 +427,12 @@ const TodayTab = forwardRef(function TodayTab(_props, ref) {
     const interval = setInterval(() => load(true), POLL_MS);
     return () => clearInterval(interval);
   }, []);
+
+  // On top of the POLL_MS safety-net poll above, refetch immediately the
+  // moment anyone checks in/out or starts/ends a break — same
+  // /ws/dashboard feed the dashboards use — so a new arrival/departure
+  // shows up right away instead of waiting up to POLL_MS.
+  useAttendanceLiveUpdates(() => load(true));
 
   const onSiteCount = rows.filter((r) => r.live_status === "on_site").length;
   const outOfRangeCount = rows.filter(

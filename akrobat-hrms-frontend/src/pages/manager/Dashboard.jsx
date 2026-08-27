@@ -216,22 +216,7 @@ export default function ManagerDashboard() {
       .finally(() => setAttendanceLoading(false));
   }
 
-  // Refetches the team's attendance status the instant any of them
-  // checks in/out or starts/ends a break, instead of only reflecting
-  // whatever was true when this page first loaded.
-  useAttendanceLiveUpdates(() => {
-    loadTeamAttendance();
-  });
-
-  useEffect(() => {
-    loadTeamAttendance();
-    loadTeamLeaves();
-
-    apiClient
-      .get("/locations/")
-      .then((res) => setLocations(res.data || []))
-      .catch(() => setLocations([]));
-
+  function loadAnnouncements() {
     apiClient
       // Fetch every announcement (not just /active) so expired ones stay
       // visible here, greyed out, instead of vanishing the moment their
@@ -239,6 +224,28 @@ export default function ManagerDashboard() {
       .get("/announcements/")
       .then((res) => setAnnouncements(res.data || []))
       .catch(() => setAnnouncements([]));
+  }
+
+  // Refetches the instant anyone on this manager's team checks in/out,
+  // starts/ends a break, applies for/has their leave decided on, or a
+  // company-wide announcement changes — instead of only reflecting
+  // whatever was true when this page first loaded or the manager last
+  // hit refresh.
+  useAttendanceLiveUpdates(() => {
+    loadTeamAttendance();
+    loadTeamLeaves();
+    loadAnnouncements();
+  });
+
+  useEffect(() => {
+    loadTeamAttendance();
+    loadTeamLeaves();
+    loadAnnouncements();
+
+    apiClient
+      .get("/locations/")
+      .then((res) => setLocations(res.data || []))
+      .catch(() => setLocations([]));
   }, []);
 
   const presentCount = teamAttendance.filter(

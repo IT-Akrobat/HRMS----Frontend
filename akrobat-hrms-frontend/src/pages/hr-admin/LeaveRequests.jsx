@@ -10,6 +10,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
@@ -73,7 +74,7 @@ export default function LeaveRequests() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
+  function loadRecords() {
     setRecords(null);
     const params = new URLSearchParams({
       page: String(page),
@@ -91,7 +92,14 @@ export default function LeaveRequests() {
         setRecords([]);
         setTotal(0);
       });
-  }, [page, status]);
+  }
+
+  useEffect(loadRecords, [page, status]);
+
+  // Refetches the instant anyone applies for leave or has one
+  // approved/rejected, anywhere in the company, instead of waiting for
+  // a manual refresh.
+  useAttendanceLiveUpdates(loadRecords);
 
   const filtered = useMemo(() => {
     if (!records) return null;

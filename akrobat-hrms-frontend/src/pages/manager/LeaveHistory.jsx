@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
@@ -200,7 +201,7 @@ export default function LeaveHistory() {
   // side by side via lg:block overrides below, so this has no effect there.
   const [mobileView, setMobileView] = useState("roster"); // "roster" | "detail"
 
-  useEffect(() => {
+  function loadLeaves() {
     apiClient
       .get("/leaves/team")
       .then((res) => setLeaves(res?.data || []))
@@ -208,7 +209,13 @@ export default function LeaveHistory() {
         setLeaves([]);
         setError(err.message || "Unable to load team leave history.");
       });
-  }, []);
+  }
+
+  useEffect(loadLeaves, []);
+
+  // Refetches the instant a team member applies for leave or has one
+  // approved/rejected, instead of waiting for a manual refresh.
+  useAttendanceLiveUpdates(loadLeaves);
 
   // ---------- Group by employee for the left roster ----------
   const roster = useMemo(() => {

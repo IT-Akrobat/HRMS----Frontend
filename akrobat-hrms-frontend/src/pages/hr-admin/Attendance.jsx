@@ -5,12 +5,13 @@ import {
   MapPin,
   Search,
   Timer,
-  Users
+  Users,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import DatePicker from "../../components/layout/DatePicker";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate, toLocalISODate } from "../../utils/date";
 import { unwrap } from "../../utils/unwrap";
@@ -289,24 +290,21 @@ export default function HrAttendanceOverview() {
       .catch(() => setActiveHeadcount(null));
   }, []);
 
-  useEffect(() => {
-    function loadSiteVisits() {
-      apiClient
-        .get("/attendance/org/site-visits")
-        .then((res) => {
-          const rows = unwrap(res) || [];
-          setOnSiteCount(
-            rows.filter((r) => r.live_status === "on_site").length,
-          );
-        })
-        .catch(() => setOnSiteCount(0));
-    }
-    loadSiteVisits();
-    const id = setInterval(loadSiteVisits, 60000);
-    return () => clearInterval(id);
-  }, []);
+  function loadSiteVisits() {
+    apiClient
+      .get("/attendance/org/site-visits")
+      .then((res) => {
+        const rows = unwrap(res) || [];
+        setOnSiteCount(rows.filter((r) => r.live_status === "on_site").length);
+      })
+      .catch(() => setOnSiteCount(0));
+  }
 
   useEffect(() => {
+    loadSiteVisits();
+  }, []);
+
+  function loadDayData() {
     setAnalyticsLoading(true);
     apiClient
       .get(
@@ -329,7 +327,25 @@ export default function HrAttendanceOverview() {
         setLoadError(err.message || "Could not load attendance records.");
       })
       .finally(() => setRecordsLoading(false));
+  }
+
+  useEffect(() => {
+    loadDayData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
+
+  // Refetch the instant anyone checks in/out or starts/ends a break,
+  // instead of waiting on the old 60s poll (site visits) or a manual
+  // page refresh (analytics/records) — same /ws/dashboard feed the
+  // dashboards already use. Only the on-site count needs to stay live
+  // regardless of which day is selected; the analytics/records refetch
+  // only matters while looking at today, so skip it for past days.
+  useAttendanceLiveUpdates(() => {
+    loadSiteVisits();
+    if (selectedDate === toLocalISODate()) {
+      loadDayData();
+    }
+  });
 
   const filteredRecords = useMemo(() => {
     const q = search.trim().toLowerCase();

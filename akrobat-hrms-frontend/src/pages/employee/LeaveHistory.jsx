@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 import SelectDropdown from "../../components/common/SelectDropdown";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
@@ -138,7 +139,7 @@ export default function LeaveHistory() {
   // pattern as AttendanceHistory.jsx.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  useEffect(() => {
+  function loadLeaves() {
     setLoading(true);
     setError(null);
     apiClient
@@ -149,7 +150,16 @@ export default function LeaveHistory() {
         setError(err.message || "Unable to load leave history.");
       })
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(loadLeaves, []);
+
+  // Refetches the instant this leave (or an earlier one) gets
+  // approved/rejected, so the status shown here updates immediately
+  // instead of needing a manual refresh.
+  useAttendanceLiveUpdates((event) => {
+    if (event?.type === "leave_event") loadLeaves();
+  });
 
   const leaveTypeOptions = useMemo(() => {
     const names = new Set(

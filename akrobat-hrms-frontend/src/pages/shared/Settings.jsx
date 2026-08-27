@@ -1,24 +1,30 @@
 import {
+  AlertTriangle,
   Bell,
   Building2,
+  CalendarDays,
   CheckCircle2,
   Eye,
   EyeOff,
+  FileSpreadsheet,
   Globe,
+  Loader2,
   Lock,
   Mail,
   Phone,
   ShieldCheck,
+  Upload,
   User,
   XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 import ToggleSwitch from "../../components/common/ToggleSwitch";
-import { ROLE_BASE_PATH } from "../../config/roles";
+import { ROLE_BASE_PATH, ROLES } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
+import { holidaysService } from "../../services/holidaysService";
 
 // Account Settings — one shared page for every role instead of four
 // near-copies (previously: only Employee had a real implementation;
@@ -148,6 +154,18 @@ export default function Settings() {
   const { user, role, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState("account");
 
+  // Holidays (Excel upload) is only relevant to roles that can manage
+  // the company holiday calendar -- HR Admin / HR Executive and Super
+  // Admin hold EDIT_EMPLOYEE, which POST /holidays/bulk-import/excel
+  // requires (see sql/002_role_permissions_seed.sql). A Manager or
+  // Employee wouldn't be able to use it even if they saw the tab, so it
+  // isn't shown to them at all rather than showing then failing.
+  const canManageHolidays =
+    role === ROLES.HR_ADMIN || role === ROLES.SUPER_ADMIN;
+  const tabs = canManageHolidays
+    ? [...TABS, { key: "holidays", label: "Holidays", icon: CalendarDays }]
+    : TABS;
+
   const storageKey = `akrobat_settings_${user?.id || "guest"}`;
 
   // My Profile is mounted under every role via commonRoutes.jsx at
@@ -223,6 +241,56 @@ export default function Settings() {
   // unchanged, local-only for now.
   const [prefs, setPrefs] = useState(PREF_DEFAULTS);
   const [prefMsg, setPrefMsg] = useState("");
+
+  // ---------------- Holidays (Excel upload) ----------------
+  const [holidayUploadCountry, setHolidayUploadCountry] = useState("SG");
+  const [holidayUploading, setHolidayUploading] = useState(false);
+  const [holidayUploadResult, setHolidayUploadResult] = useState(null);
+  const holidayFileInputRef = useRef(null);
+
+  async function downloadHolidayTemplate() {
+    const XLSX = await import("xlsx-js-style");
+    // Header row matches the `holidays` table's own column names exactly
+    // (id/raw_holiday_date/is_sunday_shifted/created_at are all
+    // auto-computed by the backend on import, so they're left out here —
+    // see app/holidays/services.py::import_holidays_from_excel).
+    const header = ["holiday_name", "holiday_date", "description", "country"];
+    const sample = [
+      ["New Year's Day", "2027-01-01", "Public holiday", "SG"],
+      ["Republic Day", "2027-01-26", "Public holiday", "IN"],
+    ];
+    const sheet = XLSX.utils.aoa_to_sheet([header, ...sample]);
+    sheet["!cols"] = header.map((h) => ({ wch: Math.max(16, h.length + 4) }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, "Holidays");
+    XLSX.writeFile(workbook, "holidays-upload-template.xlsx");
+  }
+
+  function pickHolidayFile() {
+    holidayFileInputRef.current?.click();
+  }
+
+  async function handleHolidayFileChosen(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-choosing the same file next time
+    if (!file) return;
+
+    setHolidayUploading(true);
+    setHolidayUploadResult(null);
+    try {
+      const result = await holidaysService.uploadExcel(file, {
+        country: holidayUploadCountry,
+      });
+      setHolidayUploadResult(result);
+    } catch (err) {
+      setHolidayUploadResult({
+        imported: [],
+        errors: [err.message || "Upload failed."],
+      });
+    } finally {
+      setHolidayUploading(false);
+    }
+  }
 
   useEffect(() => {
     try {
@@ -342,7 +410,7 @@ export default function Settings() {
         {/* ---------------- Tab nav ---------------- */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl border border-slate-200 p-2 flex lg:flex-col gap-1 overflow-x-auto">
-            {TABS.map((tab) => {
+            {tabs.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.key;
               return (
@@ -674,6 +742,115 @@ export default function Settings() {
                 >
                   Save preferences
                 </button>
+              </div>
+            </SectionCard>
+          )}
+
+          {activeTab === "holidays" && canManageHolidays && (
+            <SectionCard
+              title="Holidays"
+              description="Upload your company holiday calendar from an Excel file."
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-[#172033]/10 flex items-center justify-center shrink-0">
+                  <FileSpreadsheet className="w-5 h-5 text-[#172033]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-slate-500">
+                    Needs holiday name and date. Description and country are
+                    optional.
+                  </p>
+
+                  <div className="mt-3 space-y-3">
+                    <div className="flex items-center gap-2">
+                      {/* Compact segmented control, matching the country
+                          tabs in HolidaysCalendarCard.jsx — sized to its
+                          content instead of a full-width native <select>,
+                          so it sits comfortably next to the button on
+                          mobile instead of forcing a stacked layout. */}
+                      <div className="flex gap-1 bg-slate-100 rounded-lg p-1 shrink-0">
+                        {[
+                          { code: "SG", label: "SG" },
+                          { code: "IN", label: "IN" },
+                        ].map((c) => (
+                          <button
+                            key={c.code}
+                            type="button"
+                            onClick={() => setHolidayUploadCountry(c.code)}
+                            className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                              holidayUploadCountry === c.code
+                                ? "bg-white text-[#172033] shadow-sm"
+                                : "text-slate-500 hover:text-slate-700"
+                            }`}
+                          >
+                            {c.label}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        onClick={pickHolidayFile}
+                        disabled={holidayUploading}
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#172033] text-white text-sm font-medium hover:opacity-90 disabled:opacity-60"
+                      >
+                        {holidayUploading ? (
+                          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        ) : (
+                          <Upload className="w-4 h-4 shrink-0" />
+                        )}
+                        {holidayUploading ? "Uploading..." : "Upload Excel"}
+                      </button>
+                    </div>
+                    <button
+                      onClick={downloadHolidayTemplate}
+                      className="block text-sm text-slate-500 hover:text-slate-700 underline underline-offset-2"
+                    >
+                      Download template
+                    </button>
+                    <input
+                      ref={holidayFileInputRef}
+                      type="file"
+                      accept=".xlsx,.xlsm"
+                      className="hidden"
+                      onChange={handleHolidayFileChosen}
+                    />
+                  </div>
+
+                  {holidayUploadResult && (
+                    <div className="mt-3 space-y-2">
+                      {holidayUploadResult.imported?.length > 0 && (
+                        <div className="flex items-start gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+                          <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                          <span>
+                            {holidayUploadResult.imported.length} holiday
+                            {holidayUploadResult.imported.length === 1
+                              ? ""
+                              : "s"}{" "}
+                            imported successfully.
+                          </span>
+                        </div>
+                      )}
+                      {holidayUploadResult.errors?.length > 0 && (
+                        <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="font-medium">
+                              {holidayUploadResult.errors.length} row
+                              {holidayUploadResult.errors.length === 1
+                                ? ""
+                                : "s"}{" "}
+                              skipped:
+                            </p>
+                            <ul className="list-disc list-inside mt-1 space-y-0.5">
+                              {holidayUploadResult.errors.map((msg, i) => (
+                                <li key={i}>{msg}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </SectionCard>
           )}

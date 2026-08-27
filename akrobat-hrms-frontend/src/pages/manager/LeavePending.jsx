@@ -13,10 +13,11 @@ import {
   ShieldAlert,
   ShieldCheck,
   Umbrella,
-  XCircle
+  XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
@@ -139,6 +140,11 @@ export default function LeavePending() {
   }
 
   useEffect(load, []);
+
+  // Refetches the instant a team member applies for leave or has one
+  // approved/rejected — by this manager in another tab, or by anyone
+  // else — instead of waiting for a manual refresh.
+  useAttendanceLiveUpdates(load);
 
   const stats = useMemo(() => {
     const all = leaves || [];

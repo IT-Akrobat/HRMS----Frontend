@@ -412,18 +412,7 @@ export default function HrAdminDashboard() {
       .finally(() => setStatsLoading(false));
   }
 
-  // Refetches stats + Recent Activity the instant any employee checks
-  // in/out or starts/ends a break, anywhere in the company — not just
-  // from this admin's own actions.
-  useAttendanceLiveUpdates(() => {
-    loadStats();
-    loadLogs();
-  });
-
-  useEffect(() => {
-    loadStats();
-    loadLogs();
-
+  function loadAnnouncements() {
     // All announcements, not just /active — same as Super Admin's
     // dashboard — so expired ones still show here (greyed out) instead
     // of just vanishing. Falls back to /active if this HR Admin's role
@@ -437,6 +426,22 @@ export default function HrAdminDashboard() {
           .then((res) => setAnnouncements(res.data || []))
           .catch(() => setAnnouncements([])),
       );
+  }
+
+  // Refetches stats + Recent Activity + Announcements the instant any
+  // employee checks in/out or starts/ends a break, applies for/has a
+  // leave decided on, or an announcement changes, anywhere in the
+  // company — not just from this admin's own actions.
+  useAttendanceLiveUpdates(() => {
+    loadStats();
+    loadLogs();
+    loadAnnouncements();
+  });
+
+  useEffect(() => {
+    loadStats();
+    loadLogs();
+    loadAnnouncements();
 
     apiClient
       .get("/dashboard/department-distribution")

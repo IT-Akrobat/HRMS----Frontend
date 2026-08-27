@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 import { unwrap } from "../../utils/unwrap";
@@ -353,21 +354,28 @@ export default function ManagerAttendance() {
       .finally(() => setFieldLoading(false));
   }
 
-  useEffect(() => {
-    loadFieldStaff();
-
+  function loadOfficeTeam() {
     apiClient
       .get("/attendance/team")
       .then((res) => setOfficeTeam(unwrap(res) || []))
       .catch(() => setOfficeTeam([]))
       .finally(() => setOfficeLoading(false));
+  }
 
-    // "Live status" should stay live — poll so a manager watching this
-    // screen sees an employee's on-site time (and who's newly arrived
-    // or departed) without needing to refresh the page themselves.
-    const id = setInterval(loadFieldStaff, 60000);
-    return () => clearInterval(id);
+  useEffect(() => {
+    loadFieldStaff();
+    loadOfficeTeam();
   }, []);
+
+  // "Live status" should stay live — instead of waiting on a poll timer,
+  // refetch both lists the instant anyone on this manager's team
+  // checks in/out or starts/ends a break (same /ws/dashboard feed the
+  // dashboards use), so a newly-arrived/departed employee shows up here
+  // without the manager needing to refresh the page themselves.
+  useAttendanceLiveUpdates(() => {
+    loadFieldStaff();
+    loadOfficeTeam();
+  });
 
   const fieldIds = new Set(fieldStaff.map((r) => r.employee_id));
   const officeOnly = officeTeam.filter((row) => !fieldIds.has(row.employee_id));

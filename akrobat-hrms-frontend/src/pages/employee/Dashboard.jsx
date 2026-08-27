@@ -106,15 +106,7 @@ export default function EmployeeDashboard() {
       .catch(() => setTodayStatus({ checkedIn: false, checkedOut: false }));
   }
 
-  // Only matters for field staff (loadTodayStatus no-ops otherwise), but
-  // harmless to call either way — keeps SiteVisitCard's checked-in/out
-  // gating correct if this employee's own check-in/out came through a
-  // different tab or device rather than this page's own CheckInOutCard.
-  useAttendanceLiveUpdates(() => {
-    loadTodayStatus();
-  });
-
-  useEffect(() => {
+  function loadAnnouncements() {
     apiClient
       // Fetch every announcement (not just /active) so expired ones stay
       // visible here, greyed out, instead of vanishing the moment their
@@ -122,7 +114,30 @@ export default function EmployeeDashboard() {
       .get("/announcements/")
       .then((res) => setAnnouncements(res.data || []))
       .catch(() => setAnnouncements([]));
+  }
 
+  // Only matters for field staff (loadTodayStatus no-ops otherwise), but
+  // harmless to call either way — keeps SiteVisitCard's checked-in/out
+  // gating correct if this employee's own check-in/out came through a
+  // different tab or device rather than this page's own CheckInOutCard.
+  // Also refetches announcements (a new one just went out, or one this
+  // employee is looking at just got edited/expired), and — if the
+  // "Applied Leave Requests" sheet has already been opened once this
+  // session — the recent-leaves list, so an approval/rejection shows up
+  // immediately instead of needing the sheet reopened.
+  useAttendanceLiveUpdates(() => {
+    loadTodayStatus();
+    loadAnnouncements();
+    if (recentLeaves !== null) {
+      apiClient
+        .get("/leaves/my")
+        .then((res) => setRecentLeaves((res.data || []).slice(0, 5)))
+        .catch(() => {});
+    }
+  });
+
+  useEffect(() => {
+    loadAnnouncements();
     loadTodayStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

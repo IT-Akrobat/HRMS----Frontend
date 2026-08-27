@@ -23,8 +23,9 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 import SelectDropdown from "../../components/common/SelectDropdown";
 import DatePicker from "../../components/layout/DatePicker";
-import { ROLE_BASE_PATH, ROLES } from "../../config/roles";
+import { ROLE_BASE_PATH } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
 import { apiClient } from "../../services/apiClient";
 import { toLocalISODate } from "../../utils/date";
 
@@ -147,17 +148,7 @@ export default function LeaveApply() {
   // history though, which lives under the current role's own base path
   // (e.g. /manager/leave/history), never a hardcoded /employee/... link.
   const { role } = useAuth();
-  // HR Admin and Manager don't get a dedicated "Leave History" page/sidebar
-  // entry for their own applied leave -- "Recent Requests -> View All"
-  // instead opens a bottom-sheet overlay right here on this page (see
-  // `viewAllOpen` below), the same "slide up from the bottom, full list,
-  // no new route" pattern already used for things like Upcoming Birthdays
-  // on the Employee dashboard. Employee and Super Admin keep the existing
-  // full-page "Leave History" (they already have that route + sidebar
-  // entry), so their View All still just links straight there.
-  const usesHistorySheet = role === ROLES.HR_ADMIN || role === ROLES.MANAGER;
   const leaveHistoryPath = `${ROLE_BASE_PATH[role] || "/employee"}/leave/history`;
-  const [viewAllOpen, setViewAllOpen] = useState(false);
 
   const [form, setForm] = useState({
     leave_type: "",
@@ -189,12 +180,14 @@ export default function LeaveApply() {
   const [entitlements, setEntitlements] = useState(null); // null = loading
   const [entitlementsError, setEntitlementsError] = useState("");
 
-  useEffect(() => {
+  function loadMyLeaves() {
     apiClient
       .get("/leaves/my")
       .then((res) => setAllLeaves(res.data || []))
       .catch(() => setAllLeaves([]));
+  }
 
+  function loadEntitlements() {
     apiClient
       .get("/leaves/my-entitlements")
       .then((res) => {
@@ -212,7 +205,22 @@ export default function LeaveApply() {
           "Unable to load your leave entitlements right now.",
         );
       });
+  }
+
+  useEffect(() => {
+    loadMyLeaves();
+    loadEntitlements();
   }, []);
+
+  // Refetches the instant this leave request (or an earlier one) gets
+  // approved/rejected, so "Recent Requests" and the remaining-days
+  // figures update immediately instead of needing a manual refresh.
+  useAttendanceLiveUpdates((event) => {
+    if (event?.type === "leave_event") {
+      loadMyLeaves();
+      loadEntitlements();
+    }
+  });
 
   const recent = useMemo(
     () => (allLeaves === null ? null : allLeaves.slice(0, 3)),
@@ -328,16 +336,14 @@ export default function LeaveApply() {
         title="Apply Leave"
         subtitle="Fill in the details below to apply for leave."
         actions={
-          !usesHistorySheet && (
-            <Link
-              to={leaveHistoryPath}
-              title="Back to My Leaves"
-              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 hover:bg-slate-50 transition-colors"
-            >
-              <ArrowLeft size={15} />{" "}
-              <span className="hidden sm:inline">Back to My Leaves</span>
-            </Link>
-          )
+          <Link
+            to={leaveHistoryPath}
+            title="Back to My Leaves"
+            className="flex items-center gap-1.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 hover:bg-slate-50 transition-colors"
+          >
+            <ArrowLeft size={15} />{" "}
+            <span className="hidden sm:inline">Back to My Leaves</span>
+          </Link>
         }
       />
 
@@ -667,44 +673,24 @@ export default function LeaveApply() {
               ))}
             </ul>
           )}
-          {usesHistorySheet ? (
-            <button
-              type="button"
-              onClick={() => setViewAllOpen(true)}
-              className="block mt-3 text-xs text-orange-600 font-medium"
-            >
-              View All
-            </button>
-          ) : (
-            <Link
-              to={leaveHistoryPath}
-              className="block mt-3 text-xs text-orange-600 font-medium"
-            >
-              View All
-            </Link>
-          )}
+          <Link
+            to={leaveHistoryPath}
+            className="block mt-3 text-xs text-orange-600 font-medium"
+          >
+            View All
+          </Link>
         </CollapsibleSection>
 
         <CollapsibleSection title="Important Note" icon={Info}>
           <p className="text-xs text-slate-500">
             All leave requests are subject to your manager's approval. You can
             track the status of this request in{" "}
-            {usesHistorySheet ? (
-              <button
-                type="button"
-                onClick={() => setViewAllOpen(true)}
-                className="font-medium underline text-blue-600"
-              >
-                Leave History
-              </button>
-            ) : (
-              <Link
-                to={leaveHistoryPath}
-                className="font-medium underline text-blue-600"
-              >
-                Leave History
-              </Link>
-            )}
+            <Link
+              to={leaveHistoryPath}
+              className="font-medium underline text-blue-600"
+            >
+              Leave History
+            </Link>
             .
           </p>
         </CollapsibleSection>
@@ -872,16 +858,7 @@ export default function LeaveApply() {
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() =>
-                  usesHistorySheet
-                    ? setForm({
-                        leave_type: entitlements?.[0]?.leave_name || "",
-                        from_date: "",
-                        to_date: "",
-                        reason: "",
-                      })
-                    : navigate(leaveHistoryPath)
-                }
+                onClick={() => navigate(leaveHistoryPath)}
                 className="px-4 py-2.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Cancel
@@ -989,22 +966,12 @@ export default function LeaveApply() {
               <h3 className="font-semibold text-slate-800 text-sm">
                 Recent Requests
               </h3>
-              {usesHistorySheet ? (
-                <button
-                  type="button"
-                  onClick={() => setViewAllOpen(true)}
-                  className="text-xs text-orange-600 font-medium"
-                >
-                  View All
-                </button>
-              ) : (
-                <Link
-                  to={leaveHistoryPath}
-                  className="text-xs text-orange-600 font-medium"
-                >
-                  View All
-                </Link>
-              )}
+              <Link
+                to={leaveHistoryPath}
+                className="text-xs text-orange-600 font-medium"
+              >
+                View All
+              </Link>
             </div>
 
             {recent === null ? (
@@ -1056,113 +1023,14 @@ export default function LeaveApply() {
             <p className="text-xs text-blue-700">
               All leave requests are subject to your manager's approval. You can
               track the status of this request in{" "}
-              {usesHistorySheet ? (
-                <button
-                  type="button"
-                  onClick={() => setViewAllOpen(true)}
-                  className="font-medium underline"
-                >
-                  Leave History
-                </button>
-              ) : (
-                <Link to={leaveHistoryPath} className="font-medium underline">
-                  Leave History
-                </Link>
-              )}
+              <Link to={leaveHistoryPath} className="font-medium underline">
+                Leave History
+              </Link>
               .
             </p>
           </div>
         </div>
       </div>
-
-      {/* ---------------- "View All" bottom sheet (HR Admin / Manager only) ----------------
-          These two roles don't get a separate Leave History page or sidebar
-          entry -- tapping "View All" instead slides this up over the page,
-          same "full list, no new route" pattern as the Upcoming Birthdays /
-          Applied Leave sheet on the Employee dashboard. Bottom sheet on
-          mobile (items-end), a centered dialog on larger screens
-          (sm:items-center) since there's no dedicated mobile-only wrapper
-          here. Shows every record from `allLeaves` (not just the 3-item
-          `recent` slice used above) -- no separate fetch needed. */}
-      {viewAllOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-          onClick={() => setViewAllOpen(false)}
-        >
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-          <div
-            className="relative w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl border border-slate-200 shadow-xl p-5 max-h-[80vh] sm:max-h-[75vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sm:hidden mx-auto h-1.5 w-10 rounded-full bg-slate-200 mb-4" />
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-800">
-                All Leave Requests
-              </h3>
-              <button
-                type="button"
-                onClick={() => setViewAllOpen(false)}
-                aria-label="Close"
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <XCircle size={18} />
-              </button>
-            </div>
-
-            {allLeaves === null ? (
-              <div className="space-y-2 pb-2">
-                <div className="h-10 bg-slate-100 rounded animate-pulse" />
-                <div className="h-10 bg-slate-100 rounded animate-pulse" />
-                <div className="h-10 bg-slate-100 rounded animate-pulse" />
-              </div>
-            ) : allLeaves.length === 0 ? (
-              <p className="text-sm text-slate-400 pb-2">
-                No leave requests yet.
-              </p>
-            ) : (
-              <ul className="space-y-3 pb-2">
-                {allLeaves.map((r) => (
-                  <li
-                    key={r.id}
-                    className="flex items-start justify-between gap-3 text-sm border-b border-slate-50 last:border-0 pb-3 last:pb-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-slate-700 font-medium truncate">
-                        {r.leave_types?.leave_name || "Leave"}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {new Date(r.start_date).toLocaleDateString([], {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                        {" – "}
-                        {new Date(r.end_date).toLocaleDateString([], {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                        {" · "}
-                        {r.total_days} {r.total_days === 1 ? "day" : "days"}
-                      </p>
-                      {r.reason && (
-                        <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">
-                          {r.reason}
-                        </p>
-                      )}
-                    </div>
-                    <span
-                      className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${
-                        STATUS_STYLES[r.status] || "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {r.status}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
@@ -215,6 +216,47 @@ export default function LeaveBalance() {
       cancelled = true;
     };
   }, []);
+
+  // A leave changes the numbers on this page only once it's approved
+  // (see the `status=Approved` filter above) — every check-in/out and
+  // pending/rejected leave elsewhere in the company would otherwise
+  // trigger this fairly expensive multi-page refetch for nothing, so
+  // filter to the one event type/action that actually affects balances.
+  useAttendanceLiveUpdates((event) => {
+    if (event?.type === "leave_event" && event?.action === "approved") {
+      setLoading(true);
+      setError(null);
+      (async () => {
+        try {
+          const [empRes, typesRes] = await Promise.all([
+            apiClient.get("/employees/"),
+            apiClient.get("/leaves/types"),
+          ]);
+
+          let approved = [];
+          let page = 1;
+          while (page <= MAX_PAGES) {
+            const res = await apiClient.get(
+              `/leaves/?status=Approved&page=${page}&limit=${PAGE_SIZE}`,
+            );
+            const chunk = res?.data?.records || [];
+            approved = approved.concat(chunk);
+            const total = res?.data?.total || 0;
+            if (approved.length >= total || chunk.length === 0) break;
+            page += 1;
+          }
+
+          setEmployees(asList(empRes));
+          setLeaveTypes(asList(typesRes));
+          setRecords(approved);
+        } catch (err) {
+          setError(err.message || "Could not load leave balances.");
+        } finally {
+          setLoading(false);
+        }
+      })();
+    }
+  });
 
   useEffect(() => {
     if (!activeType && leaveTypes.length > 0) {

@@ -1,15 +1,19 @@
 import { useEffect, useRef } from "react";
 import { getWsTicket, wsUrl } from "../services/apiClient";
 
-// Shared by every role's dashboard (super-admin, hr-admin, manager,
-// employee) so none of them have to poll on a timer to see another
-// employee's check-in/check-out/break show up. Opens /ws/dashboard (see
-// app/main.py) and calls `onEvent` for every message received — the
-// caller decides what that means for it (e.g. "refetch my team's status",
-// "refetch my own attendance record"). Auto-reconnects after a short
-// delay if the connection drops (backend restart, network blip, laptop
-// waking from sleep) instead of going silently stale for the rest of the
-// session.
+// Shared by every role's dashboard/list page so none of them have to
+// poll on a timer to see another employee's check-in/check-out/break,
+// a leave being applied for/approved/rejected, or an announcement
+// change show up. Opens /ws/dashboard (see app/main.py) and calls
+// `onEvent(event)` for every message received, where `event` is the
+// parsed payload (e.g. {type: "attendance_event", action: "check_in",
+// employee_id} or {type: "announcement_event", action: "created"}) —
+// the caller decides what that means for it (e.g. "refetch my team's
+// status", "refetch my own attendance record", or ignore events it
+// doesn't care about, filtering on event.type/event.action if a
+// refetch is expensive). Auto-reconnects after a short delay if the
+// connection drops (backend restart, network blip, laptop waking from
+// sleep) instead of going silently stale for the rest of the session.
 //
 // Auth: the browser attaches the httpOnly access-token cookie to the WS
 // handshake automatically (same as it does for fetch() with
@@ -19,10 +23,18 @@ import { getWsTicket, wsUrl } from "../services/apiClient";
 // onclose handler below just treats as "retry shortly" like any other
 // drop -- a fresh login will re-establish it.
 //
-// Usage:
+// Usage (blanket refetch, ignoring event contents):
 //   useAttendanceLiveUpdates(() => {
 //     loadStats();
 //     loadLogs();
+//   });
+//
+// Usage (filtering on event type/action, e.g. to skip an expensive
+// refetch that only one kind of event actually affects):
+//   useAttendanceLiveUpdates((event) => {
+//     if (event?.type === "leave_event" && event?.action === "approved") {
+//       loadBalances();
+//     }
 //   });
 export function useAttendanceLiveUpdates(onEvent) {
   // Keep the latest callback in a ref so the effect below doesn't need
@@ -51,8 +63,15 @@ export function useAttendanceLiveUpdates(onEvent) {
         : wsUrl("/ws/dashboard");
       ws = new WebSocket(url);
 
-      ws.onmessage = () => {
-        onEventRef.current?.();
+      ws.onmessage = (msg) => {
+        let event = null;
+        try {
+          event = JSON.parse(msg.data);
+        } catch {
+          // Malformed/non-JSON payload -- still let callers that ignore
+          // their argument (the common case) know something happened.
+        }
+        onEventRef.current?.(event);
       };
 
       ws.onclose = () => {
