@@ -37,6 +37,15 @@ import { parseServerDate } from "../../utils/date";
 // the Pending Leave Requests widget just surfaces pending count — no
 // Approve/Reject actions.
 
+// An announcement is "expired" once today is past its end_date. The
+// Announcements panel keeps showing these (greyed out) instead of hiding
+// them the moment /announcements/active would stop returning them.
+function isAnnouncementExpired(a) {
+  if (!a?.end_date) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return a.end_date < today;
+}
+
 // Small circular icon button shown next to the quote in the header —
 // mirrors QuickActionCircle on the Super Admin / HR Admin dashboards.
 function QuickActionCircle({ to, label, icon: Icon }) {
@@ -224,7 +233,10 @@ export default function ManagerDashboard() {
       .catch(() => setLocations([]));
 
     apiClient
-      .get("/announcements/active")
+      // Fetch every announcement (not just /active) so expired ones stay
+      // visible here, greyed out, instead of vanishing the moment their
+      // end_date passes — matches Employee/Super Admin's panel.
+      .get("/announcements/")
       .then((res) => setAnnouncements(res.data || []))
       .catch(() => setAnnouncements([]));
   }, []);
@@ -619,19 +631,55 @@ export default function ManagerDashboard() {
               <p className="text-sm text-slate-400">No active announcements.</p>
             ) : (
               <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
-                {announcements.slice(0, 3).map((a) => (
-                  <div
-                    key={a.id}
-                    className="bg-orange-50 border border-orange-100 rounded-lg p-2.5"
-                  >
-                    <p className="text-sm font-medium text-slate-800 truncate">
-                      {a.title}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
-                      {a.description}
-                    </p>
-                  </div>
-                ))}
+                {/* Active announcements first, then expired ones (most
+                    recently ended first) — expired stay visible, just
+                    greyed out, instead of disappearing. */}
+                {[...announcements]
+                  .sort((a, b) => {
+                    const aExpired = isAnnouncementExpired(a);
+                    const bExpired = isAnnouncementExpired(b);
+                    if (aExpired !== bExpired) return aExpired ? 1 : -1;
+                    return (b.end_date || "").localeCompare(a.end_date || "");
+                  })
+                  .slice(0, 3)
+                  .map((a) => {
+                    const expired = isAnnouncementExpired(a);
+                    return (
+                      <div
+                        key={a.id}
+                        className={
+                          "rounded-lg p-2.5 border " +
+                          (expired
+                            ? "bg-slate-50 border-slate-200 opacity-60"
+                            : "bg-orange-50 border-orange-100")
+                        }
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <p
+                            className={
+                              "text-sm font-medium truncate " +
+                              (expired ? "text-slate-500" : "text-slate-800")
+                            }
+                          >
+                            {a.title}
+                          </p>
+                          {expired && (
+                            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
+                              Expired
+                            </span>
+                          )}
+                        </div>
+                        <p
+                          className={
+                            "text-xs mt-0.5 line-clamp-2 " +
+                            (expired ? "text-slate-400" : "text-slate-500")
+                          }
+                        >
+                          {a.description}
+                        </p>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -956,19 +1004,52 @@ export default function ManagerDashboard() {
                 </p>
               ) : (
                 <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
-                  {announcements.slice(0, 3).map((a) => (
-                    <div
-                      key={a.id}
-                      className="bg-orange-50 border border-orange-100 rounded-lg p-2.5"
-                    >
-                      <p className="text-sm font-medium text-slate-800 truncate">
-                        {a.title}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
-                        {a.description}
-                      </p>
-                    </div>
-                  ))}
+                  {[...announcements]
+                    .sort((a, b) => {
+                      const aExpired = isAnnouncementExpired(a);
+                      const bExpired = isAnnouncementExpired(b);
+                      if (aExpired !== bExpired) return aExpired ? 1 : -1;
+                      return (b.end_date || "").localeCompare(a.end_date || "");
+                    })
+                    .slice(0, 3)
+                    .map((a) => {
+                      const expired = isAnnouncementExpired(a);
+                      return (
+                        <div
+                          key={a.id}
+                          className={
+                            "rounded-lg p-2.5 border " +
+                            (expired
+                              ? "bg-slate-50 border-slate-200 opacity-60"
+                              : "bg-orange-50 border-orange-100")
+                          }
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <p
+                              className={
+                                "text-sm font-medium truncate " +
+                                (expired ? "text-slate-500" : "text-slate-800")
+                              }
+                            >
+                              {a.title}
+                            </p>
+                            {expired && (
+                              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
+                                Expired
+                              </span>
+                            )}
+                          </div>
+                          <p
+                            className={
+                              "text-xs mt-0.5 line-clamp-2 " +
+                              (expired ? "text-slate-400" : "text-slate-500")
+                            }
+                          >
+                            {a.description}
+                          </p>
+                        </div>
+                      );
+                    })}
                 </div>
               )}
             </div>

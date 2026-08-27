@@ -24,7 +24,19 @@ self.addEventListener("activate", (event) => {
 // registered fetch handler before it will fire beforeinstallprompt /
 // offer "Add to Home Screen", even when the manifest is otherwise
 // valid. See https://developer.chrome.com/blog/update-install-criteria.
+//
+// IMPORTANT: only touch same-origin GET requests here. Re-forwarding
+// event.request via fetch() for a cross-origin POST (e.g. this app's
+// API calls to the Render backend, which is a different origin than
+// the Vercel frontend) can throw "TypeError: Failed to fetch" in
+// current Chrome when the request has a body -- this was breaking
+// real POST calls like /leave/apply. Not calling respondWith() at all
+// lets the browser handle the request completely normally, which is
+// exactly what we want for anything that isn't a trivial passthrough.
 self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+  if (new URL(event.request.url).origin !== self.location.origin) return;
+
   event.respondWith(fetch(event.request));
 });
 
