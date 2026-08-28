@@ -13,6 +13,7 @@ import {
   formatTime12h,
   resolveSaturdayShift,
 } from "../../utils/shiftMapping";
+import DatePicker from "../layout/DatePicker";
 
 // ---------------------------------------------------------------------
 // Shared "Add / Edit user" modal — originally lived only inside
@@ -1141,14 +1142,11 @@ export default function UserFormModal({
                   </span>
                 )}
               </Field>
-              <Field label="Joining Date">
-                <input
-                  type="date"
-                  className={inputCls}
-                  value={form.joining_date || ""}
-                  onChange={(e) => set("joining_date", e.target.value)}
-                />
-              </Field>
+              <DatePicker
+                label="Joining Date"
+                value={form.joining_date || ""}
+                onChange={(iso) => set("joining_date", iso)}
+              />
               <Field label="Work Location">
                 <input
                   className={inputCls}

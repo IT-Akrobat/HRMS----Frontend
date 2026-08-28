@@ -24,6 +24,8 @@ import {
 import { useEffect, useRef, useState } from "react";
 import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
+import SelectDropdown from "../../components/common/SelectDropdown";
+import DatePicker from "../../components/layout/DatePicker";
 import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
 
@@ -738,42 +740,55 @@ export default function MyProfile() {
               key={f.key}
               className={f.type === "textarea" ? "md:col-span-2" : ""}
             >
-              <label className="text-xs text-slate-500 mb-1 block">
-                {f.label}
-              </label>
-              {f.type === "select" ? (
-                <select
+              {f.type === "date" ? (
+                <DatePicker
+                  label={f.label}
                   value={editDraft[f.key] || ""}
-                  onChange={(e) =>
-                    setEditDraft((d) => ({ ...d, [f.key]: e.target.value }))
+                  onChange={(iso) =>
+                    setEditDraft((d) => ({ ...d, [f.key]: iso }))
                   }
-                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
-                >
-                  <option value="">Select…</option>
-                  {f.options.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              ) : f.type === "textarea" ? (
-                <textarea
-                  value={editDraft[f.key] || ""}
-                  onChange={(e) =>
-                    setEditDraft((d) => ({ ...d, [f.key]: e.target.value }))
-                  }
-                  rows={2}
-                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm resize-none"
+                  max={new Date().toISOString().slice(0, 10)}
                 />
               ) : (
-                <input
-                  type={f.type}
-                  value={editDraft[f.key] || ""}
-                  onChange={(e) =>
-                    setEditDraft((d) => ({ ...d, [f.key]: e.target.value }))
-                  }
-                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
-                />
+                <>
+                  <label className="text-xs text-slate-500 mb-1 block">
+                    {f.label}
+                  </label>
+                  {f.type === "select" ? (
+                    <SelectDropdown
+                      value={editDraft[f.key] || ""}
+                      onChange={(val) =>
+                        setEditDraft((d) => ({ ...d, [f.key]: val }))
+                      }
+                      options={f.options.map((o) => ({ value: o, label: o }))}
+                      placeholder="Select…"
+                    />
+                  ) : f.type === "textarea" ? (
+                    <textarea
+                      value={editDraft[f.key] || ""}
+                      onChange={(e) =>
+                        setEditDraft((d) => ({
+                          ...d,
+                          [f.key]: e.target.value,
+                        }))
+                      }
+                      rows={2}
+                      className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm resize-none"
+                    />
+                  ) : (
+                    <input
+                      type={f.type}
+                      value={editDraft[f.key] || ""}
+                      onChange={(e) =>
+                        setEditDraft((d) => ({
+                          ...d,
+                          [f.key]: e.target.value,
+                        }))
+                      }
+                      className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
+                    />
+                  )}
+                </>
               )}
             </div>
           ))}

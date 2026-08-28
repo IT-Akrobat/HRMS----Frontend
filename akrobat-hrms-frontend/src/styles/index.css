@@ -57,6 +57,61 @@
 }
 
 /* =====================================================
+   BIRTHDAY WISH — floating circular badge (BirthdayWish.jsx)
+   Distinct from the standard rectangular toast: a pulsing
+   circle badge + a speech-bubble tag next to it, bottom-right.
+===================================================== */
+
+@keyframes birthday-pop-in {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes birthday-pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes birthday-fade-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+.animate-birthday-in {
+  animation: birthday-pop-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.animate-birthday-out {
+  animation: birthday-fade-out 0.25s ease-in forwards;
+}
+
+.animate-birthday-pulse {
+  animation: birthday-pulse-ring 1.8s ease-out infinite;
+}
+
+/* =====================================================
    TEXT-2XL OVERRIDE
    Tailwind's text-2xl defaults to 24px. Shrunk here so every element
    using className="text-2xl ..." (page titles, stat card values, etc.)

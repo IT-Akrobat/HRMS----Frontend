@@ -195,6 +195,10 @@ export default function SecurityAuditLogs() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [module, setModule] = useState("");
+  // Separate from `module` since it hits a different backend route
+  // (/audit-logs/action/{action}) rather than /audit-logs/module/{module}.
+  // Only one of module / actionFilter is ever active at a time.
+  const [actionFilter, setActionFilter] = useState("");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
@@ -214,9 +218,11 @@ export default function SecurityAuditLogs() {
       limit: String(PAGE_SIZE),
     });
 
-    const path = module
-      ? `/audit-logs/module/${encodeURIComponent(module)}?${params.toString()}`
-      : `/audit-logs/?${params.toString()}`;
+    const path = actionFilter
+      ? `/audit-logs/action/${encodeURIComponent(actionFilter)}?${params.toString()}`
+      : module
+        ? `/audit-logs/module/${encodeURIComponent(module)}?${params.toString()}`
+        : `/audit-logs/?${params.toString()}`;
 
     apiClient
       .get(path)
@@ -246,7 +252,7 @@ export default function SecurityAuditLogs() {
       });
   }
 
-  useEffect(load, [page, module]);
+  useEffect(load, [page, module, actionFilter]);
 
   const filtered = useMemo(() => {
     if (!records) return null;
@@ -321,25 +327,55 @@ export default function SecurityAuditLogs() {
             <button
               onClick={() => {
                 setModule("");
+                setActionFilter("");
                 setPage(1);
               }}
               className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                module === ""
+                module === "" && actionFilter === ""
                   ? "bg-orange-500 border-orange-500 text-white"
                   : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
               }`}
             >
               All
             </button>
+            <button
+              onClick={() => {
+                setModule("");
+                setActionFilter("CHECK_IN");
+                setPage(1);
+              }}
+              className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                actionFilter === "CHECK_IN"
+                  ? "bg-orange-500 border-orange-500 text-white"
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Check In
+            </button>
+            <button
+              onClick={() => {
+                setModule("");
+                setActionFilter("CHECK_OUT");
+                setPage(1);
+              }}
+              className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                actionFilter === "CHECK_OUT"
+                  ? "bg-orange-500 border-orange-500 text-white"
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Check Out
+            </button>
             {MODULES.map((m) => (
               <button
                 key={m}
                 onClick={() => {
                   setModule(m);
+                  setActionFilter("");
                   setPage(1);
                 }}
                 className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                  module === m
+                  module === m && actionFilter === ""
                     ? "bg-orange-500 border-orange-500 text-white"
                     : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
