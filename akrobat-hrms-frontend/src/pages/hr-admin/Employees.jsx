@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
+import { FilterDropdown } from "../../components/common/UserformModal ";
 import { apiClient } from "../../services/apiClient";
 import { filterShiftsForSelection } from "../../utils/shiftMapping";
 
@@ -495,21 +496,18 @@ function EmployeeFormModal({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Basic Information
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {!isEdit && (
                 <Field label="Role" required>
-                  <select
-                    className={inputCls}
+                  <FilterDropdown
+                    fullWidth
+                    allLabel="Select role"
                     value={form.role_id}
-                    onChange={(e) => set("role_id", e.target.value)}
-                  >
-                    <option value="">Select role</option>
-                    {roles.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.role_name}
-                      </option>
-                    ))}
-                  </select>
+                    options={roles}
+                    getKey={(r) => r.id}
+                    getLabel={(r) => r.role_name}
+                    onChange={(v) => set("role_id", v)}
+                  />
                 </Field>
               )}
               <Field label="Full Name" required>
@@ -562,68 +560,54 @@ function EmployeeFormModal({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Work Details
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Department">
-                <select
-                  className={inputCls}
+                <FilterDropdown
+                  fullWidth
+                  allLabel="Select department"
                   value={form.department_id}
-                  onChange={(e) => set("department_id", e.target.value)}
-                >
-                  <option value="">Select department</option>
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.department_name}
-                    </option>
-                  ))}
-                </select>
+                  options={departments}
+                  getKey={(d) => d.id}
+                  getLabel={(d) => d.department_name}
+                  onChange={(v) => set("department_id", v)}
+                />
               </Field>
               <Field label="Designation">
-                <select
-                  className={inputCls}
-                  value={form.designation_id}
-                  onChange={(e) => set("designation_id", e.target.value)}
-                >
-                  <option value="">
-                    {form.department_id
+                <FilterDropdown
+                  fullWidth
+                  allLabel={
+                    form.department_id
                       ? "Select designation"
-                      : "Select a department first"}
-                  </option>
-                  {designationOptions.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.designation_name}
-                    </option>
-                  ))}
-                </select>
+                      : "Select a department first"
+                  }
+                  value={form.designation_id}
+                  options={designationOptions}
+                  getKey={(d) => d.id}
+                  getLabel={(d) => d.designation_name}
+                  onChange={(v) => set("designation_id", v)}
+                />
               </Field>
               <Field label="Reporting Manager">
-                <select
-                  className={inputCls}
+                <FilterDropdown
+                  fullWidth
+                  allLabel="None"
                   value={form.manager_id}
-                  onChange={(e) => set("manager_id", e.target.value)}
-                >
-                  <option value="">None</option>
-                  {employees
-                    .filter((e) => e.id !== employee?.id)
-                    .map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.full_name} ({e.employee_id})
-                      </option>
-                    ))}
-                </select>
+                  options={employees.filter((e) => e.id !== employee?.id)}
+                  getKey={(e) => e.id}
+                  getLabel={(e) => `${e.full_name} (${e.employee_id})`}
+                  onChange={(v) => set("manager_id", v)}
+                />
               </Field>
               <Field label="Shift">
-                <select
-                  className={inputCls}
+                <FilterDropdown
+                  fullWidth
+                  allLabel="Select shift"
                   value={form.shift_id}
-                  onChange={(e) => set("shift_id", e.target.value)}
-                >
-                  <option value="">Select shift</option>
-                  {filteredShifts.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.shift_name}
-                    </option>
-                  ))}
-                </select>
+                  options={filteredShifts}
+                  getKey={(s) => s.id}
+                  getLabel={(s) => s.shift_name}
+                  onChange={(v) => set("shift_id", v)}
+                />
                 {selectedDesignation?.shifts && (
                   <span className="text-xs text-slate-400 mt-1 block">
                     Auto-set to {selectedDesignation.shifts.shift_name}'s timing
@@ -648,14 +632,19 @@ function EmployeeFormModal({
                 />
               </Field>
               <Field label="Employment Status">
-                <select
-                  className={inputCls}
+                <FilterDropdown
+                  fullWidth
+                  showAllOption={false}
+                  allLabel="Select status"
                   value={form.employment_status}
-                  onChange={(e) => set("employment_status", e.target.value)}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
+                  options={[
+                    { id: "Active", label: "Active" },
+                    { id: "Inactive", label: "Inactive" },
+                  ]}
+                  getKey={(o) => o.id}
+                  getLabel={(o) => o.label}
+                  onChange={(v) => set("employment_status", v)}
+                />
               </Field>
             </div>
           </div>
@@ -664,57 +653,48 @@ function EmployeeFormModal({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Leave Policy
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Annual Leave Tier" required={!isEdit}>
-                <select
-                  className={inputCls}
+                <FilterDropdown
+                  fullWidth
+                  allLabel={isEdit ? "Keep current tier" : "Select tier"}
                   value={form.annual_leave_tier_id}
-                  onChange={(e) => set("annual_leave_tier_id", e.target.value)}
-                >
-                  <option value="">
-                    {isEdit ? "Keep current tier" : "Select tier"}
-                  </option>
-                  {annualLeaveTiers.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.tier_name} ({t.days} days)
-                    </option>
-                  ))}
-                </select>
+                  options={annualLeaveTiers}
+                  getKey={(t) => t.id}
+                  getLabel={(t) => `${t.tier_name} (${t.days} days)`}
+                  onChange={(v) => set("annual_leave_tier_id", v)}
+                />
               </Field>
               <Field label="Working Days / Week">
-                <select
-                  className={inputCls}
+                <FilterDropdown
+                  fullWidth
+                  showAllOption={false}
+                  allLabel="Select"
                   value={form.working_days_per_week}
-                  onChange={(e) =>
-                    set("working_days_per_week", Number(e.target.value))
-                  }
-                >
-                  <option value={5}>5 days</option>
-                  <option value={5.5}>5.5 days</option>
-                  <option value={6}>6 days</option>
-                </select>
+                  options={[
+                    { id: 5, label: "5 days" },
+                    { id: 5.5, label: "5.5 days" },
+                    { id: 6, label: "6 days" },
+                  ]}
+                  getKey={(o) => o.id}
+                  getLabel={(o) => o.label}
+                  onChange={(v) => set("working_days_per_week", Number(v))}
+                />
                 <span className="text-xs text-slate-400 mt-1 block">
                   Used by payroll to calculate the Unpaid Leave deduction.
                 </span>
               </Field>
               {childcareEligible !== false && (
                 <Field label="Childcare Leave Tier">
-                  <select
-                    className={inputCls}
+                  <FilterDropdown
+                    fullWidth
+                    allLabel={isEdit ? "Keep current tier" : "Not applicable"}
                     value={form.childcare_leave_tier_id}
-                    onChange={(e) =>
-                      set("childcare_leave_tier_id", e.target.value)
-                    }
-                  >
-                    <option value="">
-                      {isEdit ? "Keep current tier" : "Not applicable"}
-                    </option>
-                    {childcareLeaveTiers.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.tier_name} ({t.days} days)
-                      </option>
-                    ))}
-                  </select>
+                    options={childcareLeaveTiers}
+                    getKey={(t) => t.id}
+                    getLabel={(t) => `${t.tier_name} (${t.days} days)`}
+                    onChange={(v) => set("childcare_leave_tier_id", v)}
+                  />
                   <span className="text-xs text-slate-400 mt-1 block">
                     {isEdit
                       ? "Only applied if the employee is married."

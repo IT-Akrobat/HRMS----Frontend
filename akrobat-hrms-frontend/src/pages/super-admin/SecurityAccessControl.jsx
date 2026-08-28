@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import ToggleSwitch from "../../components/common/ToggleSwitch";
+import { FilterDropdown } from "../../components/common/UserformModal ";
 import { parseServerDate } from "../../utils/date";
 
 import { accessControlService } from "../../services/Accesscontrolservice ";
@@ -207,20 +208,26 @@ export default function SecurityAccessControl() {
                   Auto sign-out after inactivity
                 </p>
               </div>
-              <select
-                value={settings.session_timeout_minutes ?? 60}
-                disabled={savingField === "session_timeout_minutes"}
-                onChange={(e) =>
-                  saveField("session_timeout_minutes", Number(e.target.value))
-                }
-                className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-2 focus:ring-orange-500/30 disabled:opacity-50"
+              <div
+                className={`w-32 shrink-0 ${
+                  savingField === "session_timeout_minutes"
+                    ? "opacity-50 pointer-events-none"
+                    : ""
+                }`}
               >
-                {SESSION_TIMEOUT_OPTIONS.map((mins) => (
-                  <option key={mins} value={mins}>
-                    {fmtMinutes(mins)}
-                  </option>
-                ))}
-              </select>
+                <FilterDropdown
+                  fullWidth
+                  showAllOption={false}
+                  allLabel="Select timeout"
+                  value={settings.session_timeout_minutes ?? 60}
+                  options={SESSION_TIMEOUT_OPTIONS}
+                  getKey={(mins) => mins}
+                  getLabel={(mins) => fmtMinutes(mins)}
+                  onChange={(v) =>
+                    saveField("session_timeout_minutes", Number(v))
+                  }
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-4 py-3">
