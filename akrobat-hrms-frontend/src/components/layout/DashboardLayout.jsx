@@ -52,6 +52,7 @@ import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import BirthdayWish from "../common/Birthdaywish";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 
@@ -102,6 +103,12 @@ export default function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Floating "Happy Birthday" badge for the signed-in user — see
+          src/components/common/Birthdaywish.jsx for the once-per-year,
+          client-side date_of_birth check. No-ops (renders null) on any
+          day that isn't the current user's birthday. */}
+      <BirthdayWish />
     </div>
   );
 }
