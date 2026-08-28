@@ -1,4 +1,4 @@
-import { TrendingUp, X } from "lucide-react";
+import { ChevronLeft, TrendingUp, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../../services/apiClient";
 import Avatar from "./Avatar";
@@ -201,13 +201,20 @@ export default function AttendanceTrendChart({
           No attendance data yet for this period.
         </p>
       ) : (
-        <div className="flex-1 flex flex-col lg:flex-row items-center gap-2 min-h-[180px]">
+        <div className="flex-1 flex flex-row items-start lg:items-center gap-2 min-h-[180px] mt-4 lg:mt-0">
           {/* ---------- Donut + legend (left) ---------- */}
-          <div className="flex flex-col items-center shrink-0">
-            <div className="relative flex items-center justify-center">
+          {/* On mobile this is a drill-down: hidden once a status is
+              selected, so the people list below gets the full card width
+              instead of squeezing into a third column next to the ring. */}
+          <div
+            className={`${
+              selectedKey ? "hidden lg:flex" : "flex"
+            } w-full lg:w-auto flex-row lg:flex-col items-center justify-between lg:justify-start gap-4 lg:gap-0 shrink-0`}
+          >
+            <div className="relative flex items-center justify-center shrink-0">
               <svg
                 viewBox={`0 0 ${size} ${size}`}
-                className="max-w-[200px] w-full h-auto"
+                className="max-w-[170px] lg:max-w-[200px] w-full h-auto"
               >
                 {/* faint full-circle track underneath the segments */}
                 <circle
@@ -257,7 +264,7 @@ export default function AttendanceTrendChart({
               </svg>
             </div>
 
-            <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2 justify-center">
+            <div className="flex flex-col lg:flex-row lg:flex-wrap items-start lg:items-center gap-1.5 lg:gap-x-4 lg:gap-y-1.5 lg:mt-2 lg:justify-center min-w-0">
               {SERIES.map((s) => (
                 <button
                   key={s.key}
@@ -265,7 +272,7 @@ export default function AttendanceTrendChart({
                   onMouseEnter={() => setHoverKey(s.key)}
                   onMouseLeave={() => setHoverKey(null)}
                   onClick={() => toggleSelected(s.key)}
-                  className={`flex items-center gap-1.5 text-xs cursor-pointer transition-opacity rounded-md px-1.5 py-0.5 ${
+                  className={`flex items-center gap-1.5 text-xs cursor-pointer transition-opacity rounded-md px-1.5 py-1 lg:py-0.5 ${
                     selectedKey === s.key ? "bg-slate-100" : ""
                   } ${
                     hoverKey === null || hoverKey === s.key
@@ -274,28 +281,42 @@ export default function AttendanceTrendChart({
                   }`}
                 >
                   <span
-                    className="w-2.5 h-2.5 rounded-sm inline-block"
+                    className="w-2.5 h-2.5 rounded-sm inline-block shrink-0"
                     style={{ backgroundColor: s.color }}
                   />
-                  {s.label} · {totals[s.key] || 0}
+                  <span className="whitespace-nowrap">
+                    {s.label} · {totals[s.key] || 0}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* ---------- Detail panel (right, previously empty space) ---------- */}
-          <div className="flex-1 self-stretch min-w-0 border-t lg:border-t-0 lg:border-l border-slate-100 pt-3 lg:pt-0 lg:pl-5 mt-3 lg:mt-0">
+          {/* ---------- Detail panel (right on desktop; full-width drill-down on mobile) ---------- */}
+          <div
+            className={`${
+              selectedKey ? "flex" : "hidden lg:flex"
+            } flex-1 self-stretch min-w-0 border-slate-100 border-l-0 lg:border-l pl-0 lg:pl-5 w-full lg:w-auto`}
+          >
             {!selectedSeries ? (
-              <div className="h-full flex items-center justify-center text-center px-4">
+              <div className="h-full flex items-center justify-center text-center px-2">
                 <p className="text-xs text-slate-400">
                   Click a segment or a legend entry to see who's behind that
                   number.
                 </p>
               </div>
             ) : (
-              <div className="h-full flex flex-col">
+              <div className="h-full flex flex-col w-full">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedKey(null)}
+                    className="flex items-center gap-1.5 text-sm font-medium text-slate-700 lg:pointer-events-none"
+                  >
+                    <ChevronLeft
+                      size={16}
+                      className="text-slate-400 lg:hidden -ml-1"
+                    />
                     <span
                       className="w-2.5 h-2.5 rounded-sm inline-block"
                       style={{ backgroundColor: selectedSeries.color }}
@@ -304,12 +325,12 @@ export default function AttendanceTrendChart({
                     <span className="text-slate-400 font-normal">
                       ({totals[selectedKey] || 0})
                     </span>
-                  </div>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setSelectedKey(null)}
                     aria-label="Close"
-                    className="text-slate-400 hover:text-slate-600"
+                    className="hidden lg:block text-slate-400 hover:text-slate-600"
                   >
                     <X size={15} />
                   </button>
