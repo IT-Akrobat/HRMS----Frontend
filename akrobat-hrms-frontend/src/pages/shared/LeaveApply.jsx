@@ -101,6 +101,25 @@ function toDays(fromDate, toDate) {
   return diff > 0 ? diff : null;
 }
 
+// Expands a leave's [start_date, end_date] range (inclusive) into one Date
+// per day -- so a 3-day approved leave highlights all 3 days on the
+// calendar, not just the first/last one.
+function expandDateRange(startDate, endDate) {
+  if (!startDate || !endDate) return [];
+  const dates = [];
+  const to = new Date(`${endDate}T00:00:00`);
+  let current = new Date(`${startDate}T00:00:00`);
+  while (current <= to) {
+    dates.push(new Date(current));
+    current = new Date(
+      current.getFullYear(),
+      current.getMonth(),
+      current.getDate() + 1,
+    );
+  }
+  return dates;
+}
+
 // Mobile-only accordion used to tuck "Leave Type Entitlements", "Recent
 // Requests" and the approval note under tappable headers instead of
 // stacking them as three always-open cards below the form — that stack
@@ -226,6 +245,19 @@ export default function LeaveApply() {
     () => (allLeaves === null ? null : allLeaves.slice(0, 3)),
     [allLeaves],
   );
+
+  // Every individual day covered by an already-APPROVED leave, across
+  // this employee's whole leave history -- not just "Recent Requests"
+  // (which only shows the latest 3) -- so the calendar highlight is
+  // correct even for leaves approved a while ago. Passed into every
+  // DatePicker below so employees can see already-booked days while
+  // picking dates for a new request.
+  const approvedDates = useMemo(() => {
+    if (!allLeaves) return [];
+    return allLeaves
+      .filter((l) => l.status === "Approved")
+      .flatMap((l) => expandDateRange(l.start_date, l.end_date));
+  }, [allLeaves]);
 
   const totalDays = useMemo(
     () => toDays(form.from_date, form.to_date),
@@ -470,6 +502,7 @@ export default function LeaveApply() {
                           : null
                       }
                       min={today}
+                      highlightedDates={approvedDates}
                       placeholder="From"
                       onSelect={(d) => {
                         const iso = toLocalISODate(d);
@@ -487,6 +520,7 @@ export default function LeaveApply() {
                           : null
                       }
                       min={form.from_date || today}
+                      highlightedDates={approvedDates}
                       placeholder="To"
                       onSelect={(d) => update("to_date", toLocalISODate(d))}
                     />
@@ -786,6 +820,7 @@ export default function LeaveApply() {
                           : null
                       }
                       min={today}
+                      highlightedDates={approvedDates}
                       placeholder="From"
                       onSelect={(d) => {
                         const iso = toLocalISODate(d);
@@ -803,6 +838,7 @@ export default function LeaveApply() {
                           : null
                       }
                       min={form.from_date || today}
+                      highlightedDates={approvedDates}
                       placeholder="To"
                       onSelect={(d) => update("to_date", toLocalISODate(d))}
                     />

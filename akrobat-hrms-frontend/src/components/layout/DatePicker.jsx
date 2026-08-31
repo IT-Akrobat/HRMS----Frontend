@@ -55,9 +55,21 @@ export default function DatePicker({
   error,
   placeholder = "Select date",
   className = "",
+  // Dates that already have an APPROVED leave on them -- shown as a
+  // rounded orange highlight so the employee can see at a glance which
+  // days are already booked before picking new ones. Accepts Date
+  // instances or "YYYY-MM-DD" strings (same flexibility as value/min/max).
+  highlightedDates = [],
 }) {
   const [open, setOpen] = useState(false);
   const today = new Date();
+
+  // Normalized once per render into a Set of "YYYY-MM-DD" strings for an
+  // O(1) lookup per calendar cell instead of re-scanning the array 42
+  // times (once per grid cell) on every render.
+  const highlightedSet = new Set(
+    (highlightedDates || []).map((d) => toIso(toDate(d))).filter(Boolean),
+  );
 
   const selectedDate = toDate(value);
   const minDate = toDate(min);
@@ -180,6 +192,7 @@ export default function DatePicker({
           const isToday = sameDay(date, today);
           const isSelected = sameDay(date, selectedDate);
           const disabled = isDisabled(date);
+          const isApproved = highlightedSet.has(toIso(date));
 
           return (
             <button
@@ -187,18 +200,25 @@ export default function DatePicker({
               key={day}
               onClick={() => selectDate(day)}
               disabled={disabled}
-              className={`h-7 w-7 rounded-md text-[11px] relative transition-colors ${
+              title={isApproved ? "Already approved leave" : undefined}
+              className={`h-7 w-7 text-[11px] relative transition-colors ${
+                isApproved ? "rounded-full" : "rounded-md"
+              } ${
                 isSelected
                   ? "bg-blue-900 text-white font-bold"
                   : disabled
-                    ? "text-slate-300 cursor-not-allowed"
-                    : isToday
-                      ? "text-orange-500 font-bold hover:bg-orange-50"
-                      : "text-slate-600 hover:bg-orange-50"
+                    ? isApproved
+                      ? "bg-orange-100 text-orange-400 cursor-not-allowed"
+                      : "text-slate-300 cursor-not-allowed"
+                    : isApproved
+                      ? "bg-orange-100 text-orange-700 font-bold ring-1 ring-orange-400 hover:bg-orange-200"
+                      : isToday
+                        ? "text-orange-500 font-bold hover:bg-orange-50"
+                        : "text-slate-600 hover:bg-orange-50"
               }`}
             >
               {day}
-              {isToday && !isSelected && (
+              {isToday && !isSelected && !isApproved && (
                 <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-orange-500" />
               )}
             </button>
