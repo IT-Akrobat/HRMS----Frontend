@@ -104,9 +104,7 @@ export async function enablePushNotifications() {
     let subscription = await registration.pushManager.getSubscription();
 
     if (subscription) {
-      const currentKeyBytes = new Uint8Array(
-        subscription.options.applicationServerKey,
-      );
+      const currentKeyBytes = new Uint8Array(subscription.options.applicationServerKey);
       const currentKeyB64 = uint8ArrayToBase64Url(currentKeyBytes);
       if (currentKeyB64 !== data.public_key) {
         await subscription.unsubscribe();
