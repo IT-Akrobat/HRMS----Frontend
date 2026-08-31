@@ -10,13 +10,13 @@ import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
-import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard ";
+import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import PageHeader from "../../components/common/PageHeader";
-import QuoteOfDayCard from "../../components/common/Quoteofdaycard ";
+import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import SiteVisitCard from "../../components/common/SiteVisitCard";
 
 import { useAuth } from "../../context/AuthContext";
-import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { isFieldEmployee } from "../../utils/employeeType";
 

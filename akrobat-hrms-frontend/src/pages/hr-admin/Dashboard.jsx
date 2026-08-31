@@ -27,11 +27,11 @@ import BirthdaysCard, {
 import CheckInOutCard from "../../components/common/CheckInOutCard";
 
 import PageHeader from "../../components/common/PageHeader";
-import QuoteOfDayCard from "../../components/common/Quoteofdaycard ";
+import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
-import UserFormModal from "../../components/common/UserformModal ";
-import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
+import UserFormModal from "../../components/common/UserformModal";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 import { geocodeQueue, placeKey } from "../../utils/Geocode";

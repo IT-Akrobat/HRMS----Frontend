@@ -17,11 +17,11 @@ import BirthdaysCard, {
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
 import PageHeader from "../../components/common/PageHeader";
-import QuoteOfDayCard from "../../components/common/Quoteofdaycard ";
+import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
 
 import { useAuth } from "../../context/AuthContext";
-import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 
