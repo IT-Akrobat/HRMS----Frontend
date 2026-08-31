@@ -71,7 +71,18 @@ export default function TopPerformersCard() {
       .catch(() => setData({ employees: [] }));
   }, []);
 
-  const employees = data?.employees || [];
+  const employees = (data?.employees || []).filter((p) => {
+    // Super Admin is a system/bootstrap login (see Employees.jsx / roles
+    // list), not a real employee to rank. Prefer role_name when the
+    // backend row carries it, but /dashboard/top-performers doesn't
+    // actually return that field -- so fall back to matching the fixed
+    // display name for that one bootstrap account (see ROLES.SUPER_ADMIN
+    // label in config/roles.js), which this endpoint's rows do carry.
+    if (p.role_name) {
+      return p.role_name.trim().toUpperCase() !== "SUPER ADMIN";
+    }
+    return (p.full_name || "").trim().toLowerCase() !== "super admin";
+  });
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 h-full flex flex-col">
