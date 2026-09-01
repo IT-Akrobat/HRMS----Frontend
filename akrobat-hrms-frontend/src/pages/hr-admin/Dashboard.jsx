@@ -27,7 +27,7 @@ import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
-import OutdoorCheckinAccessModal from "../../components/common/Outdoorcheckinaccessmodal ";
+import OutdoorCheckinAccessModal from "../../components/common/Outdoorcheckinaccessmodal";
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
