@@ -11,6 +11,7 @@ import BirthdaysCard, {
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
+import OutdoorVisitCard from "../../components/common/OutdoorVisitCard";
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import SiteVisitCard from "../../components/common/SiteVisitCard";
@@ -52,6 +53,10 @@ function isAnnouncementExpired(a) {
 export default function EmployeeDashboard() {
   const { user } = useAuth();
   const isFieldStaff = isFieldEmployee(user);
+  // Off for everyone until HR enables it for a specific person on the
+  // Employee edit screen — see app/auth/services.py::get_me and
+  // sql/030.sql. Not a role/department check on purpose.
+  const canOutdoorCheckin = Boolean(user?.profile?.outdoor_checkin_enabled);
 
   const [announcements, setAnnouncements] = useState([]);
 
@@ -310,6 +315,20 @@ export default function EmployeeDashboard() {
               />
             </div>
           )}
+
+          {/* Ad-hoc "meeting/site" check-in — completely separate gate
+              from isFieldStaff above. Renders only for the specific
+              employees HR has individually enabled, regardless of
+              their department or role. */}
+          {!isFieldStaff && canOutdoorCheckin && (
+            <div className="rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
+              <OutdoorVisitCard
+                checkedIn={todayStatus.checkedIn}
+                checkedOut={todayStatus.checkedOut}
+                onActivityChange={loadTodayStatus}
+              />
+            </div>
+          )}
         </div>
 
         {/* ---------- Around the Office: tappable bento grid ----------
@@ -484,6 +503,14 @@ export default function EmployeeDashboard() {
 
           {isFieldStaff && (
             <SiteVisitCard
+              checkedIn={todayStatus.checkedIn}
+              checkedOut={todayStatus.checkedOut}
+              onActivityChange={loadTodayStatus}
+            />
+          )}
+
+          {!isFieldStaff && canOutdoorCheckin && (
+            <OutdoorVisitCard
               checkedIn={todayStatus.checkedIn}
               checkedOut={todayStatus.checkedOut}
               onActivityChange={loadTodayStatus}
