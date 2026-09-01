@@ -82,6 +82,25 @@ export default function EmployeeDashboard() {
   // tab strip at all since there's nothing to switch to.
   const [mobileTab, setMobileTab] = useState("checkin");
 
+  // Which tabs (if any) the mobile Check-In row shows, alongside what
+  // each key means for THIS employee. Field staff get Check In / Site
+  // Visit; office staff with outdoor check-in enabled get Check In /
+  // Meeting instead — same reasoning as the field-staff case: these are
+  // two different moments in the day, not something to stack and
+  // scroll past. Office staff without outdoor check-in enabled get no
+  // tabs at all, same as before.
+  const mobileTabs = isFieldStaff
+    ? [
+        { key: "checkin", label: "Check In" },
+        { key: "sitevisit", label: "Site Visit" },
+      ]
+    : canOutdoorCheckin
+      ? [
+          { key: "checkin", label: "Check In" },
+          { key: "meeting", label: "Meeting" },
+        ]
+      : [];
+
   // Recent leave requests (for the small icon next to "Hi, {firstName}")
   // — fetched from /leaves/my, same endpoint LeaveApply.jsx uses for its
   // own "Recent Requests" panel. null = not fetched yet.
@@ -269,21 +288,18 @@ export default function EmployeeDashboard() {
           </div>
         </div>
 
-        {/* ---------- Check-in / Site Visit ----------
-            Field staff switch between the two with a tab strip instead
-            of scrolling past both stacked full-height — Check-In and
-            Site Visits are two different moments in the day (once at
-            shift start/end vs. every time you move sites), not
-            something you read top-to-bottom together. Office staff have
-            no Site Visits tab at all, so they just get the plain
-            check-in card, same as before. ---------- */}
+        {/* ---------- Check-in / Site Visit / Meeting ----------
+            Anyone with a second tab (field staff: Site Visit; office
+            staff with outdoor check-in enabled: Meeting) switches
+            between the two with a tab strip instead of scrolling past
+            both stacked full-height — these are two different moments
+            in the day, not something you read top-to-bottom together.
+            Everyone else has no second tab at all, so they just get the
+            plain check-in card, same as before. ---------- */}
         <div className="mb-6">
-          {isFieldStaff && (
+          {mobileTabs.length > 0 && (
             <div className="flex gap-1.5 mb-3 bg-slate-100 rounded-xl p-1">
-              {[
-                { key: "checkin", label: "Check In" },
-                { key: "sitevisit", label: "Site Visit" },
-              ].map((tab) => (
+              {mobileTabs.map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
@@ -300,7 +316,7 @@ export default function EmployeeDashboard() {
             </div>
           )}
 
-          {(!isFieldStaff || mobileTab === "checkin") && (
+          {(mobileTabs.length === 0 || mobileTab === "checkin") && (
             <div className="rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
               <CheckInOutCard ultraCompact onActivityChange={loadTodayStatus} />
             </div>
@@ -319,8 +335,9 @@ export default function EmployeeDashboard() {
           {/* Ad-hoc "meeting/site" check-in — completely separate gate
               from isFieldStaff above. Renders only for the specific
               employees HR has individually enabled, regardless of
-              their department or role. */}
-          {!isFieldStaff && canOutdoorCheckin && (
+              their department or role, and only on its own "Meeting"
+              tab now rather than stacked below Check In. */}
+          {!isFieldStaff && canOutdoorCheckin && mobileTab === "meeting" && (
             <div className="rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
               <OutdoorVisitCard
                 checkedIn={todayStatus.checkedIn}

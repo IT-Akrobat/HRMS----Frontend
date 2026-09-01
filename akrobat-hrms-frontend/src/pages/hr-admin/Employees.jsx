@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
-import ToggleSwitch from "../../components/common/ToggleSwitch";
 import { FilterDropdown } from "../../components/common/UserformModal";
 import { apiClient } from "../../services/apiClient";
 import { filterShiftsForSelection } from "../../utils/shiftMapping";
@@ -687,18 +686,7 @@ function EmployeeFormModal({
                   Used by payroll to calculate the Unpaid Leave deduction.
                 </span>
               </Field>
-              {isEdit && (
-                <Field label="Ad-hoc Outdoor Check-in">
-                  <div className="rounded-lg border border-slate-200 px-3">
-                    <ToggleSwitch
-                      checked={form.outdoor_checkin_enabled}
-                      onChange={(v) => set("outdoor_checkin_enabled", v)}
-                      label="Allow checking in from a meeting/site"
-                      description="Off by default for everyone. Turn this on only for this employee if they occasionally need to check in from outside the office (e.g. a client meeting or site survey) instead of a fixed assigned site."
-                    />
-                  </div>
-                </Field>
-              )}
+
               {childcareEligible !== false && (
                 <Field label="Childcare Leave Tier">
                   <FilterDropdown

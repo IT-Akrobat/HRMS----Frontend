@@ -12,6 +12,7 @@ import {
   MapPin,
   Megaphone,
   PlaneTakeoff,
+  Plus,
   ShieldCheck,
   UserCheck,
   UserPlus,
@@ -19,18 +20,20 @@ import {
   Users2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import AttendanceTrendChart from "../../components/common/AttendanceTrendChart";
 import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
-
+import OutdoorCheckinAccessModal from "../../components/common/Outdoorcheckinaccessmodal ";
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import UserFormModal from "../../components/common/UserformModal";
+import { useAuth } from "../../context/AuthContext";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
@@ -254,6 +257,9 @@ function QuickActionCircle({ to, label, icon: Icon }) {
 // as before — no behavior change outside Singapore.
 
 export default function HrAdminDashboard() {
+  const { user } = useAuth();
+  const firstName = user?.name?.split(" ")[0] || "there";
+
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -343,20 +349,29 @@ export default function HrAdminDashboard() {
   // pages/shared/OrganizationLocations.jsx) — no reference data to
   // preload, so this can just toggle straight open.
   const [addSiteOpen, setAddSiteOpen] = useState(false);
+  // "Outdoor Check-in Access" quick action opens in-place too, same
+  // pattern as Create User / Create Site above.
+  const [outdoorAccessOpen, setOutdoorAccessOpen] = useState(false);
+
+  // Whether the mobile-only "+" quick-create popup (Create User /
+  // Create Site / Outdoor Check-in Access) is open — same floating
+  // speed-dial pattern as the Super Admin dashboard, replacing the
+  // three separate circle buttons that used to sit in the mobile
+  // header row here.
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
 
   // ---------------------------------------------------------------------
   // Mobile-only layout state (below lg). The mobile view below is a
   // deliberately different pattern from both the desktop grid on this
   // page AND the bento-grid/bottom-sheet pattern on the Employee
-  // dashboard: a swipeable stat carousel up top, then a segmented
-  // Overview / Activity / Team switcher, with Team content shown as
-  // inline accordion cards (one open at a time) instead of a bottom
-  // sheet. Same data/components as desktop throughout — only the mobile
-  // presentation differs.
+  // dashboard: a segmented Overview / Activity / Team switcher, with
+  // Team content shown as inline accordion cards (one open at a time)
+  // instead of a bottom sheet. Same data/components as desktop
+  // throughout — only the mobile presentation differs. (The stat-card
+  // carousel that used to sit above this was removed on mobile.)
   // ---------------------------------------------------------------------
   const [mobileTab, setMobileTab] = useState("overview");
   const [mobileTeamOpen, setMobileTeamOpen] = useState("onleave");
-  const [statPage, setStatPage] = useState(0);
 
   // Pulled out of the mount effect so it can also be called right after a
   // check-in/out/break action (via CheckInOutCard's onActivityChange) —
@@ -470,48 +485,6 @@ export default function HrAdminDashboard() {
       .finally(() => setTrendLoading(false));
   }, [trendRange]);
 
-  // Cards for the mobile stat carousel (see the `lg:hidden` block below).
-  // Same four numbers as the desktop stat row, just carousel cards
-  // instead of a row of small ones — all one consistent light-orange
-  // theme rather than a different color per card.
-  const statItems = [
-    {
-      key: "total",
-      icon: Users,
-      label: "Total Employees",
-      value: stats?.total_employees,
-    },
-    {
-      key: "present",
-      icon: UserCheck,
-      label: "Present Today",
-      value: stats?.present_today,
-    },
-    {
-      key: "late",
-      icon: AlertTriangle,
-      label: "Late Today",
-      value: stats?.late_today,
-    },
-    {
-      key: "depts",
-      icon: Building2,
-      label: "Departments",
-      value: stats?.total_departments,
-    },
-  ];
-
-  // Tracks which stat card is centered so the dot indicator below the
-  // carousel stays in sync while swiping.
-  function handleStatScroll(e) {
-    const el = e.currentTarget;
-    const card = el.firstChild;
-    if (!card) return;
-    const cardWidth = card.offsetWidth + 10; // gap-2.5 = 10px
-    const idx = Math.round(el.scrollLeft / cardWidth);
-    setStatPage(Math.max(0, Math.min(statItems.length - 1, idx)));
-  }
-
   return (
     <div className="overflow-x-hidden">
       {/* Hides the scrollbar visually on the horizontal stat-card row and
@@ -552,6 +525,18 @@ export default function HrAdminDashboard() {
                   Create Site
                 </span>
               </button>
+              <button
+                type="button"
+                onClick={() => setOutdoorAccessOpen(true)}
+                title="Outdoor Check-in Access"
+                aria-label="Outdoor Check-in Access"
+                className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+              >
+                <MapPin size={16} />
+                <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  Outdoor Check-in Access
+                </span>
+              </button>
               <QuoteOfDayCard compact />
             </div>
           }
@@ -559,41 +544,17 @@ export default function HrAdminDashboard() {
       </div>
 
       {/* ---------- Mobile header (below lg) ----------
-          Title + the two quick-action circles on the same row
-          (right-aligned), subtitle below, then the Quote of the Day
-          card (compact variant, full-width on mobile) — same data/
-          component desktop uses in the page header, just re-laid-out
-          for a narrow screen instead of sitting inline with the
-          quick-action buttons. */}
+          Title + subtitle, then the Quote of the Day card (compact
+          variant, full-width on mobile). The three quick-action
+          circles that used to sit inline here (Create User / Create
+          Site / Outdoor Check-in Access) now live in the floating "+"
+          speed-dial (bottom-right, see below) — same pattern as the
+          Super Admin dashboard — instead of crowding the title row. */}
       <div className="lg:hidden mb-4">
-        <div className="flex items-start justify-between gap-2">
-          <h1 className="text-2xl font-bold text-slate-800 mb-1">
-            System Dashboard
-          </h1>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={openAddUser}
-              title="Create User"
-              aria-label="Create User"
-              className="w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
-            >
-              <UserPlus size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddSiteOpen(true)}
-              title="Create Site"
-              aria-label="Create Site"
-              className="w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
-            >
-              <Building2 size={16} />
-            </button>
-          </div>
-        </div>
-        <p className="text-sm text-slate-500 mb-3">
-          Overview of your system and activity
-        </p>
+        <h1 className="text-2xl font-bold text-slate-800 mb-1">
+          Hi, {firstName} 👋
+        </h1>
+
         <QuoteOfDayCard compact />
       </div>
 
@@ -608,45 +569,6 @@ export default function HrAdminDashboard() {
           presented differently.
       ================================================================= */}
       <div className="lg:hidden">
-        {/* ---------- Stat carousel: compact light-orange cards, ~2.3 visible at a time ---------- */}
-        <div
-          onScroll={handleStatScroll}
-          className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory no-scrollbar -mx-4 px-4 pb-1 mb-2"
-        >
-          {statItems.map(({ key, icon: Icon, label, value }) => (
-            <div
-              key={key}
-              className="snap-start shrink-0 w-[42%] rounded-xl bg-orange-50 border border-orange-100 p-3 flex flex-col gap-2 h-[76px]"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-orange-700/80 truncate">
-                  {label}
-                </span>
-                <div className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
-                  <Icon size={12} />
-                </div>
-              </div>
-              <p className="text-xl font-bold leading-none text-slate-800">
-                {statsLoading ? (
-                  <span className="inline-block w-8 h-5 bg-orange-100 rounded animate-pulse" />
-                ) : (
-                  (value ?? "—")
-                )}
-              </p>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center justify-center gap-1.5 mb-4">
-          {statItems.map((_, i) => (
-            <span
-              key={i}
-              className={`h-1.5 rounded-full transition-all ${
-                i === statPage ? "w-4 bg-orange-500" : "w-1.5 bg-slate-200"
-              }`}
-            />
-          ))}
-        </div>
-
         {/* ---------- Segmented tab switcher ---------- */}
         <div className="grid grid-cols-3 gap-1 bg-slate-100 rounded-full p-1 mb-4">
           {[
@@ -909,6 +831,115 @@ export default function HrAdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* ---------- Floating "+" (bottom-right) + speed-dial bubbles ----------
+          Same pattern as the Super Admin dashboard's quick-create FAB:
+          rendered through a portal straight onto document.body so it
+          stays pinned to the real viewport corner instead of drifting
+          with page content, each action pops up as its own
+          semi-transparent round bubble with a label, stacked above the
+          button. Hidden whenever any of its own modals are already
+          open so it can't float on top of / be tapped through them. */}
+      {typeof document !== "undefined" &&
+        !addUserOpen &&
+        !addSiteOpen &&
+        !outdoorAccessOpen &&
+        createPortal(
+          <div className="fixed bottom-6 right-5 z-[999] flex flex-col items-end gap-2.5 lg:hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setQuickMenuOpen(false);
+                setOutdoorAccessOpen(true);
+              }}
+              title="Outdoor Check-in Access"
+              aria-label="Outdoor Check-in Access"
+              className={`flex items-center gap-2 transition-all duration-150 ${
+                quickMenuOpen
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-2 pointer-events-none"
+              }`}
+            >
+              <span className="text-xs font-medium text-white bg-[#0B1830]/95 px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
+                Outdoor Check-in Access
+              </span>
+              <span className="w-11 h-11 rounded-full bg-[#0B1830]/95 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform shrink-0">
+                <MapPin size={17} />
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setQuickMenuOpen(false);
+                setAddSiteOpen(true);
+              }}
+              title="Create Site"
+              aria-label="Create Site"
+              className={`flex items-center gap-2 transition-all duration-150 delay-75 ${
+                quickMenuOpen
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-2 pointer-events-none"
+              }`}
+            >
+              <span className="text-xs font-medium text-white bg-[#0B1830]/95 px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
+                Create Site
+              </span>
+              <span className="w-11 h-11 rounded-full bg-[#0B1830]/95 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform shrink-0">
+                <Building2 size={17} />
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setQuickMenuOpen(false);
+                openAddUser();
+              }}
+              title="Create User"
+              aria-label="Create User"
+              className={`flex items-center gap-2 transition-all duration-150 delay-100 ${
+                quickMenuOpen
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-2 pointer-events-none"
+              }`}
+            >
+              <span className="text-xs font-medium text-white bg-[#0B1830]/95 px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
+                Create User
+              </span>
+              <span className="w-11 h-11 rounded-full bg-[#0B1830]/95 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform shrink-0">
+                <UserPlus size={17} />
+              </span>
+            </button>
+
+            {/* Backdrop — tapping anywhere outside the bubbles closes them. */}
+            {quickMenuOpen && (
+              <div
+                className="fixed inset-0 -z-10"
+                onClick={() => setQuickMenuOpen(false)}
+              />
+            )}
+
+            <button
+              type="button"
+              onClick={() => setQuickMenuOpen((v) => !v)}
+              title="Quick create"
+              aria-label="Quick create"
+              aria-expanded={quickMenuOpen}
+              className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-colors shrink-0 ${
+                quickMenuOpen
+                  ? "bg-orange-600 text-white"
+                  : "bg-orange-500 text-white"
+              }`}
+            >
+              <Plus
+                size={22}
+                className={`transition-transform ${quickMenuOpen ? "rotate-45" : ""}`}
+              />
+            </button>
+          </div>,
+          document.body,
+        )}
       {/* ================= END MOBILE-ONLY DASHBOARD ================= */}
 
       {/* ---------- Top row: stat cards (full width, desktop/tablet only —
@@ -1253,6 +1284,11 @@ export default function HrAdminDashboard() {
           }}
         />
       )}
+
+      <OutdoorCheckinAccessModal
+        open={outdoorAccessOpen}
+        onClose={() => setOutdoorAccessOpen(false)}
+      />
     </div>
   );
 }
