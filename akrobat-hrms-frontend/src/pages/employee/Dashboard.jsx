@@ -11,11 +11,10 @@ import BirthdaysCard, {
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
-import OutdoorVisitCard from "../../components/common/Outdoorvisitcard";
+import { default as OutdoorCheckinAccessModal, default as OutdoorVisitCard } from "../../components/common/Outdoorcheckinaccessmodal";
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import SiteVisitCard from "../../components/common/SiteVisitCard";
-
 import { useAuth } from "../../context/AuthContext";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
@@ -339,7 +338,7 @@ export default function EmployeeDashboard() {
               tab now rather than stacked below Check In. */}
           {!isFieldStaff && canOutdoorCheckin && mobileTab === "meeting" && (
             <div className="rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
-              <OutdoorVisitCard
+              <OutdoorCheckinAccessModal
                 checkedIn={todayStatus.checkedIn}
                 checkedOut={todayStatus.checkedOut}
                 onActivityChange={loadTodayStatus}
