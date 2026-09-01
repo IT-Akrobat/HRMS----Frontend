@@ -26,7 +26,7 @@ import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import UserFormModal, {
   FilterDropdown,
-} from "../../components/common/UserformModal ";
+} from "../../components/common/UserformModal";
 import { apiClient } from "../../services/apiClient";
 import { documentsService } from "../../services/documentsService";
 

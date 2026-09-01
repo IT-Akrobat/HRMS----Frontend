@@ -1,5 +1,5 @@
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 // ---------------------------------------------------------------------
 // Controlled, dual-mode date picker.
@@ -44,6 +44,37 @@ function sameDay(a, b) {
   );
 }
 
+// ---- Month-only ("YYYY-MM") helpers, used by the monthOnly picker mode ----
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+function toMonthStr(date) {
+  if (!date) return "";
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function monthStrToDate(value) {
+  if (!value) return null;
+  const [y, m] = String(value).split("-").map(Number);
+  if (!y || !m) return null;
+  const d = new Date(y, m - 1, 1);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 export default function DatePicker({
   value,
   onSelect,
@@ -60,6 +91,20 @@ export default function DatePicker({
   // days are already booked before picking new ones. Accepts Date
   // instances or "YYYY-MM-DD" strings (same flexibility as value/min/max).
   highlightedDates = [],
+  // When true, the calendar opens fixed to the viewport (position
+  // computed from the trigger's own on-screen position) instead of a
+  // small dropdown absolutely positioned inside its own box. It still
+  // renders directly below the trigger — just not clipped/squeezed by a
+  // narrow parent (e.g. two side-by-side date fields on mobile), so the
+  // ~256px-wide calendar can't spill sideways and overlap neighboring
+  // controls.
+  overlay = false,
+  // When true, the picker switches to a compact month + year chooser
+  // (a 4x3 grid of months under a year header with prev/next-year and
+  // a quick year-jump list) instead of the day grid. `value`/`onChange`
+  // then use a "YYYY-MM" string, matching a native <input type="month">,
+  // so it's a drop-in replacement for that element.
+  monthOnly = false,
 }) {
   const [open, setOpen] = useState(false);
   const today = new Date();
@@ -84,7 +129,44 @@ export default function DatePicker({
       ),
   );
 
+  // ---- monthOnly mode state: which year the month grid is showing, and
+  // whether the "jump to a different year" list is open. ----
+  const selectedMonthDate = monthOnly ? monthStrToDate(value) : null;
+  const [pickerYear, setPickerYear] = useState(() =>
+    (selectedMonthDate || today).getFullYear(),
+  );
+  const [yearListOpen, setYearListOpen] = useState(false);
+
+  useEffect(() => {
+    if (!monthOnly) return;
+    if (selectedMonthDate) setPickerYear(selectedMonthDate.getFullYear());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthOnly, value]);
+
+  useEffect(() => {
+    if (!open) setYearListOpen(false);
+  }, [open]);
+
   const containerRef = useRef(null);
+
+  // Where the overlay-mode popover renders (fixed to the viewport, right
+  // below the trigger) — computed fresh each time it opens so it always
+  // sits directly under the field it belongs to instead of a fixed
+  // "float near the top of the screen" spot that can land on top of the
+  // field itself. Clamped so a 256px-wide calendar never runs off the
+  // right edge of a narrow phone screen.
+  const [overlayPos, setOverlayPos] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!open || !overlay || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const calendarWidth = 256;
+    const left = Math.min(
+      rect.left,
+      Math.max(8, window.innerWidth - calendarWidth - 8),
+    );
+    setOverlayPos({ top: rect.bottom + 8, left });
+  }, [open, overlay]);
 
   // Keep the visible month in sync if the controlled value changes from
   // outside (e.g. clearing the field, or a linked "To Date" resetting).
@@ -141,16 +223,44 @@ export default function DatePicker({
     setOpen(false);
   }
 
-  const displayLabel = selectedDate
-    ? selectedDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "2-digit",
-        year: "numeric",
-      })
-    : placeholder;
+  function selectMonth(monthIndex) {
+    const date = new Date(pickerYear, monthIndex, 1);
+    onChange?.(toMonthStr(date));
+    onSelect?.(date);
+    setOpen(false);
+  }
 
-  const calendarPopover = open && (
-    <div className="absolute top-full mt-2 left-0 w-64 bg-white rounded-xl border border-slate-200 shadow-lg p-4 z-50">
+  function clearMonth() {
+    onChange?.("");
+    onSelect?.(null);
+    setOpen(false);
+  }
+
+  function selectThisMonth() {
+    const now = new Date();
+    setPickerYear(now.getFullYear());
+    onChange?.(toMonthStr(now));
+    onSelect?.(now);
+    setOpen(false);
+  }
+
+  const displayLabel = monthOnly
+    ? selectedMonthDate
+      ? selectedMonthDate.toLocaleDateString("en-US", {
+          month: "long",
+          year: "numeric",
+        })
+      : placeholder
+    : selectedDate
+      ? selectedDate.toLocaleDateString("en-US", {
+          month: "short",
+          day: "2-digit",
+          year: "numeric",
+        })
+      : placeholder;
+
+  const calendarBody = (
+    <>
       <div className="flex items-center justify-between mb-4">
         <button
           type="button"
@@ -225,8 +335,127 @@ export default function DatePicker({
           );
         })}
       </div>
-    </div>
+    </>
   );
+
+  // ---- Month + year picker body (monthOnly mode) ----
+  const monthYearBody = (
+    <>
+      <div className="flex items-center justify-between mb-3">
+        <button
+          type="button"
+          onClick={() => setPickerYear((y) => y - 1)}
+          className="p-1 rounded-md hover:bg-orange-50 text-slate-600"
+          aria-label="Previous year"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setYearListOpen((o) => !o)}
+          className="text-sm font-semibold text-slate-700 px-2.5 py-1 rounded-md hover:bg-orange-50"
+        >
+          {pickerYear}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPickerYear((y) => y + 1)}
+          className="p-1 rounded-md hover:bg-orange-50 text-slate-600"
+          aria-label="Next year"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
+      {yearListOpen ? (
+        <div className="grid grid-cols-4 gap-1.5 mb-3 max-h-40 overflow-y-auto">
+          {Array.from(
+            { length: 12 },
+            (_, i) => today.getFullYear() - 6 + i,
+          ).map((yr) => (
+            <button
+              type="button"
+              key={yr}
+              onClick={() => {
+                setPickerYear(yr);
+                setYearListOpen(false);
+              }}
+              className={`h-8 rounded-md text-xs font-medium transition-colors ${
+                yr === pickerYear
+                  ? "bg-blue-900 text-white font-bold"
+                  : yr === today.getFullYear()
+                    ? "text-orange-500 font-bold hover:bg-orange-50"
+                    : "text-slate-600 hover:bg-orange-50"
+              }`}
+            >
+              {yr}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-4 gap-1.5 mb-3">
+          {MONTH_NAMES.map((m, i) => {
+            const isSelected =
+              selectedMonthDate &&
+              selectedMonthDate.getFullYear() === pickerYear &&
+              selectedMonthDate.getMonth() === i;
+            const isCurrent =
+              today.getFullYear() === pickerYear && today.getMonth() === i;
+            return (
+              <button
+                type="button"
+                key={m}
+                onClick={() => selectMonth(i)}
+                className={`h-9 rounded-md text-xs font-medium transition-colors ${
+                  isSelected
+                    ? "bg-blue-900 text-white font-bold"
+                    : isCurrent
+                      ? "text-orange-500 font-bold hover:bg-orange-50"
+                      : "text-slate-600 hover:bg-orange-50"
+                }`}
+              >
+                {m}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs font-semibold">
+        <button
+          type="button"
+          onClick={clearMonth}
+          className="text-blue-700 hover:underline"
+        >
+          Clear
+        </button>
+        <button
+          type="button"
+          onClick={selectThisMonth}
+          className="text-blue-700 hover:underline"
+        >
+          This month
+        </button>
+      </div>
+    </>
+  );
+
+  const popoverBody = monthOnly ? monthYearBody : calendarBody;
+
+  const calendarPopover =
+    open &&
+    (overlay && overlayPos ? (
+      <div
+        className="fixed w-64 max-w-[calc(100vw-1rem)] bg-white rounded-xl border border-slate-200 shadow-lg p-4 z-50"
+        style={{ top: overlayPos.top, left: overlayPos.left }}
+      >
+        {popoverBody}
+      </div>
+    ) : (
+      <div className="absolute top-full mt-2 left-0 w-64 bg-white rounded-xl border border-slate-200 shadow-lg p-4 z-50">
+        {popoverBody}
+      </div>
+    ));
 
   // ---------------- Field mode (labeled, bordered box) ----------------
   if (label) {
@@ -244,12 +473,43 @@ export default function DatePicker({
               : "border-slate-200 hover:border-slate-300"
           } ${open ? "ring-2 ring-orange-200 border-orange-400" : ""}`}
         >
-          <span className={selectedDate ? "text-slate-700" : "text-slate-400"}>
+          <span
+            className={
+              (monthOnly ? selectedMonthDate : selectedDate)
+                ? "text-slate-700"
+                : "text-slate-400"
+            }
+          >
             {displayLabel}
           </span>
           <Calendar size={15} className="text-slate-400 shrink-0" />
         </button>
         {error && <p className="text-xs text-orange-500 mt-1">{error}</p>}
+        {calendarPopover}
+      </div>
+    );
+  }
+
+  // ---------------- Compact bordered mode (monthOnly, no label) ----------------
+  // Same box styling as a native <input>, so this drops in wherever a
+  // plain <input type="month"> used to sit.
+  if (monthOnly) {
+    return (
+      <div ref={containerRef} className={`relative ${className}`}>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className={`flex items-center justify-between gap-2 border rounded-lg px-3 py-2 text-sm text-left transition-colors border-slate-200 hover:border-slate-300 ${
+            open ? "ring-2 ring-orange-200 border-orange-400" : ""
+          }`}
+        >
+          <span
+            className={selectedMonthDate ? "text-slate-700" : "text-slate-400"}
+          >
+            {displayLabel}
+          </span>
+          <Calendar size={14} className="text-slate-400 shrink-0" />
+        </button>
         {calendarPopover}
       </div>
     );

@@ -19,7 +19,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
-import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
+import SelectDropdown from "../../components/common/SelectDropdown";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
@@ -256,6 +257,8 @@ export default function LeaveHistory() {
     if (!roster.length) return;
     if (!roster.some((p) => p.employeeId === selectedEmployeeId)) {
       setSelectedEmployeeId(roster[0].employeeId);
+      setStatusTab("All");
+      setYear("All");
     }
   }, [roster, selectedEmployeeId]);
 
@@ -361,6 +364,13 @@ export default function LeaveHistory() {
                     key={p.employeeId}
                     onClick={() => {
                       setSelectedEmployeeId(p.employeeId);
+                      // Switching team members should start from a clean
+                      // slate -- otherwise a "Pending" or "2026" filter
+                      // picked for the last employee silently carries
+                      // over and makes the next employee's history look
+                      // empty/wrong until you notice and reset it.
+                      setStatusTab("All");
+                      setYear("All");
                       setMobileView("detail");
                     }}
                     className={`w-full flex items-center gap-2.5 px-3.5 py-3 border-b border-slate-50 last:border-0 text-left transition-colors ${
@@ -404,13 +414,31 @@ export default function LeaveHistory() {
             mobileView === "roster" ? "hidden lg:block" : ""
           }`}
         >
-          {/* Mobile-only back button — desktop always shows both panels */}
-          <button
-            onClick={() => setMobileView("roster")}
-            className="lg:hidden w-full flex items-center gap-1.5 text-sm font-medium text-slate-600 px-5 py-3 border-b border-slate-100"
-          >
-            <ChevronLeft size={16} /> Back to team
-          </button>
+          {/* Mobile-only back button — desktop always shows both panels.
+              The year filter lives at the right end of this same row on
+              mobile (instead of wrapping onto its own line below the
+              status pills, which is what happens when it's squeezed into
+              the Filters row on a narrow screen). */}
+          <div className="lg:hidden flex items-center justify-between gap-2 px-5 py-3 border-b border-slate-100">
+            <button
+              onClick={() => setMobileView("roster")}
+              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 shrink-0"
+            >
+              <ChevronLeft size={16} /> Back to team
+            </button>
+            {years.length > 0 && (
+              <SelectDropdown
+                value={year}
+                onChange={setYear}
+                options={[
+                  { value: "All", label: "All years" },
+                  ...years.map((y) => ({ value: String(y), label: String(y) })),
+                ]}
+                className="w-32 shrink-0"
+                triggerClassName="px-2.5 py-1.5 text-xs"
+              />
+            )}
+          </div>
 
           {leaves === null ? (
             <div className="p-6 space-y-3">
@@ -489,18 +517,19 @@ export default function LeaveHistory() {
                   </button>
                 ))}
                 {years.length > 0 && (
-                  <select
+                  <SelectDropdown
                     value={year}
-                    onChange={(e) => setYear(e.target.value)}
-                    className="ml-auto text-xs text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none"
-                  >
-                    <option value="All">All years</option>
-                    {years.map((y) => (
-                      <option key={y} value={y}>
-                        {y}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setYear}
+                    options={[
+                      { value: "All", label: "All years" },
+                      ...years.map((y) => ({
+                        value: String(y),
+                        label: String(y),
+                      })),
+                    ]}
+                    className="ml-auto hidden lg:block w-32"
+                    triggerClassName="px-2.5 py-1.5 text-xs"
+                  />
                 )}
               </div>
 

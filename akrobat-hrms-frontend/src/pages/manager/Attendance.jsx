@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
-import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 import { unwrap } from "../../utils/unwrap";

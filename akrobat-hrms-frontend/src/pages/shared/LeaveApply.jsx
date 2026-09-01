@@ -25,7 +25,7 @@ import SelectDropdown from "../../components/common/SelectDropdown";
 import DatePicker from "../../components/layout/DatePicker";
 import { ROLE_BASE_PATH } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
-import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { toLocalISODate } from "../../utils/date";
 
@@ -185,6 +185,13 @@ export default function LeaveApply() {
   // small +/× icon instead of always being expanded — tapping the header
   // reveals the form. Desktop keeps the form always visible (unchanged).
   const [applyOpen, setApplyOpen] = useState(false);
+
+  // "Recent Requests" -> "View All" no longer navigates away to the full
+  // Leave History page. It opens the complete list right here instead —
+  // a centered popup on desktop, a bottom sheet that slides up on mobile
+  // (same fixed-overlay pattern as the "Apply for Leave" popup above and
+  // the Announcements bottom sheet on the Employee/Manager dashboards).
+  const [showAllRecent, setShowAllRecent] = useState(false);
 
   const [allLeaves, setAllLeaves] = useState(null); // null = loading
 
@@ -707,12 +714,13 @@ export default function LeaveApply() {
               ))}
             </ul>
           )}
-          <Link
-            to={leaveHistoryPath}
+          <button
+            type="button"
+            onClick={() => setShowAllRecent(true)}
             className="block mt-3 text-xs text-orange-600 font-medium"
           >
             View All
-          </Link>
+          </button>
         </CollapsibleSection>
 
         <CollapsibleSection title="Important Note" icon={Info}>
@@ -1002,12 +1010,13 @@ export default function LeaveApply() {
               <h3 className="font-semibold text-slate-800 text-sm">
                 Recent Requests
               </h3>
-              <Link
-                to={leaveHistoryPath}
+              <button
+                type="button"
+                onClick={() => setShowAllRecent(true)}
                 className="text-xs text-orange-600 font-medium"
               >
                 View All
-              </Link>
+              </button>
             </div>
 
             {recent === null ? (
@@ -1067,6 +1076,95 @@ export default function LeaveApply() {
           </div>
         </div>
       </div>
+
+      {/* ---------- Recent Requests: "View All" popup / bottom sheet ----------
+          One shared overlay for both breakpoints: on desktop (sm and up)
+          it centers as a popup card; on mobile it's pinned to the bottom
+          and slides up, matching the Announcements bottom sheet on the
+          Employee/Manager dashboards and the "Apply for Leave" popup
+          above. Shows every request, not just the latest 3. */}
+      {showAllRecent && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 flex items-end sm:items-center justify-center z-50"
+          onClick={() => setShowAllRecent(false)}
+        >
+          <div
+            className="bg-white rounded-t-2xl sm:rounded-2xl border border-slate-200 w-full sm:max-w-md sm:w-full max-h-[85vh] sm:max-h-[75vh] overflow-y-auto p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle — mobile only, signals "swipe/tap down to close" */}
+            <div className="sm:hidden mx-auto h-1.5 w-10 rounded-full bg-slate-200 mb-4" />
+
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <Clock3 size={16} className="text-orange-500" />
+                All Leave Requests
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAllRecent(false)}
+                aria-label="Close"
+                className="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {allLeaves === null ? (
+              <div className="space-y-2">
+                <div className="h-10 bg-slate-100 rounded animate-pulse" />
+                <div className="h-10 bg-slate-100 rounded animate-pulse" />
+                <div className="h-10 bg-slate-100 rounded animate-pulse" />
+              </div>
+            ) : allLeaves.length === 0 ? (
+              <p className="text-sm text-slate-400 pb-1">
+                No leave requests yet.
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-100 pb-1">
+                {allLeaves.map((r) => (
+                  <li
+                    key={r.id}
+                    className="py-3 flex items-center justify-between gap-3 text-sm first:pt-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-slate-700 font-medium truncate">
+                        {r.leave_types?.leave_name || "Leave"}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {new Date(r.start_date).toLocaleDateString([], {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                        {" – "}
+                        {new Date(r.end_date).toLocaleDateString([], {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${
+                        STATUS_STYLES[r.status] || "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {r.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <Link
+              to={leaveHistoryPath}
+              onClick={() => setShowAllRecent(false)}
+              className="block mt-4 pt-3 border-t border-slate-100 text-xs text-orange-600 font-medium text-center"
+            >
+              Go to full Leave History
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

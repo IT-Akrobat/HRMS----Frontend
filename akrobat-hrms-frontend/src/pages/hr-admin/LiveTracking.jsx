@@ -13,7 +13,7 @@ import {
   useState,
 } from "react";
 import PageHeader from "../../components/common/PageHeader";
-import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates ";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 

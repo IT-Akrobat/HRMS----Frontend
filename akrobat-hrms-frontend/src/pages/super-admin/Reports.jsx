@@ -21,6 +21,7 @@ import * as XLSX from "xlsx-js-style";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
+import DatePicker from "../../components/layout/DatePicker";
 import { reportsService } from "../../services/ReportService";
 import { parseServerDate } from "../../utils/date";
 
@@ -597,7 +598,13 @@ function downloadAttendanceExcel(rows, monthLabel) {
 // use (options: employeeOptions from GET /reports/employees, value:
 // the chosen employee's id, onChange: (id) => void), just searchable —
 // useful once the roster is more than a handful of names to scroll.
-function EmployeeSearchSelect({ options, value, onChange, placeholder }) {
+function EmployeeSearchSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  onQueryChange,
+}) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
@@ -639,6 +646,7 @@ function EmployeeSearchSelect({ options, value, onChange, placeholder }) {
           }
           onChange={(e) => {
             setQuery(e.target.value);
+            onQueryChange?.(e.target.value);
             if (value) onChange("");
           }}
           onFocus={() => {
@@ -663,6 +671,7 @@ function EmployeeSearchSelect({ options, value, onChange, placeholder }) {
                 onClick={() => {
                   onChange(e.id);
                   setQuery("");
+                  onQueryChange?.("");
                   setOpen(false);
                 }}
                 className={`w-full text-left px-3 py-2 text-sm hover:bg-orange-50 ${
@@ -709,6 +718,11 @@ export default function Reports() {
   // the Employees tab has actually been opened).
   const [employeeOptions, setEmployeeOptions] = useState([]);
   const [monthlyEmployeeId, setMonthlyEmployeeId] = useState("");
+  // Raw text typed into the Employee search box, kept even when nothing
+  // has been formally selected yet (no click on a suggestion) -- so the
+  // table below and the download button can react to it live, matching
+  // what a "search box" is expected to do.
+  const [monthlyEmployeeQuery, setMonthlyEmployeeQuery] = useState("");
   const [monthlyMonth, setMonthlyMonth] = useState(() =>
     new Date().toISOString().slice(0, 7),
   );
@@ -770,7 +784,7 @@ export default function Reports() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, search, monthlyEmployeeId]);
+  }, [activeTab, search, monthlyEmployeeId, monthlyEmployeeQuery]);
 
   const rows = reportData[activeTab] || [];
   const loading = !!loadingTabs[activeTab];
@@ -781,13 +795,26 @@ export default function Reports() {
       // Attendance's "search" is the Employee picker above the table
       // (it already exists for the monthly-download panel) — reuse it
       // to filter the visible table instead of a second search box.
-      if (!monthlyEmployeeId) return rows;
-      const picked = employeeOptions.find((e) => e.id === monthlyEmployeeId);
-      const code = picked?.employee_id;
-      return rows.filter(
-        (r) =>
-          r.employees?.id === monthlyEmployeeId ||
-          (code && r.employees?.employee_id === code),
+      if (monthlyEmployeeId) {
+        const picked = employeeOptions.find((e) => e.id === monthlyEmployeeId);
+        const code = picked?.employee_id;
+        return rows.filter(
+          (r) =>
+            r.employees?.id === monthlyEmployeeId ||
+            (code && r.employees?.employee_id === code),
+        );
+      }
+      // Nothing formally selected yet -- still filter live off whatever
+      // text is typed in the box, so the table actually reacts as you
+      // search instead of only after clicking a suggestion.
+      const typed = monthlyEmployeeQuery.trim().toLowerCase();
+      if (!typed) return rows;
+      return rows.filter((r) =>
+        [r.employees?.full_name, r.employees?.employee_id]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(typed),
       );
     }
     if (!search.trim()) return rows;
@@ -795,7 +822,14 @@ export default function Reports() {
     return rows.filter((r) =>
       searchText(activeTab, r).toLowerCase().includes(q),
     );
-  }, [rows, search, activeTab, monthlyEmployeeId, employeeOptions]);
+  }, [
+    rows,
+    search,
+    activeTab,
+    monthlyEmployeeId,
+    monthlyEmployeeQuery,
+    employeeOptions,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -961,14 +995,24 @@ export default function Reports() {
     }
     setMonthlyError(null);
 
-    // Month only, no employee picked — every employee's attendance for
-    // that month, filtered client-side from the already-loaded
-    // Attendance tab rows (no extra API call needed).
+    // Month only, no employee formally picked — every employee's
+    // attendance for that month, filtered client-side from the
+    // already-loaded Attendance tab rows (no extra API call needed).
+    // If the person typed a name/ID without clicking a suggestion,
+    // honor that too, so the download matches what's on screen instead
+    // of silently ignoring it and exporting everyone.
     if (!monthlyEmployeeId) {
       setMonthlyDownloading(true);
-      const monthRows = (reportData.attendance || []).filter((r) =>
-        (r.attendance_date || "").startsWith(monthlyMonth),
-      );
+      const typed = monthlyEmployeeQuery.trim().toLowerCase();
+      const monthRows = (reportData.attendance || []).filter((r) => {
+        if (!(r.attendance_date || "").startsWith(monthlyMonth)) return false;
+        if (!typed) return true;
+        return [r.employees?.full_name, r.employees?.employee_id]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(typed);
+      });
       downloadAttendanceExcel(monthRows, monthlyMonth);
       setMonthlyDownloading(false);
       return;
@@ -1248,6 +1292,7 @@ export default function Reports() {
                   options={employeeOptions}
                   value={monthlyEmployeeId}
                   onChange={setMonthlyEmployeeId}
+                  onQueryChange={setMonthlyEmployeeQuery}
                   placeholder="All employees (optional)..."
                 />
               </div>
@@ -1255,11 +1300,12 @@ export default function Reports() {
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">
                   Month
                 </label>
-                <input
-                  type="month"
+                <DatePicker
+                  monthOnly
                   value={monthlyMonth}
-                  onChange={(e) => setMonthlyMonth(e.target.value)}
-                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                  onChange={setMonthlyMonth}
+                  placeholder="Select month"
+                  className="w-[168px]"
                 />
               </div>
               <button
@@ -1272,7 +1318,7 @@ export default function Reports() {
                 ) : (
                   <Download size={14} />
                 )}
-                {monthlyEmployeeId
+                {monthlyEmployeeId || monthlyEmployeeQuery.trim()
                   ? "Download Monthly Attendance"
                   : "Download Month (All Employees)"}
               </button>
@@ -1312,6 +1358,7 @@ export default function Reports() {
                     options={employeeOptions}
                     value={monthlyEmployeeId}
                     onChange={setMonthlyEmployeeId}
+                    onQueryChange={setMonthlyEmployeeQuery}
                     placeholder="All employees (optional)..."
                   />
                 </div>
@@ -1321,11 +1368,13 @@ export default function Reports() {
                     <label className="block text-[11px] font-medium text-slate-500 mb-1.5">
                       Month
                     </label>
-                    <input
-                      type="month"
+                    <DatePicker
+                      monthOnly
+                      overlay
                       value={monthlyMonth}
-                      onChange={(e) => setMonthlyMonth(e.target.value)}
-                      className="w-[128px] border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                      onChange={setMonthlyMonth}
+                      placeholder="Select month"
+                      className="w-[128px]"
                     />
                   </div>
                   <button
@@ -1339,7 +1388,9 @@ export default function Reports() {
                       <Download size={14} />
                     )}
                     <span className="truncate">
-                      {monthlyEmployeeId ? "Download" : "Download All"}
+                      {monthlyEmployeeId || monthlyEmployeeQuery.trim()
+                        ? "Download"
+                        : "Download All"}
                     </span>
                   </button>
                   <button

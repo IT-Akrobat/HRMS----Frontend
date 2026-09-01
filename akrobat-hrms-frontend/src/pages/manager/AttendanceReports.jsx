@@ -591,21 +591,22 @@ export default function ManagerAttendanceReports() {
           </div>
 
           <div className="flex items-center gap-2 mt-3">
-            <div className="flex-1 min-w-0 border border-slate-200 rounded-lg bg-white px-3 py-2">
+            <div className="flex-1 min-w-0 flex items-center gap-2 border border-slate-200 rounded-lg bg-white px-3 py-2.5">
               <DatePicker
                 value={fromDate}
                 max={toDate}
                 onChange={(iso) => setFromDate(iso)}
-                className="w-full"
+                placeholder="From"
+                overlay
               />
-            </div>
-            <div className="flex-1 min-w-0 border border-slate-200 rounded-lg bg-white px-3 py-2">
+              <span className="text-slate-300 shrink-0">→</span>
               <DatePicker
                 value={toDate}
                 min={fromDate}
                 max={isoToday()}
                 onChange={(iso) => setToDate(iso)}
-                className="w-full"
+                placeholder="To"
+                overlay
               />
             </div>
             <button
