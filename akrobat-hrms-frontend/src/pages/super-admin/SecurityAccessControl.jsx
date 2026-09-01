@@ -6,7 +6,7 @@ import ToggleSwitch from "../../components/common/ToggleSwitch";
 import { FilterDropdown } from "../../components/common/UserformModal";
 import { parseServerDate } from "../../utils/date";
 
-import { accessControlService } from "../../services/Accesscontrolservice ";
+import { accessControlService } from "../../services/Accesscontrolservice";
 
 // ---------------------------------------------------------------------
 // Scope note: this page is login security / password / lockout rules
