@@ -11,7 +11,7 @@ import BirthdaysCard, {
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
-import OutdoorVisitCard from "../../components/common/OutdoorVisitCard";
+import OutdoorVisitCard from "../../components/common/Outdoorvisitcard";
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import SiteVisitCard from "../../components/common/SiteVisitCard";
