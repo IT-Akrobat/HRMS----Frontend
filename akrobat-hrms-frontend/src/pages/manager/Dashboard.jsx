@@ -3,10 +3,12 @@ import {
   ArrowRight,
   CalendarClock,
   ClipboardCheck,
+  Clock,
   LogIn,
   LogOut,
   MapPin,
   Megaphone,
+  Palmtree,
   UserCheck,
   Users,
 } from "lucide-react";
@@ -16,6 +18,7 @@ import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
+import MobileQuickActions from "../../components/common/MobileQuickActions";
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
@@ -40,6 +43,17 @@ import { parseServerDate } from "../../utils/date";
 // An announcement is "expired" once today is past its end_date. The
 // Announcements panel keeps showing these (greyed out) instead of hiding
 // them the moment /announcements/active would stop returning them.
+// Mobile-only dashboard shortcuts (see MobileQuickActions) — icons match
+// what these same destinations use in config/navigationConfig.js:
+// "Team Members" -> My Team group (Users), "Apply Leave" -> Leave
+// Management group (Palmtree), "Team Attendance" -> Attendance group
+// (Clock).
+const MANAGER_QUICK_ACTIONS = [
+  { to: "/manager/team/members", label: "Team Members", icon: Users },
+  { to: "/manager/leave/apply", label: "Apply Leave", icon: Palmtree },
+  { to: "/manager/attendance", label: "Team Attendance", icon: Clock },
+];
+
 function isAnnouncementExpired(a) {
   if (!a?.end_date) return false;
   const today = new Date().toISOString().slice(0, 10);
@@ -307,6 +321,7 @@ export default function ManagerDashboard() {
         </p>
 
         <QuoteOfDayCard compact />
+        <MobileQuickActions actions={MANAGER_QUICK_ACTIONS} />
       </div>
 
       {/* ---------- Desktop/tablet stat grid (lg and up) — unchanged ---------- */}

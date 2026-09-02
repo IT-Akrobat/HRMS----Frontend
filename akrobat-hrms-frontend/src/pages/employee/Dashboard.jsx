@@ -2,8 +2,11 @@ import {
   Cake,
   CalendarDays,
   ClipboardList,
+  Clock,
   Megaphone,
+  Palmtree,
   PlaneTakeoff,
+  User,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import BirthdaysCard, {
@@ -11,7 +14,11 @@ import BirthdaysCard, {
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
-import { default as OutdoorCheckinAccessModal, default as OutdoorVisitCard } from "../../components/common/Outdoorcheckinaccessmodal";
+import MobileQuickActions from "../../components/common/MobileQuickActions";
+import {
+  default as OutdoorCheckinAccessModal,
+  default as OutdoorVisitCard,
+} from "../../components/common/Outdoorcheckinaccessmodal";
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import SiteVisitCard from "../../components/common/SiteVisitCard";
@@ -19,6 +26,16 @@ import { useAuth } from "../../context/AuthContext";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { isFieldEmployee } from "../../utils/employeeType";
+
+// Mobile-only dashboard shortcuts (see MobileQuickActions) — icons match
+// what these same destinations use in config/navigationConfig.js:
+// "My Attendance" -> Attendance group (Clock), "Sites Worked" -> My
+// Profile group (User), "Apply Leave" -> Leave group (Palmtree).
+const EMPLOYEE_QUICK_ACTIONS = [
+  { to: "/employee/attendance", label: "My Attendance", icon: Clock },
+  { to: "/employee/profile/sites", label: "Sites Worked", icon: User },
+  { to: "/employee/leave/apply", label: "Apply Leave", icon: Palmtree },
+];
 
 const LEAVE_STATUS_STYLES = {
   Approved: "bg-blue-50 text-blue-600",
@@ -285,6 +302,7 @@ export default function EmployeeDashboard() {
           <div className="mt-3">
             <QuoteOfDayCard compact />
           </div>
+          <MobileQuickActions actions={EMPLOYEE_QUICK_ACTIONS} />
         </div>
 
         {/* ---------- Check-in / Site Visit / Meeting ----------
