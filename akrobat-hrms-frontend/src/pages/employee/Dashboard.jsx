@@ -14,7 +14,7 @@ import BirthdaysCard, {
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
-import MobileQuickActions from "../../components/common/MobileQuickActions";
+import MobileQuickActions from "../../components/common/Mobilequickactions";
 import {
   default as OutdoorCheckinAccessModal,
   default as OutdoorVisitCard,
