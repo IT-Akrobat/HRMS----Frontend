@@ -14,7 +14,6 @@ import BirthdaysCard, {
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
-import MobileQuickActions from "../../components/common/Mobilequickactions";
 import {
   default as OutdoorCheckinAccessModal,
   default as OutdoorVisitCard,
@@ -302,7 +301,7 @@ export default function EmployeeDashboard() {
           <div className="mt-3">
             <QuoteOfDayCard compact />
           </div>
-          <MobileQuickActions actions={EMPLOYEE_QUICK_ACTIONS} />
+          {/* <MobileQuickActions actions={EMPLOYEE_QUICK_ACTIONS} /> */}
         </div>
 
         {/* ---------- Check-in / Site Visit / Meeting ----------

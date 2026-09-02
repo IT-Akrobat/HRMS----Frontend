@@ -18,7 +18,6 @@ import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
-import MobileQuickActions from "../../components/common/Mobilequickactions";
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
@@ -321,7 +320,7 @@ export default function ManagerDashboard() {
         </p>
 
         <QuoteOfDayCard compact />
-        <MobileQuickActions actions={MANAGER_QUICK_ACTIONS} />
+        {/* <MobileQuickActions actions={MANAGER_QUICK_ACTIONS} /> */}
       </div>
 
       {/* ---------- Desktop/tablet stat grid (lg and up) — unchanged ---------- */}
