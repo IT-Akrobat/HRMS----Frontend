@@ -225,7 +225,8 @@ function NotificationBell() {
   // still arrives (with up to ~15s of lag) even if both of those
   // channels are broken in a given environment.
   useEffect(() => {
-    initNotificationFallback(handleIncoming);
+    const unsubscribe = initNotificationFallback(handleIncoming);
+    return unsubscribe;
   }, []);
 
   // "Have I forgotten to check in?" — GET /attendance/reminder-check

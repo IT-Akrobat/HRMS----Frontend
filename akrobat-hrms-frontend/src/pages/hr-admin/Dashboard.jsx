@@ -554,7 +554,9 @@ export default function HrAdminDashboard() {
         <h1 className="text-2xl font-bold text-slate-800 mb-1">
           Hi, {firstName} 👋
         </h1>
-
+        <p className="text-sm text-slate-500 mb-3">
+          {/* Overview of your system and activity */}
+        </p>
         <QuoteOfDayCard compact />
       </div>
 
@@ -618,7 +620,7 @@ export default function HrAdminDashboard() {
         {/* ---------- Activity tab: same Recent Activity feed as desktop,
             just its own fixed-height scroll area under the tab. ---------- */}
         {mobileTab === "activity" && (
-          <div className="bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col h-[420px] mb-6">
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col h-[580px] mb-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                 <ShieldCheck size={17} className="text-orange-500" /> Recent
