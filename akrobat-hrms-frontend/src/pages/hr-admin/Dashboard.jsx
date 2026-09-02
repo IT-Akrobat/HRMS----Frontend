@@ -260,6 +260,30 @@ function QuickActionCircle({ to, label, icon: Icon }) {
 // Non-Singapore coordinates fall back to Nominatim automatically, same
 // as before — no behavior change outside Singapore.
 
+// Straight-nav quick actions shown as a dedicated icon row on BOTH
+// desktop and mobile — Employee List / Live Site Tracking / Audit Logs /
+// Reports / Leave Balance. Pulled out to a shared array so the desktop
+// row (below) and the mobile row can't drift out of sync.
+const NAV_QUICK_ACTIONS = [
+  { to: "/hr-admin/employees", label: "Employees", icon: Users },
+  {
+    to: "/hr-admin/attendance/live-tracking",
+    label: "Live Tracking",
+    icon: Radar,
+  },
+  {
+    to: "/hr-admin/security/audit-logs",
+    label: "Audit Logs",
+    icon: ScrollText,
+  },
+  { to: "/hr-admin/reports/hr", label: "Reports", icon: FileBarChart },
+  {
+    to: "/hr-admin/leave/balance",
+    label: "Leave Balance",
+    icon: CalendarRange,
+  },
+];
+
 export default function HrAdminDashboard() {
   const { user } = useAuth();
   const firstName = user?.name?.split(" ")[0] || "there";
@@ -498,7 +522,12 @@ export default function HrAdminDashboard() {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* ---------- Desktop/tablet header (lg and up) — unchanged ---------- */}
+      {/* ---------- Desktop/tablet header (lg and up) ----------
+          Only the three modal-opening actions (Create User / Create
+          Site / Outdoor Check-in Access) + the Quote of the Day card
+          live in this row. The straight-nav icons (Employees / Live
+          Tracking / Audit Logs / Reports / Leave Balance) are
+          intentionally mobile-only — see the mobile header below. */}
       <div className="hidden lg:block">
         <PageHeader
           title="System Dashboard"
@@ -542,38 +571,6 @@ export default function HrAdminDashboard() {
                 </span>
               </button>
 
-              {/* Straight-nav quick actions — Employee List / Live Site
-                  Tracking / Audit Logs / Reports / Leave Balance. Unlike
-                  the three buttons above (Create User / Create Site /
-                  Outdoor Access), these don't open a modal, so they use
-                  QuickActionCircle's plain <Link> instead of onClick. */}
-              <div className="w-px h-5 bg-slate-200 shrink-0" />
-              <QuickActionCircle
-                to="/hr-admin/employees"
-                label="Employee List"
-                icon={Users}
-              />
-              <QuickActionCircle
-                to="/hr-admin/attendance/live-tracking"
-                label="Live Site Tracking"
-                icon={Radar}
-              />
-              <QuickActionCircle
-                to="/hr-admin/security/audit-logs"
-                label="Audit Logs"
-                icon={ScrollText}
-              />
-              <QuickActionCircle
-                to="/hr-admin/reports/hr"
-                label="Reports"
-                icon={FileBarChart}
-              />
-              <QuickActionCircle
-                to="/hr-admin/leave/balance"
-                label="Leave Balance"
-                icon={CalendarRange}
-              />
-
               <QuoteOfDayCard compact />
             </div>
           }
@@ -604,33 +601,7 @@ export default function HrAdminDashboard() {
             floating "+" speed-dial below, which stays reserved for the
             three modal-opening create actions. */}
         <div className="flex items-center gap-4 overflow-x-auto no-scrollbar mt-3 -mx-1 px-1">
-          {[
-            {
-              to: "/hr-admin/employees",
-              label: "Employees",
-              icon: Users,
-            },
-            {
-              to: "/hr-admin/attendance/live-tracking",
-              label: "Live Tracking",
-              icon: Radar,
-            },
-            {
-              to: "/hr-admin/security/audit-logs",
-              label: "Audit Logs",
-              icon: ScrollText,
-            },
-            {
-              to: "/hr-admin/reports/hr",
-              label: "Reports",
-              icon: FileBarChart,
-            },
-            {
-              to: "/hr-admin/leave/balance",
-              label: "Leave Balance",
-              icon: CalendarRange,
-            },
-          ].map(({ to, label, icon: Icon }) => (
+          {NAV_QUICK_ACTIONS.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
               to={to}
