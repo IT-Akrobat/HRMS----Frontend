@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-
-import AppLoadingScreen from "./components/common/AppLoadingScreen.jsx";
+import AppLoadingScreen from "./components/common/Apploadingscreen.jsx";
 import InstallPrompt from "./components/common/InstallPrompt.jsx";
 import ProtectedRoute from "./components/common/ProtectedRoute.jsx";
 import DashboardLayout from "./components/layout/DashboardLayout.jsx";
