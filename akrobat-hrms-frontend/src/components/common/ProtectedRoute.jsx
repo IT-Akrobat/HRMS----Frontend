@@ -1,7 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { DEFAULT_ROUTE_BY_ROLE } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
-import AppLoadingScreen from "./AppLoadingScreen";
+import AppLoadingScreen from "./Apploadingscreen";
 
 /**
  * Wrap any route element with this.
