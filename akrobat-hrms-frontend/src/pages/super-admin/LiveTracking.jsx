@@ -13,6 +13,7 @@ import {
   useState,
 } from "react";
 import PageHeader from "../../components/common/PageHeader";
+import DatePicker from "../../components/layout/DatePicker";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
@@ -762,27 +763,32 @@ function HistoryTab() {
   return (
     <div>
       <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3 flex flex-wrap items-end gap-3 text-sm">
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">From</label>
-          <input
-            type="date"
-            value={fromDate}
-            max={toDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 w-[112px] sm:w-auto"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">To</label>
-          <input
-            type="date"
-            value={toDate}
-            min={fromDate}
-            max={defaultTo}
-            onChange={(e) => setToDate(e.target.value)}
-            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 w-[112px] sm:w-auto"
-          />
-        </div>
+        {/* Same shared calendar component the Attendance/Reports screens
+            use (components/layout/DatePicker.jsx) instead of a bare
+            native <input type="date"> -- the native control's popup is
+            positioned/sized by the OS, which on mobile can render
+            oddly clipped or floating away from the field. `overlay`
+            fixes the popover to the viewport (computed off the
+            trigger's own position) so it always opens right below the
+            field and never gets clipped by this card or the page
+            scroll, matching the "Month" picker on Reports.jsx. */}
+        <DatePicker
+          label="From"
+          overlay
+          value={fromDate}
+          max={toDate}
+          onChange={(iso) => setFromDate(iso)}
+          className="w-[140px] sm:w-auto"
+        />
+        <DatePicker
+          label="To"
+          overlay
+          value={toDate}
+          min={fromDate}
+          max={defaultTo}
+          onChange={(iso) => setToDate(iso)}
+          className="w-[140px] sm:w-auto"
+        />
         {/* Mobile: button and text share their own full-width row, with
             the button pushed to the end (right) via justify-between and
             order. Desktop (sm and up): sm:contents drops this wrapper so

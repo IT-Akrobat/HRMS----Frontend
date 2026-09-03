@@ -192,6 +192,23 @@ export default function DatePicker({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
+  // Close any open popover on scroll — for the overlay mode this avoids a
+  // stale `position: fixed` calendar that was positioned once (from the
+  // trigger's on-screen rect) at the moment it opened, then stays put while
+  // the trigger moves under it as the page scrolls. For the absolute-mode
+  // popovers it just means the calendar doesn't stay open while its trigger
+  // scrolls out of view. Capture phase so this also fires for scrolls
+  // inside a nested scrollable container (e.g. a card list), not just
+  // window scroll.
+  useEffect(() => {
+    if (!open) return;
+    function handleScroll() {
+      setOpen(false);
+    }
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [open]);
+
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();

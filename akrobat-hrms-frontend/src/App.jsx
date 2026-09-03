@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
+import AppLoadingScreen from "./components/common/AppLoadingScreen.jsx";
 import InstallPrompt from "./components/common/InstallPrompt.jsx";
 import ProtectedRoute from "./components/common/ProtectedRoute.jsx";
 import DashboardLayout from "./components/layout/DashboardLayout.jsx";
@@ -42,7 +43,7 @@ function RootRedirect() {
   // cold start -- without this guard it would redirect to /login
   // before the cookie check finishes, and nothing brings the user back
   // afterward since Login.jsx doesn't watch isAuthenticated itself.
-  if (loading) return null;
+  if (loading) return <AppLoadingScreen />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Navigate to={DEFAULT_ROUTE_BY_ROLE[role]} replace />;
 }

@@ -259,6 +259,47 @@ function NotificationBell() {
     return () => clearInterval(reminderInterval);
   }, []);
 
+  // "Have I forgotten to check out?" — GET /attendance/checkout-reminder-check
+  // (see app/attendance/services.py::get_checkout_reminder_status()). Same
+  // no-scheduler constraint and polling approach as the check-in reminder
+  // above, just for the other end of the day — a safe no-op unless the
+  // employee has opted into "Checkout reminders" in Settings AND checked
+  // in but never checked out after their shift ended.
+  useEffect(() => {
+    function checkCheckoutReminder() {
+      apiClient.get("/attendance/checkout-reminder-check").catch(() => {
+        // Best-effort — same as the check-in reminder poll.
+      });
+    }
+    checkCheckoutReminder();
+    const checkoutReminderInterval = setInterval(
+      checkCheckoutReminder,
+      3 * 60 * 1000,
+    );
+    return () => clearInterval(checkoutReminderInterval);
+  }, []);
+
+  // "Is a holiday coming up?" — GET /holidays/reminder-check (see
+  // app/holidays/services.py::get_holiday_reminder_status()). Same
+  // no-scheduler constraint again: this fires an advance "tomorrow is a
+  // holiday" notice the day before (plus a same-day fallback), gated by
+  // the employee's own "Holiday reminders" toggle in Settings. A lighter
+  // poll interval is fine here — nothing about "is tomorrow a holiday"
+  // changes within a session, this just needs to run at least once.
+  useEffect(() => {
+    function checkHolidayReminder() {
+      apiClient.get("/holidays/reminder-check").catch(() => {
+        // Best-effort — same as the other reminder polls.
+      });
+    }
+    checkHolidayReminder();
+    const holidayReminderInterval = setInterval(
+      checkHolidayReminder,
+      15 * 60 * 1000,
+    );
+    return () => clearInterval(holidayReminderInterval);
+  }, []);
+
   // Ask once for permission to show native browser/OS notifications —
   // this is what lets a new notification reach the person even when
   // they've switched away to another tab or app (as long as this tab is

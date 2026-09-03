@@ -48,8 +48,12 @@ import { holidaysService } from "../../services/holidaysService";
 //                   app/notification_preferences/routes.py). The
 //                   "Attendance reminders" toggle here is what
 //                   app/attendance/services.py::get_attendance_reminder_status()
-//                   checks before ever sending a reminder — see the
-//                   periodic poll added in Header.jsx.
+//                   checks before ever sending a reminder, "Checkout
+//                   reminders" is the same for
+//                   get_checkout_reminder_status(), and "Holiday
+//                   reminders" gates
+//                   app/holidays/services.py::get_holiday_reminder_status()
+//                   — see the periodic polls added in Header.jsx.
 //   Preferences   — language/date-format/time-format/theme. Still
 //                   local-only until there's somewhere to save it
 //                   server-side.
@@ -67,6 +71,8 @@ const NOTIF_DEFAULTS = {
   announcements: true,
   celebrations: true,
   attendance_reminders: false,
+  checkout_reminders: false,
+  holiday_reminders: true,
 };
 
 const PREF_DEFAULTS = {
@@ -225,12 +231,14 @@ export default function Settings() {
 
   // ---------------- Notifications ----------------
   // Backed by GET/PUT /notification-preferences/me (see
-  // app/notification_preferences/routes.py) — previously these five
-  // toggles only ever persisted to localStorage and nothing on the
-  // backend could read them (in particular, the "Attendance reminders"
-  // toggle had no effect on anything). Now the value in the DB is what
-  // app/attendance/services.py::get_attendance_reminder_status() checks
-  // before it will ever send a reminder.
+  // app/notification_preferences/routes.py) — previously these toggles
+  // only ever persisted to localStorage and nothing on the backend
+  // could read them (in particular, the "Attendance reminders" toggle
+  // had no effect on anything). Now the value in the DB is what
+  // app/attendance/services.py::get_attendance_reminder_status() /
+  // get_checkout_reminder_status() and
+  // app/holidays/services.py::get_holiday_reminder_status() check
+  // before they'll ever send a reminder.
   const [notifs, setNotifs] = useState(NOTIF_DEFAULTS);
   const [notifLoading, setNotifLoading] = useState(true);
   const [notifSaving, setNotifSaving] = useState(false);
@@ -319,6 +327,10 @@ export default function Settings() {
           celebrations: row.celebrations ?? NOTIF_DEFAULTS.celebrations,
           attendance_reminders:
             row.attendance_reminders ?? NOTIF_DEFAULTS.attendance_reminders,
+          checkout_reminders:
+            row.checkout_reminders ?? NOTIF_DEFAULTS.checkout_reminders,
+          holiday_reminders:
+            row.holiday_reminders ?? NOTIF_DEFAULTS.holiday_reminders,
         });
       })
       .catch(() => {
@@ -355,6 +367,8 @@ export default function Settings() {
           announcements: row.announcements,
           celebrations: row.celebrations,
           attendance_reminders: row.attendance_reminders,
+          checkout_reminders: row.checkout_reminders,
+          holiday_reminders: row.holiday_reminders,
         });
       }
       setNotifMsg({
@@ -579,7 +593,7 @@ export default function Settings() {
               )}
               {notifLoading ? (
                 <div className="space-y-4 animate-pulse">
-                  {Array.from({ length: 5 }).map((_, i) => (
+                  {Array.from({ length: 7 }).map((_, i) => (
                     <div key={i} className="h-12 bg-slate-100 rounded-lg" />
                   ))}
                 </div>
@@ -623,6 +637,22 @@ export default function Settings() {
                     checked={notifs.attendance_reminders}
                     onChange={(v) =>
                       setNotifs((n) => ({ ...n, attendance_reminders: v }))
+                    }
+                  />
+                  <ToggleSwitch
+                    label="Checkout reminders"
+                    description="A nudge if you haven't checked out by your shift end."
+                    checked={notifs.checkout_reminders}
+                    onChange={(v) =>
+                      setNotifs((n) => ({ ...n, checkout_reminders: v }))
+                    }
+                  />
+                  <ToggleSwitch
+                    label="Holiday reminders"
+                    description="A heads-up the day before (and on the day of) a company holiday."
+                    checked={notifs.holiday_reminders}
+                    onChange={(v) =>
+                      setNotifs((n) => ({ ...n, holiday_reminders: v }))
                     }
                   />
                 </div>

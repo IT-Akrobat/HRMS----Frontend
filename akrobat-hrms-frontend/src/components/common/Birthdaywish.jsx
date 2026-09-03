@@ -27,11 +27,11 @@ import { useAuth } from "../../context/AuthContext";
 // stored as "YYYY-MM-DD"; only month/day are compared, year is ignored.
 // ---------------------------------------------------------------------
 
-const WAIT_MS = 5000; // bomb ticks this long before it bursts on its own
+const WAIT_MS = 2000; // bomb ticks this long before it bursts on its own
 const AUTO_DISMISS_MS = 6000; // burst stays up this long before washing out
 const WASH_OUT_MS = 900;
 const CONFETTI_COUNT = 60;
-const MAX_WISHES = 3;
+const MAX_WISHES = 1;
 
 const CONFETTI_COLORS = [
   "bg-brand-orange",
