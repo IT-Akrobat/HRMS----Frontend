@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import AppLoadingScreen from "./components/common/Apploadingscreen.jsx";
+
 import InstallPrompt from "./components/common/InstallPrompt.jsx";
 import ProtectedRoute from "./components/common/ProtectedRoute.jsx";
 import DashboardLayout from "./components/layout/DashboardLayout.jsx";
@@ -16,7 +16,16 @@ import Login from "./pages/auth/Login.jsx";
 
 // Small, dependency-free fallback shown while a role's page chunk is
 // still downloading (route navigation, not first paint -- Login itself
-// never suspends). Keep this component free of icon libs/images so it
+// never suspends), AND while the initial session restore (GET /auth/me
+// reading the httpOnly cookie) is still in flight -- see RootRedirect
+// and ProtectedRoute below. That restore can legitimately take up to
+// ~45s (see authService.RESTORE_TIMEOUT_MS), or longer once its own
+// internal retry kicks in, on a cold-starting free-tier backend. Both
+// call sites used to just `return null` for that whole window -- a
+// blank white page with zero feedback, easily mistaken for the app
+// being broken/frozen, which is exactly what drove people to reload
+// repeatedly (each reload just restarts the same blank wait, it
+// doesn't skip it). Keep this component free of icon libs/images so it
 // can't itself become something that needs to be code-split.
 function RouteLoadingFallback() {
   return (
@@ -42,7 +51,7 @@ function RootRedirect() {
   // cold start -- without this guard it would redirect to /login
   // before the cookie check finishes, and nothing brings the user back
   // afterward since Login.jsx doesn't watch isAuthenticated itself.
-  if (loading) return <AppLoadingScreen />;
+  if (loading) return <RouteLoadingFallback />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Navigate to={DEFAULT_ROUTE_BY_ROLE[role]} replace />;
 }

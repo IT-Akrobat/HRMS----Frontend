@@ -263,75 +263,80 @@ export default function CheckInOutCard({
     }
   }
 
-  // Pulled out so it can run both automatically on mount AND again on demand
-  // when the user taps "Detect Location" (e.g. after they granted permission
-  // following an earlier denial, or just want a fresh GPS fix).
-  //
-  // A single getCurrentPosition() call isn't reliable on a laptop with no
-  // GPS chip: the browser/OS location provider often returns a coarse
-  // Wi-Fi- or IP-based fix *first* (sometimes off by hundreds of km — this
-  // is why "Detect Location" was showing a different state entirely) and
-  // only refines to a tighter Wi-Fi-triangulated fix a few seconds later,
-  // if at all. So instead of taking the first result, we watch for up to
-  // ~8s and keep whichever fix has the smallest `accuracy` (meters of
-  // uncertainty), and stop early once we get a genuinely GPS-grade fix.
+  // Shared "watch briefly, keep the best fix" strategy — used by both
+  // detectLocation() (automatic, on mount, drives the status banner) and
+  // getFreshCoords() (on-demand, right before check-in/out) below. A
+  // single getCurrentPosition() call isn't reliable on a laptop with no
+  // GPS chip, or indoors on a phone with a weak signal: the provider
+  // often returns a coarse Wi-Fi/IP fix first (sometimes off by hundreds
+  // of km) and only refines to a tighter fix a few seconds later, if at
+  // all. So instead of taking the first result, this watches for up to
+  // `timeoutMs` and keeps whichever fix has the smallest `accuracy`
+  // (meters of uncertainty), stopping early once a genuinely GPS-grade
+  // fix (<=50m) comes in.
+  function acquireBestFix(timeoutMs) {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve({ fix: null, permissionDenied: false, unsupported: true });
+        return;
+      }
+
+      let bestFix = null;
+      let watchId = null;
+      let settled = false;
+      let timeoutId = null;
+      // Real PERMISSION_DENIED (code 1) is the only case that should be
+      // treated as a denial. POSITION_UNAVAILABLE (2), TIMEOUT (3), or
+      // the window above simply expiring with no fix yet are all "we
+      // couldn't get a fix" — not the user refusing permission.
+      let permissionDenied = false;
+
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (timeoutId) clearTimeout(timeoutId);
+        if (watchId != null) navigator.geolocation.clearWatch(watchId);
+        resolve({ fix: bestFix, permissionDenied, unsupported: false });
+      };
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude, accuracy: acc } = pos.coords;
+          if (!bestFix || acc < bestFix.accuracy) {
+            bestFix = { latitude, longitude, accuracy: acc };
+          }
+          if (acc <= 50) finish();
+        },
+        (err) => {
+          if (err && err.code === 1) permissionDenied = true;
+          finish();
+        },
+        { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 0 },
+      );
+
+      timeoutId = setTimeout(finish, timeoutMs);
+    });
+  }
+
   function detectLocation() {
-    if (!navigator.geolocation) {
-      setGeoStatus("unsupported");
-      return;
-    }
     setGeoStatus("locating");
     setPlace(null);
     setAccuracy(null);
 
-    let bestFix = null;
-    let watchId = null;
-    let settled = false;
-    let timeoutId = null;
-    // Real PERMISSION_DENIED (code 1) is the only case that should show
-    // "denied". POSITION_UNAVAILABLE (2), TIMEOUT (3), or the 8s window
-    // above simply expiring with no fix yet are all "we couldn't get a
-    // fix" — not the user refusing permission — so they get their own
-    // "unavailable" status instead of being lumped in with "denied".
-    let permissionDenied = false;
-
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      if (timeoutId) clearTimeout(timeoutId);
-      if (watchId != null) navigator.geolocation.clearWatch(watchId);
-      if (bestFix) {
-        setCoords({ latitude: bestFix.latitude, longitude: bestFix.longitude });
-        setAccuracy(bestFix.accuracy);
+    acquireBestFix(8000).then(({ fix, permissionDenied, unsupported }) => {
+      if (unsupported) {
+        setGeoStatus("unsupported");
+        return;
+      }
+      if (fix) {
+        setCoords({ latitude: fix.latitude, longitude: fix.longitude });
+        setAccuracy(fix.accuracy);
         setGeoStatus("ok");
-        reverseGeocode(bestFix.latitude, bestFix.longitude);
+        reverseGeocode(fix.latitude, fix.longitude);
       } else {
         setGeoStatus(permissionDenied ? "denied" : "unavailable");
       }
-    };
-
-    watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude, accuracy: acc } = pos.coords;
-        if (!bestFix || acc < bestFix.accuracy) {
-          bestFix = { latitude, longitude, accuracy: acc };
-        }
-        // GPS-grade fix already — no need to keep waiting.
-        if (acc <= 50) finish();
-      },
-      (err) => {
-        // code 1 = PERMISSION_DENIED. Only this is a true denial; code 2
-        // (POSITION_UNAVAILABLE) and 3 (TIMEOUT) still fall through to
-        // "unavailable" below via the shared finish() path.
-        if (err && err.code === 1) permissionDenied = true;
-        finish();
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-    );
-
-    // Give the provider a few seconds to refine from an initial coarse
-    // (Wi-Fi/IP) fix to a tighter one, then lock in whatever's best so far.
-    timeoutId = setTimeout(finish, 8000);
+    });
   }
 
   useEffect(() => {
@@ -417,25 +422,23 @@ export default function CheckInOutCard({
   // drives the status banner). If the user clicks Check In/Out before that
   // automatic fix has resolved (slow GPS, or they were fast), `coords` is
   // still null and the request would otherwise go out with no lat/long at
-  // all. This grabs a fresh position at the moment of the click instead,
-  // so a location is always attached (never hardcoded, always the real
-  // detected one — just via a fresh request if we didn't already have it).
+  // all.
+  //
+  // This used to be a single, quick getCurrentPosition() call — much
+  // weaker than acquireBestFix() above, and Check Out doesn't gate on
+  // `locationReady` the way Check In does (someone leaving shouldn't be
+  // stuck waiting on a slow GPS fix), so it had no automatic retry either.
+  // Indoors / weak signal, that single quick attempt would often fail
+  // outright, and the check-out would go through with an EMPTY body —
+  // meaning no lat/lon was ever saved for that day, and no amount of
+  // reloading the page afterwards could recover it (there was nothing to
+  // reverse-geocode). Using the same best-of-N-second watch strategy here
+  // (just a shorter window, so the button still feels responsive) makes
+  // that far less likely, while still never blocking the action outright.
   function getFreshCoords() {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        resolve(null);
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          resolve({
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-          }),
-        () => resolve(null),
-        { enableHighAccuracy: true, timeout: 10000 },
-      );
-    });
+    return acquireBestFix(6000).then(({ fix }) =>
+      fix ? { latitude: fix.latitude, longitude: fix.longitude } : null,
+    );
   }
 
   async function runAction(path, successReload = true) {
@@ -526,8 +529,27 @@ export default function CheckInOutCard({
   // be missing or contain junk/incorrect tags for a given spot. Only fall
   // back to the reverse-geocoded place when there's no configured office
   // nearby at all (e.g. a field visit away from any office).
-  const checkInLocation = checkInOfficeMatch || checkInPlace;
-  const checkOutLocation = checkOutOfficeMatch || checkOutPlace;
+  // Last-resort fallback: if we have real saved coordinates for the day
+  // but couldn't turn them into a place name (no configured office
+  // nearby AND the reverse-geocoding service didn't resolve — e.g. it
+  // was rate-limited or briefly down), show the raw coordinates instead
+  // of a bare "Location unavailable". That text should now only appear
+  // when there's truly no location data at all for that check-in/out
+  // (which acquireBestFix()/getFreshCoords() above make far less likely
+  // than before), not just because a lookup service hiccuped.
+  function formatCoords(lat, lon) {
+    if (lat == null || lon == null) return null;
+    return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  }
+
+  const checkInLocation =
+    checkInOfficeMatch ||
+    checkInPlace ||
+    formatCoords(today?.check_in_latitude, today?.check_in_longitude);
+  const checkOutLocation =
+    checkOutOfficeMatch ||
+    checkOutPlace ||
+    formatCoords(today?.check_out_latitude, today?.check_out_longitude);
 
   if (notLinked) {
     return (
