@@ -7,7 +7,7 @@ import {
   LogOut,
   MapPin,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate, toLocalISODate } from "../../utils/date";
@@ -441,7 +441,21 @@ export default function CheckInOutCard({
     );
   }
 
+  // setBusy(true) below disables the button, but that only takes effect
+  // once React re-renders -- a fast double-tap (common on a phone, e.g. a
+  // site worker's finger and the screen's own registered-touch handling
+  // both catching it) can fire this twice before that happens. This ref
+  // is checked and set synchronously, so the second call bails out
+  // immediately regardless of render timing. The real backstop against a
+  // duplicate check-in is still the DB-level unique constraint on
+  // (employee_id, attendance_date) -- see sql/032.sql -- since two
+  // *separate* tabs/devices/requests wouldn't share this in-memory ref at
+  // all; this just avoids the common single-tab double-fire case cheaply.
+  const actionInFlightRef = useRef(false);
+
   async function runAction(path, successReload = true) {
+    if (actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -481,6 +495,7 @@ export default function CheckInOutCard({
       }
     } finally {
       setBusy(false);
+      actionInFlightRef.current = false;
     }
   }
 
@@ -497,16 +512,46 @@ export default function CheckInOutCard({
   // hasn't arrived yet at all — either way, the button stays disabled
   // until the location text is actually on screen, so a check-in never
   // goes out with a location that isn't yet showing to the user.
-  const locationReady = geoStatus === "ok" && !placeLoading;
+  // Check-In only needs real lat/lon (+ accuracy) to be captured -- it does
+  // NOT need the reverse-geocoded place name to have resolved yet.
+  // Reverse geocoding (place/placeLoading) is a slower, best-effort,
+  // separate network call purely for the human-readable label shown in the
+  // banner/timeline; gating the button on it used to mean a slow or rate-
+  // limited geocoding lookup could block a check-in for minutes even
+  // though the real GPS coordinates were already sitting in `coords`. The
+  // place name, if it arrives, still shows up on its own via the
+  // `place`/`placeLoading` UI below -- it's just no longer a prerequisite
+  // for submitting.
+  const locationReady = geoStatus === "ok";
+  // "denied" / "unavailable" are exactly the two states a fresh attempt
+  // can plausibly fix (permission was just granted in Settings, or a
+  // weak/indoor signal clears up) -- unlike "unsupported", which no retry
+  // can change. Rather than leaving the main Check In button sitting there
+  // disabled with a "Retry Location" label that does nothing when tapped,
+  // let a tap in either of those two states re-run detectLocation()
+  // directly instead of submitting.
+  const canRetryLocation =
+    geoStatus === "denied" || geoStatus === "unavailable";
+  const checkInDisabled =
+    busy || geoStatus === "locating" || geoStatus === "unsupported";
+
   let checkInButtonLabel = "Check In";
-  if (geoStatus === "locating" || (geoStatus === "ok" && placeLoading)) {
+  if (geoStatus === "locating") {
     checkInButtonLabel = "Locating…";
   } else if (geoStatus === "denied") {
-    checkInButtonLabel = "Enable Location";
+    checkInButtonLabel = "Retry Location";
   } else if (geoStatus === "unavailable") {
     checkInButtonLabel = "Retry Location";
   } else if (geoStatus === "unsupported") {
     checkInButtonLabel = "Location Unsupported";
+  }
+
+  function handleCheckInClick() {
+    if (canRetryLocation) {
+      detectLocation();
+      return;
+    }
+    runAction("/attendance/check-in");
   }
 
   const checkInOfficeMatch = nearestLocationName(
@@ -579,22 +624,27 @@ export default function CheckInOutCard({
     });
   }
   (today?.breaks || []).forEach((b, i) => {
+    // One row per break instead of two ("Break Started" + "Break Ended")
+    // — the pair only ever describes a single event, so splitting it
+    // across two timeline rows just repeated "Break" back to back and
+    // made the list feel twice as long as it needed to be.
+    const startDate = parseServerDate(b.break_start);
+    const endDate = b.break_end ? parseServerDate(b.break_end) : null;
+    const durationMinutes =
+      startDate && endDate ? (endDate - startDate) / 60000 : null;
+
     timelineEvents.push({
-      key: `break-start-${i}`,
-      label: "Break Started",
-      time: formatTime(b.break_start),
-      sub: "Break",
+      key: `break-${i}`,
+      label: "Break",
+      time: b.break_end
+        ? `${formatTime(b.break_start)} - ${formatTime(b.break_end)}`
+        : `Since ${formatTime(b.break_start)}`,
+      sub:
+        durationMinutes != null
+          ? formatDuration(durationMinutes)
+          : "In progress",
       dot: "bg-blue-500",
     });
-    if (b.break_end) {
-      timelineEvents.push({
-        key: `break-end-${i}`,
-        label: "Break Ended",
-        time: formatTime(b.break_end),
-        sub: null,
-        dot: "bg-blue-500",
-      });
-    }
   });
   if (checkedOut) {
     timelineEvents.push({
@@ -706,12 +756,14 @@ export default function CheckInOutCard({
             <div className="shrink-0 flex flex-col gap-1.5 w-[112px]">
               {!checkedIn && (
                 <button
-                  onClick={() => runAction("/attendance/check-in")}
-                  disabled={busy || !locationReady}
+                  onClick={handleCheckInClick}
+                  disabled={checkInDisabled}
                   title={
-                    locationReady
-                      ? undefined
-                      : "Waiting for your location to be detected"
+                    checkInDisabled
+                      ? "Waiting for your location to be detected"
+                      : canRetryLocation
+                        ? "Tap to retry detecting your location"
+                        : undefined
                   }
                   className="flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-xs font-medium py-2 rounded-lg transition-colors whitespace-nowrap"
                 >
@@ -885,12 +937,14 @@ export default function CheckInOutCard({
               <div className="flex flex-col gap-2 w-full max-w-[160px]">
                 {!checkedIn && (
                   <button
-                    onClick={() => runAction("/attendance/check-in")}
-                    disabled={busy || !locationReady}
+                    onClick={handleCheckInClick}
+                    disabled={checkInDisabled}
                     title={
-                      locationReady
-                        ? undefined
-                        : "Waiting for your location to be detected"
+                      checkInDisabled
+                        ? "Waiting for your location to be detected"
+                        : canRetryLocation
+                          ? "Tap to retry detecting your location"
+                          : undefined
                     }
                     className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg transition-colors"
                   >

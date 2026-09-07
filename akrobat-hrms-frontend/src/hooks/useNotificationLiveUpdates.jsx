@@ -43,7 +43,18 @@ export function useNotificationLiveUpdates(onNotification) {
       const url = ticket
         ? `${wsUrl("/ws/notifications")}?ticket=${encodeURIComponent(ticket)}`
         : wsUrl("/ws/notifications");
-      ws = new WebSocket(url);
+
+      // See the matching comment in useAttendanceLiveUpdates.jsx -- a
+      // synchronous construction failure (e.g. malformed URL) happens
+      // before onclose is attached, so the reconnect loop below would
+      // otherwise never engage.
+      try {
+        ws = new WebSocket(url);
+      } catch (err) {
+        console.error("Notifications WebSocket failed to connect:", err);
+        if (!cancelled) reconnectTimer = setTimeout(connect, 5000);
+        return;
+      }
 
       ws.onmessage = (event) => {
         let payload;

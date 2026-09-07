@@ -61,7 +61,25 @@ export function useAttendanceLiveUpdates(onEvent) {
       const url = ticket
         ? `${wsUrl("/ws/dashboard")}?ticket=${encodeURIComponent(ticket)}`
         : wsUrl("/ws/dashboard");
-      ws = new WebSocket(url);
+
+      // `new WebSocket(url)` throws SYNCHRONOUSLY (not via onerror/onclose)
+      // when `url` isn't a valid absolute ws(s):// URL -- e.g. WS_BASE_URL
+      // in apiClient.js silently falls back to a relative "/api" path if
+      // VITE_WS_BASE_URL isn't set for a deployment where BASE_URL itself
+      // is relative. Since that throw happens before `ws.onclose` below is
+      // ever attached, the 5s auto-reconnect that lives inside `onclose`
+      // never gets a chance to run -- the connection was dying once,
+      // silently, for the rest of the session (fixed only by a full page
+      // reload, which remounts this hook). Guard the construction itself
+      // so any failure here still schedules a retry the same way a
+      // handshake drop does.
+      try {
+        ws = new WebSocket(url);
+      } catch (err) {
+        console.error("Dashboard WebSocket failed to connect:", err);
+        if (!cancelled) reconnectTimer = setTimeout(connect, 5000);
+        return;
+      }
 
       ws.onmessage = (msg) => {
         let event = null;
