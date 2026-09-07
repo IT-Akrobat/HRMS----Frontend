@@ -183,6 +183,11 @@ export default function CheckInOutCard({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false); // true while a check-in/out call is in flight
   const [error, setError] = useState(null);
+  // Set only by load() when GET /attendance/timeline fails — kept apart
+  // from `error` (which is for check-in/break/check-out action failures)
+  // so a failed status fetch can never silently look like "not checked
+  // in today". See the comment in load() below.
+  const [loadError, setLoadError] = useState(null);
   const [notLinked, setNotLinked] = useState(false);
 
   // Live clock — ticks every second so the card always shows the actual
@@ -237,13 +242,31 @@ export default function CheckInOutCard({
   async function load() {
     try {
       setLoading(true);
-      setError(null);
+      // NOTE: this used to call setError(null) / setError(err.message) —
+      // the same state the Check In/Break/Check Out action banner uses
+      // (see runAction below). That conflation was the root cause of the
+      // "Check In button shows, but tapping it says already checked in"
+      // bug: if this GET ever failed (slow network, auth token not yet
+      // attached on first render right after login, a transient 500,
+      // etc.), `today` stayed at its previous value — null, on first
+      // load — so checkedIn/checkedOut both evaluated false and the card
+      // rendered the normal "Check In" button as if nothing had happened
+      // yet today. But the employee may well have already checked in
+      // earlier (on this device or another); this fetch failing tells us
+      // nothing about their real status, only that we don't know it. The
+      // backend then correctly rejects the resulting check-in as a
+      // duplicate, and the person sees an error that contradicts the
+      // button they were just looking at. `loadError` is kept separate
+      // from `error` and gates the action buttons below (see
+      // loadError-driven retry banner in the render) so we never guess
+      // "not checked in" from a failed load.
+      setLoadError(null);
       const res = await apiClient.get(`/attendance/timeline/${todayIso()}`);
       setToday(res.data ?? null);
     } catch (err) {
       // No employee profile linked -> backend returns data: null via a 200,
       // so a thrown error here is a real failure, not "no record yet".
-      setError(err.message);
+      setLoadError(err.message);
     } finally {
       setLoading(false);
     }
@@ -323,7 +346,7 @@ export default function CheckInOutCard({
     setPlace(null);
     setAccuracy(null);
 
-    acquireBestFix(8000).then(({ fix, permissionDenied, unsupported }) => {
+    acquireBestFix(6000).then(({ fix, permissionDenied, unsupported }) => {
       if (unsupported) {
         setGeoStatus("unsupported");
         return;
@@ -533,7 +556,10 @@ export default function CheckInOutCard({
   const canRetryLocation =
     geoStatus === "denied" || geoStatus === "unavailable";
   const checkInDisabled =
-    busy || geoStatus === "locating" || geoStatus === "unsupported";
+    busy ||
+    geoStatus === "locating" ||
+    geoStatus === "unsupported" ||
+    !!loadError;
 
   let checkInButtonLabel = "Check In";
   if (geoStatus === "locating") {
@@ -714,6 +740,22 @@ export default function CheckInOutCard({
           )}
         </div>
       </div>
+
+      {!loading && loadError && (
+        <div className="flex items-center justify-between gap-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2.5 mb-3">
+          <span className="flex items-start gap-1.5">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+            Couldn't check your attendance status ({loadError}). The button
+            below may not reflect whether you're already checked in.
+          </span>
+          <button
+            onClick={load}
+            className="shrink-0 font-medium text-amber-800 underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="h-16 bg-slate-100 rounded animate-pulse" />
