@@ -15,8 +15,28 @@ self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
-self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+self.addEventListener("activate", () => {
+  // NOTE: this used to also call self.clients.claim() here. That makes a
+  // newly-activated worker immediately take control of whatever page is
+  // *already loading* -- including requests for this app's own JS
+  // bundle/chunks that were issued before the worker existed or before
+  // it activated. Handing control of an in-flight module fetch to a
+  // worker mid-load is a known race: the fetch handler below re-issues
+  // it via fetch(event.request), and depending on timing that hand-off
+  // can come back empty/fail without ever surfacing a visible console
+  // error -- React then never mounts, so the very first open of the app
+  // (browser tab or the installed "Add to Home Screen" copy, both
+  // controlled by this same worker) rendered a blank screen, while a
+  // plain refresh "fixed" it simply because the worker was by then
+  // already active *before* the page started loading, so there was no
+  // takeover mid-flight to race against.
+  //
+  // This worker does no offline caching -- its only real jobs are Web
+  // Push and satisfying Chromium's installability check (see the fetch
+  // handler below) -- so there's nothing to gain from claiming pages
+  // instantly. Without clients.claim(), a newly-activated worker only
+  // controls pages opened after it's already active, which removes the
+  // race entirely.
 });
 
 // No offline caching strategy yet -- this handler exists purely to
