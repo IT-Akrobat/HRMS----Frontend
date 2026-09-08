@@ -11,6 +11,7 @@ import {
   Search,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 // NOTE: plain "xlsx" (SheetJS Community Edition) silently ignores cell
@@ -20,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx-js-style";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
+import SearchInput from "../../components/common/SearchInput";
 import StatCard from "../../components/common/StatCard";
 import DatePicker from "../../components/layout/DatePicker";
 import { reportsService } from "../../services/ReportService";
@@ -610,6 +612,15 @@ function EmployeeSearchSelect({
   const containerRef = useRef(null);
 
   const selected = options.find((e) => e.id === value);
+  const hasText = open ? query.length > 0 : !!selected;
+
+  const clearSearch = (e) => {
+    e.stopPropagation();
+    setQuery("");
+    onQueryChange?.("");
+    if (value) onChange("");
+    setOpen(false);
+  };
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -654,8 +665,18 @@ function EmployeeSearchSelect({
             setQuery("");
           }}
           placeholder={placeholder || "Search employee..."}
-          className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+          className="w-full pl-8 pr-8 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
         />
+        {hasText && (
+          <button
+            type="button"
+            onClick={clearSearch}
+            title="Clear"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
       {open && (
         <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
@@ -835,18 +856,20 @@ export default function Reports() {
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const columns = COLUMNS[activeTab];
 
+  // "Export Excel"/"Export CSV" always exports every record for the tab,
+  // regardless of what's typed in the search box — searching is only for
+  // narrowing what's shown on screen (and, on Attendance, for the
+  // "Download Month" button below). Use `rows`, not `filtered`, here.
   function handleExport() {
     if (activeTab === "employees") {
-      downloadEmployeesExcel(filtered);
+      downloadEmployeesExcel(rows);
       return;
     }
     if (activeTab === "attendance") {
-      // Export whatever's currently visible (respects the Employee
-      // picker above, same as the table itself).
-      downloadAttendanceExcel(filtered);
+      downloadAttendanceExcel(rows);
       return;
     }
-    const csv = toCsv(activeTab, filtered);
+    const csv = toCsv(activeTab, rows);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1013,6 +1036,11 @@ export default function Reports() {
           .toLowerCase()
           .includes(typed);
       });
+      if (!monthRows.length) {
+        setMonthlyError("No matching attendance records found.");
+        setMonthlyDownloading(false);
+        return;
+      }
       downloadAttendanceExcel(monthRows, monthlyMonth);
       setMonthlyDownloading(false);
       return;
@@ -1023,7 +1051,19 @@ export default function Reports() {
       .employeeMonthlyAttendance(monthlyEmployeeId, monthlyMonth)
       .then((res) => {
         const data = res?.data;
-        if (!data) return;
+        if (!data) {
+          setMonthlyError("No attendance data found for this employee/month.");
+          return;
+        }
+        if (!(data.records || []).length) {
+          setMonthlyError(
+            `No attendance records found for ${employeeLabel(
+              data.employee?.full_name,
+              data.employee?.employee_id,
+            )} in ${monthlyMonth}.`,
+          );
+          return;
+        }
         const summary = data.summary || {};
 
         const header = [
@@ -1336,7 +1376,7 @@ export default function Reports() {
                 )}
                 <button
                   onClick={handleExport}
-                  disabled={loading || !!error || filtered.length === 0}
+                  disabled={loading || !!error || rows.length === 0}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Download size={14} />
@@ -1395,7 +1435,7 @@ export default function Reports() {
                   </button>
                   <button
                     onClick={handleExport}
-                    disabled={loading || !!error || filtered.length === 0}
+                    disabled={loading || !!error || rows.length === 0}
                     title="Export Excel"
                     className="flex items-center justify-center w-9 h-9 shrink-0 rounded-lg border border-slate-200 text-slate-600 active:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -1427,18 +1467,12 @@ export default function Reports() {
             second search box. */}
         {activeTab !== "attendance" && (
           <div className="hidden sm:flex sm:items-center gap-3 p-4 border-b border-slate-100">
-            <div className="relative flex-1 max-w-sm">
-              <Search
-                size={15}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={`Search ${TABS.find((t) => t.key === activeTab)?.label.toLowerCase()}...`}
-                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-              />
-            </div>
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder={`Search ${TABS.find((t) => t.key === activeTab)?.label.toLowerCase()}...`}
+              className="flex-1 max-w-sm"
+            />
             <div className="flex items-center justify-between sm:justify-normal gap-3 sm:ml-auto">
               {!loading && !error && (
                 <span className="text-xs text-slate-400">
@@ -1448,7 +1482,7 @@ export default function Reports() {
               )}
               <button
                 onClick={handleExport}
-                disabled={loading || !!error || filtered.length === 0}
+                disabled={loading || !!error || rows.length === 0}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               >
                 <Download size={14} />
@@ -1464,18 +1498,12 @@ export default function Reports() {
             untouched. */}
         {activeTab !== "attendance" && (
           <div className="sm:hidden p-3 border-b border-slate-100 space-y-2">
-            <div className="relative">
-              <Search
-                size={15}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={`Search ${TABS.find((t) => t.key === activeTab)?.label.toLowerCase()}...`}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-              />
-            </div>
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder={`Search ${TABS.find((t) => t.key === activeTab)?.label.toLowerCase()}...`}
+              inputClassName="py-2.5 rounded-xl"
+            />
             <div className="flex items-center justify-between">
               {!loading && !error && (
                 <span className="text-[11px] text-slate-400">
@@ -1485,7 +1513,7 @@ export default function Reports() {
               )}
               <button
                 onClick={handleExport}
-                disabled={loading || !!error || filtered.length === 0}
+                disabled={loading || !!error || rows.length === 0}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 active:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 ml-auto"
               >
                 <Download size={13} />

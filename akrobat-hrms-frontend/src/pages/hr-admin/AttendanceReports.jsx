@@ -419,11 +419,13 @@ export default function AttendanceReports() {
                 size={14}
                 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
               />
-              <input
+              <SearchInput
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={setSearch}
                 placeholder="Search employee"
-                className="pl-7 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg w-28"
+                className="w-full sm:w-64"
+                iconSize={14}
+                inputClassName="py-2"
               />
             </div>
             {/* Mobile: "Export all" moves down to the date-range line as
@@ -451,11 +453,13 @@ export default function AttendanceReports() {
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
             />
-            <input
+            <SearchInput
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={setSearch}
               placeholder="Search employee"
-              className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-full sm:w-48"
+              className="w-full sm:w-64"
+              iconSize={14}
+              inputClassName="py-2"
             />
           </div>
         </div>

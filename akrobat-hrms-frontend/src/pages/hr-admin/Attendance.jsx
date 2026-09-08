@@ -10,12 +10,12 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
+import SearchInput from "../../components/common/SearchInput";
 import DatePicker from "../../components/layout/DatePicker";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate, toLocalISODate } from "../../utils/date";
 import { unwrap } from "../../utils/unwrap";
-
 // ---------------------------------------------------------------------
 // Company-wide Attendance Overview for HR Admin, for a single selected
 // day (defaults to today). Three real endpoints feed it:
@@ -426,11 +426,13 @@ export default function HrAttendanceOverview() {
                   size={15}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
-                <input
+                <SearchInput
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={setSearch}
                   placeholder="Search by name or employee ID..."
-                  className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                  className="w-full sm:w-64"
+                  iconSize={14}
+                  inputClassName="py-2"
                 />
               </div>
             </div>
@@ -626,11 +628,13 @@ export default function HrAttendanceOverview() {
                 size={14}
                 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
               />
-              <input
+              <SearchInput
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search"
-                className="pl-7 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg w-24 bg-white focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                onChange={setSearch}
+                placeholder="Search "
+                className="w-full sm:w-64"
+                iconSize={14}
+                inputClassName="py-2"
               />
             </div>
           </div>

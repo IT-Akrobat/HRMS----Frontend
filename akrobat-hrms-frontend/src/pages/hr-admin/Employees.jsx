@@ -16,7 +16,6 @@ import {
   MapPin,
   Pencil,
   Phone,
-  Search,
   Trash2,
   UserCheck,
   Users,
@@ -24,6 +23,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
+import SearchInput from "../../components/common/SearchInput";
 import { FilterDropdown } from "../../components/common/UserformModal";
 import { apiClient } from "../../services/apiClient";
 import { filterShiftsForSelection } from "../../utils/shiftMapping";
@@ -773,6 +773,31 @@ function EmployeeViewModal({ employee, employees, onClose, onEdit }) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  // Same fix as components/common/Modal.jsx: this panel opens via local
+  // state (setViewing(emp) in the parent), never touching the
+  // URL/router, so the browser has no idea it's "open". On mobile,
+  // tapping back therefore skipped straight past it to whatever page
+  // was open before Employees (e.g. Dashboard) instead of closing the
+  // panel first. Pushing one history entry while open means a back tap
+  // closes the panel instead; closing it any other way (X, backdrop,
+  // Escape) pops that entry again so the back stack doesn't grow.
+  useEffect(() => {
+    let closedByBack = false;
+    window.history.pushState({ modalOpen: true }, "");
+    function handlePopState() {
+      closedByBack = true;
+      onClose();
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      if (!closedByBack) {
+        window.history.back();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const manager = (employees || []).find((e) => e.id === employee.manager_id);
 
   return (
@@ -1106,18 +1131,12 @@ function MobileEmployeeBrowser({
         ))}
       </div>
 
-      <div className="relative mb-2">
-        <Search
-          size={15}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-        />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, email or employee ID..."
-          className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-        />
-      </div>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Search by name, email or employee ID..."
+        className="mb-2"
+      />
 
       <div className="flex items-center gap-2 mb-3">
         <div className="relative flex-1">
@@ -1647,27 +1666,21 @@ export default function EmployeesHrAdmin() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[180px]">
-                <Search
-                  size={15}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by name, email or employee ID..."
-                  className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-                />
-              </div>
-              <select
+              <SearchInput
+                value={search}
+                onChange={setSearch}
+                placeholder="Search by name, email or employee ID..."
+                className="flex-1 min-w-[180px]"
+                inputClassName="py-1.5"
+              />
+              <FilterDropdown
+                allLabel="All Status"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-100"
-              >
-                <option value="">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
+                onChange={setStatusFilter}
+                options={["Active", "Inactive"]}
+                getKey={(s) => s}
+                getLabel={(s) => s}
+              />
               {(search || statusFilter) && (
                 <button
                   onClick={() => {

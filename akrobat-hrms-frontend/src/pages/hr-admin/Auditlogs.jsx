@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
+import SearchInput from "../../components/common/SearchInput";
 import { useModalBackClose } from "../../components/common/usemodalbackclose";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
@@ -400,11 +401,13 @@ export default function AuditLogs() {
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
             />
-            <input
+            <SearchInput
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search this page..."
-              className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500/30"
+              onChange={setSearch}
+              placeholder="Search employee or department"
+              className="w-full sm:w-64"
+              iconSize={14}
+              inputClassName="py-2"
             />
           </div>
         </div>

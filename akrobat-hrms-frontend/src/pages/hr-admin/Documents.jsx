@@ -7,9 +7,9 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
+import SearchInput from "../../components/common/SearchInput";
 import { documentsService } from "../../services/documentsService";
 import { parseServerDate } from "../../utils/date";
-
 // ---------------------------------------------------------------------
 // Company-wide Documents list for HR.
 //
@@ -115,11 +115,13 @@ export default function Documents() {
           size={16}
           className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
         />
-        <input
+        <SearchInput
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={setSearch}
           placeholder="Search by employee, document name, or type…"
-          className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+          className="w-full sm:w-64"
+          iconSize={14}
+          inputClassName="py-2"
         />
       </div>
 

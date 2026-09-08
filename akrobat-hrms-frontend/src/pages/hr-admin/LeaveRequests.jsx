@@ -4,12 +4,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  Search,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
+import SearchInput from "../../components/common/SearchInput";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 
@@ -143,18 +143,14 @@ export default function LeaveRequests() {
             ))}
           </div>
 
-          <div className="relative w-full sm:w-64">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search employee or leave type..."
-              className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500/30"
-            />
-          </div>
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Search employee or leave type..."
+            className="w-full sm:w-64"
+            iconSize={14}
+            inputClassName="py-2"
+          />
         </div>
 
         {/* List */}
