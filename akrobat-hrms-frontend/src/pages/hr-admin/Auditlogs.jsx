@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
+import { useModalBackClose } from "../../components/common/usemodalbackclose";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 import { geocodeQueue, placeKey, reverseGeocode } from "../../utils/Geocode";
@@ -207,6 +208,10 @@ export default function AuditLogs() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
+
+  // Back button (phone/browser) should close the detail modal instead of
+  // navigating away from this page.
+  useModalBackClose(!!selected, () => setSelected(null));
 
   // Reverse-geocoded "Building, Area, City, State" per unique check-in/out
   // coordinate on this page, keyed by placeKey(lat, lon) — see
