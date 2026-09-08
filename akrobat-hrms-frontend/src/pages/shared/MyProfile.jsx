@@ -29,6 +29,7 @@ import * as XLSX from "xlsx-js-style";
 import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
 import SelectDropdown from "../../components/common/SelectDropdown";
+import { COUNTRIES } from "../../components/common/UserformModal";
 import DatePicker from "../../components/layout/DatePicker";
 import { ROLES } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
@@ -156,7 +157,12 @@ const EXTRA_FIELDS = [
     type: "select",
     options: ["Single", "Married", "Divorced", "Widowed"],
   },
-  { key: "nationality", label: "Nationality", type: "text" },
+  {
+    key: "nationality",
+    label: "Nationality",
+    type: "select",
+    options: COUNTRIES,
+  },
   {
     key: "blood_group",
     label: "Blood Group",

@@ -90,6 +90,17 @@ const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 // every request settles one way or another within REQUEST_TIMEOUT_MS.
 const REQUEST_TIMEOUT_MS = 15000;
 
+// Render's free tier spins the backend down after ~15 min idle and can
+// take 20-60s to cold-start on the next request. authService already
+// gives its restoreSession() calls a long budget + retry for exactly
+// this reason -- but every *other* GET (dashboard summary, employee
+// lists, notifications, etc.) was still using the 15s default with no
+// retry, so whichever request happened to be the one that woke the
+// backend up would just fail outright, leaving parts of the UI blank
+// until a manual refresh. COLD_START_RETRY_TIMEOUT_MS is the budget
+// given to that one retry attempt below.
+const COLD_START_RETRY_TIMEOUT_MS = 45000;
+
 // ---------------------------------------------------------------------
 // Lightweight "something just happened" signal for parts of the app
 // that want to react to ordinary API traffic without running their own
@@ -175,6 +186,7 @@ async function request(
     auth = true,
     headers = {},
     _retried = false,
+    _coldRetried = false,
     timeoutMs = REQUEST_TIMEOUT_MS,
   } = {},
 ) {
@@ -198,6 +210,24 @@ async function request(
       signal: controller.signal,
     });
   } catch (networkErr) {
+    // GET requests are safe to retry (no side effects). One retry with
+    // a longer, cold-start-sized budget covers the case where this
+    // request happened to be the one that woke a sleeping Render
+    // instance -- the first attempt times out at the normal 15s, the
+    // retry gets up to 45s, matching what restoreSession() already does
+    // for the login path. Only ever retries once per call.
+    if (method === "GET" && !_coldRetried) {
+      return request(path, {
+        method,
+        body,
+        auth,
+        headers,
+        _retried,
+        _coldRetried: true,
+        timeoutMs: COLD_START_RETRY_TIMEOUT_MS,
+      });
+    }
+
     // AbortError => our own timeout fired, not a real network failure --
     // worth a distinct message/flag so callers (restoreSession
     // especially) can tell "server hasn't answered yet, maybe still

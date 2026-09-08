@@ -1169,7 +1169,11 @@ export default function CheckInOutCard({
                         Within range of {nearest.location.location_name} (
                         {Math.round(nearest.distance)}m)
                         {place && (
-                          <span className="text-slate-400"> — {place}</span>
+                          <span className="text-slate-400">
+                            {" "}
+                            — {place}
+                            {accuracy != null && ` (±${Math.round(accuracy)}m)`}
+                          </span>
                         )}
                       </span>
                     </>
@@ -1181,8 +1185,10 @@ export default function CheckInOutCard({
                         className="text-slate-400 shrink-0 mt-0.5"
                       />
                       <span className="text-slate-500">
-                        {place ? `Detected at ${place}` : "Location detected"} (
-                        {Math.round(nearest.distance)}m from{" "}
+                        {place
+                          ? `Detected at ${place}${accuracy != null ? ` (±${Math.round(accuracy)}m)` : ""}`
+                          : "Location detected"}{" "}
+                        ({Math.round(nearest.distance)}m from{" "}
                         {nearest.location.location_name}) — check-in is allowed
                         from any location.
                       </span>
@@ -1196,7 +1202,7 @@ export default function CheckInOutCard({
                       />
                       <span className="text-slate-500">
                         {place
-                          ? `Detected at ${place} — no office locations configured yet.`
+                          ? `Detected at ${place}${accuracy != null ? ` (±${Math.round(accuracy)}m)` : ""} — no office locations configured yet.`
                           : placeLoading
                             ? "Location acquired — resolving place…"
                             : "Location acquired — no office locations configured yet."}
@@ -1217,6 +1223,32 @@ export default function CheckInOutCard({
                   {geoStatus === "locating" ? "Detecting…" : "Detect Location"}
                 </button>
               </div>
+
+              {/* Moderate-accuracy note — anywhere between "clearly a network
+                  estimate" (handled below, >3000m) and tight GPS (<150m) can
+                  still resolve to a nearby village/area name rather than the
+                  exact building, since Nominatim/Mappls snap to the nearest
+                  address point they know about. This doesn't block check-in,
+                  it just explains *why* the place name might look vague so
+                  it's not mistaken for a bug. */}
+              {geoStatus === "ok" &&
+                accuracy != null &&
+                accuracy > 150 &&
+                accuracy <= 3000 && (
+                  <div className="mt-1.5 flex items-start gap-2 text-slate-500">
+                    <AlertTriangle
+                      size={13}
+                      className="shrink-0 mt-0.5 text-slate-400"
+                    />
+                    <span>
+                      Approximate location (±{Math.round(accuracy)}m) — the
+                      place name shown may be a nearby area rather than your
+                      exact spot. For a tighter fix, check in from a phone with
+                      Location Services turned on (not just Wi-Fi), and make
+                      sure you're outdoors or near a window.
+                    </span>
+                  </div>
+                )}
 
               {/* Accuracy check — a laptop with no GPS chip is often given a
                   coarse Wi-Fi- or IP-based fix instead of a real GPS one,

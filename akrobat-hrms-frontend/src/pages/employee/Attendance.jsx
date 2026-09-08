@@ -8,7 +8,7 @@ import {
   Coffee,
   History,
   Info,
-  TimerReset
+  TimerReset,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -282,13 +282,13 @@ export default function Attendance() {
               </div>
               <div className="text-base font-semibold">My Attendance</div>
             </div>
-            <Link
+            {/* <Link
               to="/employee/attendance/history"
               title="View History"
               className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center"
             >
               <History size={16} />
-            </Link>
+            </Link> */}
           </div>
 
           <div className="bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3">
