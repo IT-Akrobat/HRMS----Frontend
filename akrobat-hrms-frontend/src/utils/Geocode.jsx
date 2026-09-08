@@ -15,19 +15,17 @@
 // (e.g. a list of audit-log entries) should stagger their calls — see
 // `geocodeQueue` below.
 
-// NEW: backend proxy for OneMap Singapore (see
+// NEW: backend proxy for OneMap Singapore and Mappls India (see
 // app/locations/routes.py -> GET /locations/reverse-geocode). Only
-// called for coordinates inside Singapore's bounding box — everywhere
-// else keeps using Nominatim below, unchanged.
+// called for coordinates inside those two countries' bounding boxes —
+// everywhere else keeps using Nominatim below, unchanged.
 import { apiClient } from "../services/apiClient";
 
 const memoryCache = new Map();
 const STORAGE_KEY = "akrobat_geocode_cache_v1";
 
 // Singapore's bounding box (rough, with a little padding). Points
-// outside this box skip the OneMap call entirely and go straight to
-// Nominatim — e.g. Chennai/India and everywhere else keep working
-// exactly as before.
+// outside this box skip the OneMap call entirely.
 const SG_LAT_MIN = 1.15,
   SG_LAT_MAX = 1.48;
 const SG_LON_MIN = 103.59,
@@ -42,12 +40,33 @@ function isInSingapore(lat, lon) {
   );
 }
 
-// Tries OneMap (via our backend) for a Singapore coordinate. Returns a
-// formatted address string, or null if it's not in Singapore, OneMap
-// has no result, or the call fails for any reason — in every "null"
-// case the caller falls back to Nominatim below.
-async function reverseGeocodeOneMap(lat, lon) {
-  if (!isInSingapore(lat, lon)) return null;
+// India's bounding box (rough, generous padding — covers the mainland
+// plus the Andaman & Nicobar and Lakshadweep islands). Mirrors
+// IN_LAT_MIN/MAX in app/locations/mappls_service.py. Points outside
+// this box skip the Mappls call entirely and go straight to Nominatim
+// — e.g. Singapore (handled above) and everywhere else keep working
+// exactly as before.
+const IN_LAT_MIN = 6.5,
+  IN_LAT_MAX = 37.6;
+const IN_LON_MIN = 68.0,
+  IN_LON_MAX = 97.5;
+
+function isInIndia(lat, lon) {
+  return (
+    lat >= IN_LAT_MIN &&
+    lat <= IN_LAT_MAX &&
+    lon >= IN_LON_MIN &&
+    lon <= IN_LON_MAX
+  );
+}
+
+// Tries our backend proxy (OneMap for Singapore, Mappls for India) for
+// a coordinate in either country. Returns a formatted address string,
+// or null if it's in neither country, the provider has no result, or
+// the call fails for any reason — in every "null" case the caller
+// falls back to Nominatim below.
+async function reverseGeocodeLocalProvider(lat, lon) {
+  if (!isInSingapore(lat, lon) && !isInIndia(lat, lon)) return null;
 
   try {
     const res = await apiClient.get(
@@ -164,16 +183,17 @@ export async function reverseGeocode(lat, lon) {
     return storageCache[key];
   }
 
-  // NEW: for Singapore coordinates, try OneMap first — it has the
-  // exact building name/block/street that Nominatim often lacks for
-  // SG. Any other country (e.g. Chennai) skips this and falls through
-  // to the existing Nominatim call below, unchanged.
-  const oneMapResult = await reverseGeocodeOneMap(lat, lon);
-  if (oneMapResult) {
-    memoryCache.set(key, oneMapResult);
-    storageCache[key] = oneMapResult;
+  // NEW: for Singapore/India coordinates, try our backend proxy
+  // (OneMap / Mappls) first — both give exact building name/block/street
+  // detail that Nominatim often lacks. Any other country (e.g. most of
+  // the rest of the world) skips this and falls through to the existing
+  // Nominatim call below, unchanged.
+  const localProviderResult = await reverseGeocodeLocalProvider(lat, lon);
+  if (localProviderResult) {
+    memoryCache.set(key, localProviderResult);
+    storageCache[key] = localProviderResult;
     saveStorageCache(storageCache);
-    return oneMapResult;
+    return localProviderResult;
   }
 
   try {
