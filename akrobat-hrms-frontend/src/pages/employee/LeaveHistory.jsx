@@ -383,39 +383,38 @@ export default function LeaveHistory() {
           <label className="block text-xs font-medium text-slate-500 mb-1">
             Leave Type
           </label>
-          <select
+          <SelectDropdown
             value={leaveType}
-            onChange={(e) => {
-              setLeaveType(e.target.value);
+            onChange={(v) => {
+              setLeaveType(v);
               setPage(1);
             }}
-            className="text-sm text-slate-700 border border-slate-200 rounded-lg px-3 py-2 outline-none"
-          >
-            {leaveTypeOptions.map((t) => (
-              <option key={t} value={t}>
-                {t === "All" ? "All Leave Types" : t}
-              </option>
-            ))}
-          </select>
+            options={leaveTypeOptions.map((t) => ({
+              value: t,
+              label: t === "All" ? "All Leave Types" : t,
+            }))}
+            className="w-44"
+          />
         </div>
 
         <div>
           <label className="block text-xs font-medium text-slate-500 mb-1">
             Status
           </label>
-          <select
+          <SelectDropdown
             value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
+            onChange={(v) => {
+              setStatusFilter(v);
               setPage(1);
             }}
-            className="text-sm text-slate-700 border border-slate-200 rounded-lg px-3 py-2 outline-none"
-          >
-            <option>All</option>
-            <option>Approved</option>
-            <option>Pending</option>
-            <option>Rejected</option>
-          </select>
+            options={[
+              { value: "All", label: "All" },
+              { value: "Approved", label: "Approved" },
+              { value: "Pending", label: "Pending" },
+              { value: "Rejected", label: "Rejected" },
+            ]}
+            className="w-40"
+          />
         </div>
 
         <div className="flex-1 min-w-[200px]">
@@ -423,7 +422,7 @@ export default function LeaveHistory() {
             Search by reason
           </label>
           <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2">
-            <Search size={15} className="text-slate-400" />
+            <Search size={15} className="text-slate-400 shrink-0" />
             <input
               value={search}
               onChange={(e) => {
@@ -431,8 +430,21 @@ export default function LeaveHistory() {
                 setPage(1);
               }}
               placeholder="Search by reason..."
-              className="text-sm text-slate-700 outline-none w-full bg-transparent"
+              className="text-sm text-slate-700 outline-none w-full bg-transparent min-w-0"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setPage(1);
+                }}
+                aria-label="Clear search"
+                className="shrink-0 text-slate-300 hover:text-slate-500"
+              >
+                <XCircle size={15} />
+              </button>
+            )}
           </div>
         </div>
 

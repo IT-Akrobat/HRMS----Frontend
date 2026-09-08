@@ -680,7 +680,7 @@ export default function AttendanceHistory() {
             Search
           </label>
           <div className="flex items-center gap-2 border border-slate-200 bg-slate-50/60 hover:border-slate-300 focus-within:ring-2 focus-within:ring-orange-200 focus-within:border-orange-400 rounded-xl px-3.5 py-2.5 transition-colors">
-            <Search size={15} className="text-slate-400" />
+            <Search size={15} className="text-slate-400 shrink-0" />
             <input
               value={search}
               onChange={(e) => {
@@ -688,8 +688,21 @@ export default function AttendanceHistory() {
                 setPage(1);
               }}
               placeholder="Search by date, status, or location..."
-              className="text-sm text-slate-700 outline-none w-full bg-transparent"
+              className="text-sm text-slate-700 outline-none w-full bg-transparent min-w-0"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setPage(1);
+                }}
+                aria-label="Clear search"
+                className="shrink-0 text-slate-300 hover:text-slate-500"
+              >
+                <XCircle size={15} />
+              </button>
+            )}
           </div>
         </div>
 

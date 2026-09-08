@@ -4,7 +4,6 @@ import {
   MapPin,
   Pencil,
   Plus,
-  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -12,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import LocationMapPicker from "../../components/common/LocationMapPicker";
 import PageHeader from "../../components/common/PageHeader";
+import SearchInput from "../../components/common/SearchInput";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
@@ -394,18 +394,13 @@ export default function OrganizationLocations() {
 
       {/* Filters */}
       <div className="bg-white border border-slate-200 rounded-xl p-2.5 mb-3 flex flex-wrap items-center gap-2.5">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by site name, code or address..."
-            className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by site name, code or address..."
+          className="flex-1 min-w-[220px]"
+          iconSize={16}
+        />
       </div>
 
       {/* Table */}

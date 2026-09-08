@@ -7,12 +7,12 @@ import {
   Mail,
   MapPin,
   Phone,
-  Search,
   Users,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
+import SearchInput from "../../components/common/SearchInput";
 import SelectDropdown from "../../components/common/SelectDropdown";
 import StatCard from "../../components/common/StatCard";
 import { apiClient } from "../../services/apiClient";
@@ -302,18 +302,12 @@ export default function TeamEmployeeDetails() {
           Full profile details for everyone reporting to you, direct or
           indirect.
         </p>
-        <div className="relative">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, employee ID, or email…"
-            className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name, employee ID, or email…"
+          iconSize={14}
+        />
       </div>
 
       {/* ---------- Desktop/tablet stat grid (lg and up) — unchanged ---------- */}
@@ -397,18 +391,13 @@ export default function TeamEmployeeDetails() {
 
       {/* ---------- Desktop/tablet search + department filter (lg and up) — unchanged ---------- */}
       <div className="hidden lg:flex flex-col sm:flex-row gap-2 mb-4">
-        <div className="relative flex-1">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, employee ID, or email…"
-            className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name, employee ID, or email…"
+          className="flex-1"
+          iconSize={14}
+        />
         {departments.length > 0 && (
           <SelectDropdown
             value={departmentFilter}

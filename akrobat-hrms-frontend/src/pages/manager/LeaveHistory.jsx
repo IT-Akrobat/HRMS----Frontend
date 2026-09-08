@@ -336,8 +336,18 @@ export default function LeaveHistory() {
                 value={rosterSearch}
                 onChange={(e) => setRosterSearch(e.target.value)}
                 placeholder="Search team member..."
-                className="text-sm text-slate-700 outline-none w-full bg-transparent"
+                className="text-sm text-slate-700 outline-none w-full bg-transparent min-w-0"
               />
+              {rosterSearch && (
+                <button
+                  type="button"
+                  onClick={() => setRosterSearch("")}
+                  aria-label="Clear search"
+                  className="shrink-0 text-slate-300 hover:text-slate-500"
+                >
+                  <XCircle size={14} />
+                </button>
+              )}
             </div>
           </div>
 
