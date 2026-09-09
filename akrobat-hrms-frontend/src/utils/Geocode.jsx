@@ -78,12 +78,16 @@ async function reverseGeocodeLocalProvider(lat, lon) {
   }
 }
 
-// Rounds to ~100m precision so nearby check-ins/logouts from the same
-// spot share one cache entry/lookup instead of firing a fresh
-// reverse-geocode call for every single log row.
+// Rounds to ~11m precision so repeat check-ins/logouts from the exact
+// same spot share one cache entry/lookup, without merging together
+// different buildings that happen to sit within the same ~100m area
+// (toFixed(3) was the old value here -- that rounds to ~111m, wide
+// enough that two nearby-but-different buildings could collide on the
+// same cache key and one would incorrectly show the other's cached
+// address).
 export function placeKey(lat, lon) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  return `${lat.toFixed(3)},${lon.toFixed(3)}`;
+  return `${lat.toFixed(4)},${lon.toFixed(4)}`;
 }
 
 function loadStorageCache() {
