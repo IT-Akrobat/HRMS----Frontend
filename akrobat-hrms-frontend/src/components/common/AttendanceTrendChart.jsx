@@ -1,4 +1,6 @@
-import { ChevronLeft, TrendingUp, X } from "lucide-react";
+import { jsPDF } from "jspdf";
+import { autoTable } from "jspdf-autotable";
+import { ChevronLeft, FileText, Loader2, TrendingUp, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../../services/apiClient";
 import Avatar from "./Avatar";
@@ -52,6 +54,29 @@ function RangeToggle({ range, onRangeChange }) {
   );
 }
 
+// Small icon button used to trigger the PDF export. Rendered twice at
+// different breakpoints (see ExportButton usages below) rather than once
+// with responsive classes, since desktop places it inline next to the
+// range toggle while mobile places it on its own row below the tabs.
+function ExportButton({ exporting, onClick, className = "" }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={exporting}
+      aria-label="Export as PDF"
+      title="Export as PDF"
+      className={`flex items-center justify-center w-7 h-7 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-50 shrink-0 ${className}`}
+    >
+      {exporting ? (
+        <Loader2 size={13} className="animate-spin" />
+      ) : (
+        <FileText size={13} />
+      )}
+    </button>
+  );
+}
+
 // Builds the <path> for one ring segment given a start/end fraction
 // (0..1 of the full circle), centered at (cx, cy) with the given radius
 // and stroke width. Using a stroked circle path (rather than pie wedges)
@@ -67,6 +92,83 @@ function segmentPath(cx, cy, r, startFrac, endFrac) {
   return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
 }
 
+// Redraws the exact same donut + legend composition seen on screen onto
+// an offscreen <canvas>, returning a PNG data URL. jsPDF (no svg2pdf
+// plugin installed in this repo) can only place raster images, not the
+// live SVG this component renders in the browser -- this keeps the same
+// colors/segments/center-label so the PDF's chart matches what's on
+// screen pixel-for-pixel in composition, just rasterized.
+function renderDonutImage(totals) {
+  const scale = 2;
+  const width = 480 * scale;
+  const height = 220 * scale;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, width, height);
+
+  const cx = 110 * scale;
+  const cy = height / 2;
+  const r = 78 * scale;
+  const strokeWidth = 26 * scale;
+  const grandTotal = SERIES.reduce((sum, s) => sum + (totals[s.key] || 0), 0);
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = "#F1F5F9";
+  ctx.lineWidth = strokeWidth;
+  ctx.stroke();
+
+  let cursor = -Math.PI / 2;
+  SERIES.forEach((s) => {
+    const value = totals[s.key] || 0;
+    if (!value || grandTotal === 0) return;
+    const sweep = (value / grandTotal) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, cursor, cursor + sweep);
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = strokeWidth;
+    ctx.lineCap = "butt";
+    ctx.stroke();
+    cursor += sweep;
+  });
+
+  ctx.fillStyle = "#1E293B";
+  ctx.font = `600 ${26 * scale}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.fillText(String(totals.on_leave || 0), cx, cy - 2 * scale);
+  ctx.fillStyle = "#94A3B8";
+  ctx.font = `${11 * scale}px sans-serif`;
+  ctx.fillText("On Leave", cx, cy + 18 * scale);
+
+  const legendX = 230 * scale;
+  let legendY = cy - (SERIES.length * 26 * scale) / 2 + 8 * scale;
+  ctx.textAlign = "left";
+  SERIES.forEach((s) => {
+    ctx.fillStyle = s.color;
+    ctx.fillRect(legendX, legendY - 9 * scale, 10 * scale, 10 * scale);
+    ctx.fillStyle = "#475569";
+    ctx.font = `${13 * scale}px sans-serif`;
+    ctx.fillText(
+      `${s.label} · ${totals[s.key] || 0}`,
+      legendX + 16 * scale,
+      legendY,
+    );
+    legendY += 26 * scale;
+  });
+
+  return { dataUrl: canvas.toDataURL("image/png"), width, height };
+}
+
+function hexToRgbArray(hex) {
+  const clean = hex.replace("#", "");
+  const bigint = parseInt(clean, 16);
+  return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
+}
+
 export default function AttendanceTrendChart({
   trend,
   loading,
@@ -78,6 +180,7 @@ export default function AttendanceTrendChart({
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [people, setPeople] = useState([]);
   const [peopleError, setPeopleError] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const days = trend?.trend || [];
   const windowDays = trend?.days || days.length || 7;
@@ -139,6 +242,99 @@ export default function AttendanceTrendChart({
     setSelectedKey((prev) => (prev === key ? null : key));
   }
 
+  // Exports exactly what's on screen right now: the same donut (same
+  // range, same totals) plus, for every segment, the full list of
+  // employees behind it -- fetched from the same
+  // /dashboard/attendance-trend/detail endpoint the click-through list
+  // already uses, just for all 4 statuses at once instead of one at a
+  // time.
+  async function exportPdf() {
+    setExporting(true);
+    try {
+      const results = await Promise.all(
+        SERIES.map((s) =>
+          apiClient
+            .get(
+              `/dashboard/attendance-trend/detail?days=${windowDays}&status=${s.key}`,
+            )
+            .then((res) => ({ key: s.key, people: res?.people || [] }))
+            .catch(() => ({ key: s.key, people: [] })),
+        ),
+      );
+      const peopleByKey = Object.fromEntries(
+        results.map((r) => [r.key, r.people]),
+      );
+
+      const rangeLabel = onRangeChange
+        ? RANGE_OPTIONS.find((o) => o.key === range)?.label || "Custom"
+        : `Last ${windowDays} days`;
+
+      const doc = new jsPDF();
+      doc.setFontSize(14);
+      doc.text("Attendance Trend", 14, 16);
+      doc.setFontSize(10);
+      doc.setTextColor(120);
+      doc.text(
+        `${rangeLabel}  ·  Generated ${new Date().toLocaleDateString()}`,
+        14,
+        22,
+      );
+
+      const { dataUrl, width, height } = renderDonutImage(totals);
+      const imgWidthMm = 90;
+      const imgHeightMm = (height / width) * imgWidthMm;
+      doc.addImage(dataUrl, "PNG", 14, 28, imgWidthMm, imgHeightMm);
+
+      let cursorY = 28 + imgHeightMm + 10;
+      SERIES.forEach((s) => {
+        const segPeople = peopleByKey[s.key] || [];
+
+        if (cursorY > 260) {
+          doc.addPage();
+          cursorY = 20;
+        }
+
+        doc.setFontSize(11);
+        doc.setTextColor(30);
+        doc.text(`${s.label} (${totals[s.key] || 0})`, 14, cursorY);
+
+        if (segPeople.length === 0) {
+          doc.setFontSize(9);
+          doc.setTextColor(140);
+          doc.text(
+            "No one in this category for the selected range.",
+            14,
+            cursorY + 6,
+          );
+          cursorY += 16;
+          return;
+        }
+
+        autoTable(doc, {
+          head: [["Employee", "Employee ID", "Department", "Days"]],
+          body: segPeople.map((p) => [
+            p.full_name || "",
+            p.employee_code || "",
+            p.department || "",
+            p.days ?? "",
+          ]),
+          startY: cursorY + 3,
+          styles: { fontSize: 8, cellPadding: 2.5 },
+          headStyles: { fillColor: hexToRgbArray(s.color) },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          margin: { left: 14, right: 14 },
+        });
+        cursorY = doc.lastAutoTable.finalY + 10;
+      });
+
+      doc.save(
+        `attendance_trend_${rangeLabel.toLowerCase().replace(/\s+/g, "_")}.pdf`,
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 p-5 h-full flex flex-col">
@@ -156,6 +352,7 @@ export default function AttendanceTrendChart({
   }
 
   const grandTotal = SERIES.reduce((sum, s) => sum + (totals[s.key] || 0), 0);
+  const canExport = days.length > 0 && grandTotal > 0;
   // Center label shows a plain headcount, not a percentage — defaults to
   // the On Leave count for the selected range (Today/Week/Month) so "how
   // many are on leave this week" is visible at a glance without hovering.
@@ -183,17 +380,29 @@ export default function AttendanceTrendChart({
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-1">
-        <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-          <TrendingUp size={17} className="text-orange-500" /> Attendance Trend
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <h3 className="font-semibold text-slate-800 flex items-center gap-2 min-w-0">
+          <TrendingUp
+            size={17}
+            className="hidden lg:inline text-orange-500 shrink-0"
+          />
+          <span className="lg:hidden">Attendance</span>
+          <span className="hidden lg:inline">Attendance Trend</span>
         </h3>
-        {onRangeChange ? (
-          <RangeToggle range={range} onRangeChange={onRangeChange} />
-        ) : (
-          <span className="text-xs text-slate-400">
-            Last {days.length || 7} days
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onRangeChange ? (
+            <RangeToggle range={range} onRangeChange={onRangeChange} />
+          ) : (
+            <span className="text-xs text-slate-400">
+              Last {days.length || 7} days
+            </span>
+          )}
+          {/* Export sits right next to the range toggle on every
+              breakpoint — no separate row, no dead space. */}
+          {canExport && (
+            <ExportButton exporting={exporting} onClick={exportPdf} />
+          )}
+        </div>
       </div>
 
       {days.length === 0 || grandTotal === 0 ? (
