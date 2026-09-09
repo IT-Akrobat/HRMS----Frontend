@@ -149,6 +149,41 @@ function extractCoords(log) {
   return { lat, lon };
 }
 
+// Pulls the already-resolved address string (see CheckInRequest.address /
+// attendance.check_in_address, check_out_address) straight out of the log
+// row, the same way extractCoords() pulls the coordinates. When present,
+// callers should show this directly instead of re-geocoding lat/lon
+// themselves — it's exactly what the employee saw on screen at the time,
+// and re-geocoding independently later can land on a different (usually
+// worse) result if the provider that answered originally isn't
+// available/consistent on this later call. Returns null for older rows
+// recorded before this field existed, or for non-attendance log types —
+// callers fall back to live reverse-geocoding via geocodeQueue in that case.
+function extractStoredAddress(log) {
+  let details = null;
+  if (typeof log.description === "string") {
+    try {
+      details = JSON.parse(log.description);
+    } catch {
+      details = null;
+    }
+  } else if (log.description && typeof log.description === "object") {
+    details = log.description;
+  }
+
+  const changes = details?.changes || {};
+  const address =
+    diffValue(changes.check_in_address) ??
+    diffValue(changes.check_out_address) ??
+    diffValue(changes.address) ??
+    details?.check_in_address ??
+    details?.check_out_address ??
+    details?.address ??
+    null;
+
+  return typeof address === "string" && address.trim() ? address : null;
+}
+
 function initials(name) {
   if (!name) return "?";
   return name
@@ -233,8 +268,13 @@ export default function SecurityAuditLogs() {
 
         // Geocode every unique coordinate pair on this page, once, rather
         // than per-render — throttled to Nominatim's 1 req/sec limit.
+        // Rows recorded after the check_in_address/check_out_address
+        // columns were added (sql/033.sql) already carry the exact
+        // address the employee saw — skip those entirely rather than
+        // re-deriving a (possibly different) one live.
         const uniqueCoords = new Map();
         for (const row of rows) {
+          if (extractStoredAddress(row)) continue;
           const { lat, lon } = extractCoords(row);
           if (lat == null || lon == null) continue;
           const key = placeKey(lat, lon);
@@ -440,10 +480,12 @@ export default function SecurityAuditLogs() {
                     const ActionIcon = meta.icon;
                     const { message } = parseDescription(log.description);
                     const { lat, lon } = extractCoords(log);
+                    const storedAddress = extractStoredAddress(log);
                     const place =
-                      lat != null && lon != null
+                      storedAddress ||
+                      (lat != null && lon != null
                         ? placeCache[placeKey(lat, lon)]
-                        : null;
+                        : null);
                     // While a fresh coordinate is still being reverse-geocoded
                     // (placeCache hasn't caught up yet), show the raw fix
                     // rather than a blank cell.
@@ -521,10 +563,12 @@ export default function SecurityAuditLogs() {
                 const ActionIcon = meta.icon;
                 const { message } = parseDescription(log.description);
                 const { lat, lon } = extractCoords(log);
+                const storedAddress = extractStoredAddress(log);
                 const place =
-                  lat != null && lon != null
+                  storedAddress ||
+                  (lat != null && lon != null
                     ? placeCache[placeKey(lat, lon)]
-                    : null;
+                    : null);
                 const locationText =
                   place ||
                   (lat != null && lon != null
@@ -635,11 +679,19 @@ function AuditDetail({ log }) {
   // up fresh (cheap: reverseGeocode's own in-memory/localStorage cache
   // means this is instant if the row's already been geocoded on the
   // table, and only does one live request otherwise).
+  // Prefer the address stored at check-in/check-out time (see
+  // check_in_address/check_out_address, sql/033.sql) — that's exactly
+  // what the employee saw on screen. Only fall back to a live
+  // reverse-geocode for older rows recorded before that field existed,
+  // where there's nothing stored to show.
   const { lat, lon } = extractCoords(log);
-  const [place, setPlace] = useState(null);
+  const storedAddress = extractStoredAddress(log);
+  const [place, setPlace] = useState(storedAddress);
   useEffect(() => {
     let cancelled = false;
-    if (lat != null && lon != null) {
+    if (storedAddress) {
+      setPlace(storedAddress);
+    } else if (lat != null && lon != null) {
       reverseGeocode(lat, lon).then((label) => {
         if (!cancelled) setPlace(label);
       });
@@ -649,7 +701,7 @@ function AuditDetail({ log }) {
     return () => {
       cancelled = true;
     };
-  }, [lat, lon]);
+  }, [lat, lon, storedAddress]);
 
   const locationText =
     place ||

@@ -487,10 +487,27 @@ export default function CheckInOutCard({
       // real device location at request time, never a stored/hardcoded
       // value.
       const liveCoords = coords || (await getFreshCoords());
+      // Best-effort resolved address to send alongside the coordinates
+      // (see CheckInRequest.address on the backend for why: it's stored
+      // once here so audit logs/reports never have to re-geocode later
+      // and risk landing on a worse result). `place` is normally already
+      // resolved by the time someone taps the button, since detectLocation()
+      // kicks off reverseGeocode() on mount. If liveCoords just got fetched
+      // fresh right here instead (button tapped before the automatic fix
+      // resolved), `place` won't reflect it yet -- so resolve it directly
+      // and await it, but only for a short bound: never let a slow/failed
+      // geocode delay the actual check-in/out action itself.
+      let liveAddress = place;
       if (liveCoords && !coords) {
         setCoords(liveCoords);
         setGeoStatus("ok");
-        reverseGeocode(liveCoords.latitude, liveCoords.longitude);
+        liveAddress = await Promise.race([
+          reverseGeocodePlace(liveCoords.latitude, liveCoords.longitude).catch(
+            () => null,
+          ),
+          new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
+        ]);
+        setPlace(liveAddress);
       }
       // location_id is only included when we actually matched one — the
       // backend skips the geofence check entirely if location_id is
@@ -501,6 +518,7 @@ export default function CheckInOutCard({
             latitude: liveCoords.latitude,
             longitude: liveCoords.longitude,
             ...(nearest ? { location_id: nearest.location.id } : {}),
+            ...(liveAddress ? { address: liveAddress } : {}),
           }
         : {};
       await apiClient.post(path, body);
