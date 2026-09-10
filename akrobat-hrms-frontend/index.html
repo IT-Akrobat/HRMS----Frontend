@@ -1,8 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" translate="no" class="notranslate">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Stops Chrome/WebView's built-in translate from ever kicking in on
+         this app. Without this, a chunk of non-English text landing
+         anywhere on the page (e.g. a geocoded location name) can get the
+         browser to auto-translate the ENTIRE UI into the user's device
+         language. -->
+    <meta name="google" content="notranslate" />
 
     <title>HRMS -- AKROBAT</title>
 

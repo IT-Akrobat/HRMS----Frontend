@@ -150,10 +150,13 @@ export default function LocationMapPicker({
     searchAbortRef.current = controller;
     setSearching(true);
     try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&accept-language=en&q=${encodeURIComponent(
         q,
       )}`;
-      const res = await fetch(url, { signal: controller.signal });
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { "Accept-Language": "en" },
+      });
       const data = await res.json();
       setResults(Array.isArray(data) ? data : []);
       setShowResults(true);
@@ -175,8 +178,8 @@ export default function LocationMapPicker({
 
   async function reverseGeocode(lat, lng) {
     try {
-      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
-      const res = await fetch(url);
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`;
+      const res = await fetch(url, { headers: { "Accept-Language": "en" } });
       const data = await res.json();
       if (data?.display_name) {
         setQuery(data.display_name);
