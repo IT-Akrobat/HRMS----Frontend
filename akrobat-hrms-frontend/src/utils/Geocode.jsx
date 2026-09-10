@@ -22,7 +22,10 @@
 import { apiClient } from "../services/apiClient";
 
 const memoryCache = new Map();
-const STORAGE_KEY = "akrobat_geocode_cache_v1";
+// Bumped from v1 to v2 — v1 entries may contain non-English addresses
+// cached before accept-language=en was added below, so this invalidates
+// every old cached entry across all users' browsers in one shot.
+const STORAGE_KEY = "akrobat_geocode_cache_v3"; // bumped: v2 entries were cached before the isEnglishText filter below existed
 
 // Singapore's bounding box (rough, with a little padding). Points
 // outside this box skip the OneMap call entirely.
@@ -78,16 +81,12 @@ async function reverseGeocodeLocalProvider(lat, lon) {
   }
 }
 
-// Rounds to ~11m precision so repeat check-ins/logouts from the exact
-// same spot share one cache entry/lookup, without merging together
-// different buildings that happen to sit within the same ~100m area
-// (toFixed(3) was the old value here -- that rounds to ~111m, wide
-// enough that two nearby-but-different buildings could collide on the
-// same cache key and one would incorrectly show the other's cached
-// address).
+// Rounds to ~100m precision so nearby check-ins/logouts from the same
+// spot share one cache entry/lookup instead of firing a fresh
+// reverse-geocode call for every single log row.
 export function placeKey(lat, lon) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  return `${lat.toFixed(4)},${lon.toFixed(4)}`;
+  return `${lat.toFixed(3)},${lon.toFixed(3)}`;
 }
 
 function loadStorageCache() {
@@ -104,6 +103,22 @@ function saveStorageCache(cache) {
   } catch {
     // Ignore quota / privacy-mode errors — caching is a nice-to-have.
   }
+}
+
+// Detects text in a non-Latin script (Chinese, Tamil, Devanagari, Thai,
+// Arabic, Korean, Japanese, Cyrillic, etc). accept-language=en only
+// translates fields where Nominatim actually has an English name on
+// record — plenty of smaller streets/areas in Singapore and Tamil Nadu
+// only have a name in the local script in OSM, with no English
+// alternative to translate to, so accept-language alone can't stop
+// them from coming through. This is the hard backstop: any address
+// part matching one of these scripts gets dropped entirely rather than
+// ever shown to the user.
+const NON_LATIN_SCRIPT_RE =
+  /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\u0900-\u0d7f\u0e00-\u0e7f\u0600-\u06ff\u0400-\u04ff]/;
+
+function isEnglishText(str) {
+  return typeof str === "string" && !NON_LATIN_SCRIPT_RE.test(str);
 }
 
 // Builds a "Building Name, B.No X, Area, City, State, Country" string from
@@ -165,6 +180,10 @@ function formatAddress(addr, featureName) {
 
   const parts = [building, area, city, state, country]
     .filter(Boolean)
+    // Hard backstop: drop any part that isn't Latin-script text, even
+    // though accept-language=en was requested above — see
+    // NON_LATIN_SCRIPT_RE comment.
+    .filter(isEnglishText)
     // Drop consecutive duplicates.
     .filter((p, i, arr) => p !== arr[i - 1]);
 
@@ -206,15 +225,30 @@ export async function reverseGeocode(lat, lon) {
     // actual building); namedetails=1 surfaces the resolved feature's own
     // name (see `featureName` in formatAddress above) as an extra,
     // usually more reliable, source for the building name.
+    //
+    // accept-language=en is pinned explicitly here — without it, Nominatim
+    // falls back to whatever Accept-Language header the visiting browser
+    // sends, which depends on the user's phone/browser system language
+    // rather than anything in our app. That was returning Chinese address
+    // text for users with a Chinese-language device (common in Singapore),
+    // which could then get the whole page auto-translated by the browser.
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&namedetails=1`,
-      { headers: { Accept: "application/json" } },
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&namedetails=1&accept-language=en`,
+      { headers: { Accept: "application/json", "Accept-Language": "en" } },
     );
     if (!res.ok) throw new Error("reverse geocode failed");
     const data = await res.json();
-    const featureName = data.namedetails?.name || data.name || null;
+    // Prefer the explicit English name tag if OSM has one; only fall
+    // back to the feature's raw "name" (which may be in the local
+    // script, e.g. a Tamil-only street name) if it's already Latin-script
+    // text — formatAddress's isEnglishText filter is the final backstop
+    // either way.
+    const rawFeatureName = data.namedetails?.["name:en"] || data.name;
+    const featureName =
+      rawFeatureName && isEnglishText(rawFeatureName) ? rawFeatureName : null;
     const formatted =
-      formatAddress(data.address, featureName) || data.display_name || null;
+      formatAddress(data.address, featureName) ||
+      (isEnglishText(data.display_name) ? data.display_name : null);
 
     memoryCache.set(key, formatted);
     storageCache[key] = formatted;
