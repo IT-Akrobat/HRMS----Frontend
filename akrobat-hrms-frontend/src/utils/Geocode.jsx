@@ -117,8 +117,149 @@ function saveStorageCache(cache) {
 const NON_LATIN_SCRIPT_RE =
   /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\u0900-\u0d7f\u0e00-\u0e7f\u0600-\u06ff\u0400-\u04ff]/;
 
-function isEnglishText(str) {
+export function isEnglishText(str) {
   return typeof str === "string" && !NON_LATIN_SCRIPT_RE.test(str);
+}
+
+// Maps a detected script to the language code MyMemory's translation API
+// expects as the source language. Checked in order — first script found
+// in the text wins, which is fine here since address fragments are
+// almost always a single script (a street/area name isn't usually mixed
+// Tamil+Chinese in the same segment).
+const SCRIPT_LANG_MAP = [
+  [/[\u4e00-\u9fff]/, "zh-CN"], // Chinese (Han)
+  [/[\u3040-\u30ff]/, "ja"], // Japanese kana
+  [/[\uac00-\ud7af]/, "ko"], // Korean
+  [/[\u0b80-\u0bff]/, "ta"], // Tamil
+  [/[\u0900-\u097f]/, "hi"], // Devanagari / Hindi
+  [/[\u0c00-\u0c7f]/, "te"], // Telugu
+  [/[\u0c80-\u0cff]/, "kn"], // Kannada
+  [/[\u0d00-\u0d7f]/, "ml"], // Malayalam
+  [/[\u0980-\u09ff]/, "bn"], // Bengali
+  [/[\u0e00-\u0e7f]/, "th"], // Thai
+  [/[\u0600-\u06ff]/, "ar"], // Arabic
+  [/[\u0400-\u04ff]/, "ru"], // Cyrillic
+];
+
+function detectSourceLang(text) {
+  for (const [re, lang] of SCRIPT_LANG_MAP) {
+    if (re.test(text)) return lang;
+  }
+  return null;
+}
+
+const translateMemoryCache = new Map();
+const TRANSLATE_STORAGE_KEY = "akrobat_translate_cache_v1";
+
+function loadTranslateCache() {
+  try {
+    return JSON.parse(localStorage.getItem(TRANSLATE_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveTranslateCache(cache) {
+  try {
+    localStorage.setItem(TRANSLATE_STORAGE_KEY, JSON.stringify(cache));
+  } catch {
+    // Ignore quota / privacy-mode errors.
+  }
+}
+
+// Translates one non-English text fragment to English via MyMemory's
+// free translation API (no API key required, generous enough limits for
+// this volume). Returns null — never the untranslated original — if
+// the source script can't be identified, the API call fails, or the
+// result still isn't recognisably English, so a failed translation
+// never accidentally shows non-English text either.
+async function translatePart(text) {
+  if (translateMemoryCache.has(text)) return translateMemoryCache.get(text);
+
+  const storageCache = loadTranslateCache();
+  if (storageCache[text] !== undefined) {
+    translateMemoryCache.set(text, storageCache[text]);
+    return storageCache[text];
+  }
+
+  const srcLang = detectSourceLang(text);
+  if (!srcLang) return null;
+
+  try {
+    const res = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${srcLang}|en`,
+    );
+    if (!res.ok) throw new Error("translate failed");
+    const data = await res.json();
+    const translated = data?.responseData?.translatedText?.trim();
+
+    if (translated && isEnglishText(translated)) {
+      translateMemoryCache.set(text, translated);
+      storageCache[text] = translated;
+      saveTranslateCache(storageCache);
+      return translated;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Translates a full "Building, Area, City, Country" style address —
+// English parts are kept as-is, non-English parts are translated
+// individually via translatePart, and any part that can't be
+// identified/translated is dropped rather than ever shown untranslated.
+export async function translateAddress(address) {
+  if (typeof address !== "string" || !address.trim()) return null;
+
+  const rawParts = address
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const resolvedParts = [];
+  for (const part of rawParts) {
+    if (isEnglishText(part)) {
+      resolvedParts.push(part);
+      continue;
+    }
+    const translated = await translatePart(part);
+    if (translated) resolvedParts.push(translated);
+  }
+
+  const deduped = resolvedParts.filter((p, i, arr) => p !== arr[i - 1]);
+  return deduped.length ? deduped.join(", ") : null;
+}
+
+// Translates several { key, text } address pairs one at a time, calling
+// onResolved(key, translatedAddressOrNull) as each completes — mirrors
+// geocodeQueue's staggered pattern so this plays nicely alongside it
+// without hammering the free translation API.
+export async function translateQueue(items, onResolved) {
+  const seen = new Set();
+  for (const { key, text } of items) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const translated = await translateAddress(text);
+    onResolved(key, translated);
+    await new Promise((r) => setTimeout(r, 600));
+  }
+}
+
+// Strips non-Latin-script segments out of ANY address string — used as
+// an instant fallback to show *something* clean while translateAddress
+// is still resolving in the background (translation is a network call
+// and takes a moment; this keeps the UI from flashing raw Chinese/Tamil
+// text in the meantime), and as a last-resort safety net if translation
+// is unavailable.
+export function sanitizeAddress(address) {
+  if (typeof address !== "string" || !address.trim()) return null;
+  const parts = address
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .filter(isEnglishText);
+  return parts.length ? parts.join(", ") : null;
 }
 
 // Builds a "Building Name, B.No X, Area, City, State, Country" string from

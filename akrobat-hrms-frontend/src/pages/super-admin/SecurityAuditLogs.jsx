@@ -16,7 +16,15 @@ import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
-import { geocodeQueue, placeKey, reverseGeocode } from "../../utils/Geocode";
+import {
+  geocodeQueue,
+  isEnglishText,
+  placeKey,
+  reverseGeocode,
+  sanitizeAddress,
+  translateAddress,
+  translateQueue,
+} from "../../utils/Geocode";
 
 // ---------------------------------------------------------------------
 // Backend contract (app/audit_logs/routes.py — VIEW_AUDIT_LOGS, which
@@ -184,6 +192,16 @@ function extractStoredAddress(log) {
   return typeof address === "string" && address.trim() ? address : null;
 }
 
+// Resolves a raw stored address for display: English text passes
+// through untouched; non-English text shows its translated version once
+// translateQueue has resolved it, or a sanitized (non-English parts
+// stripped) version in the meantime so nothing untranslated ever shows.
+function resolveStoredAddress(storedAddress, translatedAddresses) {
+  if (!storedAddress) return null;
+  if (isEnglishText(storedAddress)) return storedAddress;
+  return translatedAddresses[storedAddress] || sanitizeAddress(storedAddress);
+}
+
 function initials(name) {
   if (!name) return "?";
   return name
@@ -245,6 +263,15 @@ export default function SecurityAuditLogs() {
   // just show "—" in the Location column.
   const [placeCache, setPlaceCache] = useState({});
 
+  // Translated ("...Chinese/Tamil/etc..." -> English) versions of
+  // check_in_address/check_out_address values pulled straight from the
+  // DB, keyed by the original raw stored string (not by log id — several
+  // rows often share the same check-in spot, so this avoids translating
+  // the same text twice). Populated lazily via translateQueue below;
+  // sanitizeAddress() is shown in the meantime so nothing non-English
+  // ever flashes on screen while a translation is in flight.
+  const [translatedAddresses, setTranslatedAddresses] = useState({});
+
   function load() {
     setRecords(null);
     setError("");
@@ -284,6 +311,28 @@ export default function SecurityAuditLogs() {
         geocodeQueue(Array.from(uniqueCoords.values()), (key, label) => {
           setPlaceCache((prev) => ({ ...prev, [key]: label }));
         });
+
+        // Rows that DO have a stored address (skipped above) may still
+        // contain non-English text if it was captured before the
+        // English-only geocoding fix — translate those, once each,
+        // keyed by the raw text so repeat spots aren't re-translated.
+        const addressesNeedingTranslation = new Map();
+        for (const row of rows) {
+          const addr = extractStoredAddress(row);
+          if (
+            addr &&
+            !isEnglishText(addr) &&
+            !addressesNeedingTranslation.has(addr)
+          ) {
+            addressesNeedingTranslation.set(addr, { key: addr, text: addr });
+          }
+        }
+        translateQueue(
+          Array.from(addressesNeedingTranslation.values()),
+          (key, translated) => {
+            setTranslatedAddresses((prev) => ({ ...prev, [key]: translated }));
+          },
+        );
       })
       .catch((err) => {
         setRecords([]);
@@ -482,7 +531,10 @@ export default function SecurityAuditLogs() {
                     const { lat, lon } = extractCoords(log);
                     const storedAddress = extractStoredAddress(log);
                     const place =
-                      storedAddress ||
+                      resolveStoredAddress(
+                        storedAddress,
+                        translatedAddresses,
+                      ) ||
                       (lat != null && lon != null
                         ? placeCache[placeKey(lat, lon)]
                         : null);
@@ -565,7 +617,7 @@ export default function SecurityAuditLogs() {
                 const { lat, lon } = extractCoords(log);
                 const storedAddress = extractStoredAddress(log);
                 const place =
-                  storedAddress ||
+                  resolveStoredAddress(storedAddress, translatedAddresses) ||
                   (lat != null && lon != null
                     ? placeCache[placeKey(lat, lon)]
                     : null);
@@ -686,11 +738,27 @@ function AuditDetail({ log }) {
   // where there's nothing stored to show.
   const { lat, lon } = extractCoords(log);
   const storedAddress = extractStoredAddress(log);
-  const [place, setPlace] = useState(storedAddress);
+  const [place, setPlace] = useState(
+    storedAddress && isEnglishText(storedAddress)
+      ? storedAddress
+      : sanitizeAddress(storedAddress),
+  );
   useEffect(() => {
     let cancelled = false;
     if (storedAddress) {
-      setPlace(storedAddress);
+      if (isEnglishText(storedAddress)) {
+        setPlace(storedAddress);
+      } else {
+        // Show the sanitized (non-English parts stripped) version
+        // immediately, then upgrade to the translated version once the
+        // translation call resolves — translateAddress's own module-level
+        // cache means this is instant if the same spot was already
+        // translated on the table behind this modal.
+        setPlace(sanitizeAddress(storedAddress));
+        translateAddress(storedAddress).then((translated) => {
+          if (!cancelled && translated) setPlace(translated);
+        });
+      }
     } else if (lat != null && lon != null) {
       reverseGeocode(lat, lon).then((label) => {
         if (!cancelled) setPlace(label);
