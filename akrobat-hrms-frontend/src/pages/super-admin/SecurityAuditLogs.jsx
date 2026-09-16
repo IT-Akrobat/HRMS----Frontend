@@ -817,6 +817,20 @@ function AuditDetail({ log }) {
               const oldVal = isDiffShape ? diff.old : undefined;
               const newVal = isDiffShape ? diff.new : diff;
 
+              // Timestamp fields (e.g. check_out_time, updated_at) are
+              // stored as raw UTC ISO strings. Format them the same way
+              // as the "Timestamp" field above instead of printing the
+              // raw string as-is.
+              const isDateField = /_time$|_at$/i.test(field);
+              const displayOld =
+                isDateField && oldVal
+                  ? formatDateTime(oldVal)
+                  : String(oldVal ?? "—");
+              const displayNew =
+                isDateField && newVal
+                  ? formatDateTime(newVal)
+                  : String(newVal ?? "—");
+
               return (
                 <div
                   key={field}
@@ -827,11 +841,11 @@ function AuditDetail({ log }) {
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="text-orange-500 line-through">
-                      {String(oldVal ?? "—")}
+                      {displayOld}
                     </span>
                     <span className="text-slate-300">→</span>
                     <span className="text-blue-600 font-medium">
-                      {String(newVal ?? "—")}
+                      {displayNew}
                     </span>
                   </span>
                 </div>

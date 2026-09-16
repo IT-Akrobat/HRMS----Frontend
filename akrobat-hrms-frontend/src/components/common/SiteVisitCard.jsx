@@ -442,6 +442,20 @@ export default function SiteVisitCard({
                           ? formatTime(v.departure_time)
                           : "now"}
                       </div>
+                      {/* Only shown when the backend closed this visit itself
+                          (day check-out with no explicit "Departed Site" —
+                          see auto_closed / auto_close_reason on
+                          attendance_site_visits). A visit closed by the
+                          employee tapping "Departed" or arriving at the next
+                          site never has this flag set, so it never shows here. */}
+                      {v.auto_closed && (
+                        <div className="flex items-center gap-1 text-amber-600 mt-0.5">
+                          <AlertTriangle size={11} />
+                          <span>
+                            Forgot to check out — closed automatically
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 text-slate-600 font-medium shrink-0">
