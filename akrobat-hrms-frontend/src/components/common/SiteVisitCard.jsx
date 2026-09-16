@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiClient } from "../../services/apiClient";
+import { parseServerDate } from "../../utils/date";
 import { unwrap } from "../../utils/unwrap";
 
 // ---------------------------------------------------------------------
@@ -30,8 +31,16 @@ import { unwrap } from "../../utils/unwrap";
 // ---------------------------------------------------------------------
 
 function formatTime(iso) {
-  if (!iso) return "--:--";
-  return new Date(iso).toLocaleTimeString([], {
+  // arrival_time / departure_time come back from Postgres as a bare
+  // "2026-09-16T09:39:00.123456" with no "Z" — a raw `new Date(iso)`
+  // gets parsed as LOCAL time per the JS spec (see utils/date.js's
+  // parseServerDate for the full explanation), so it silently shifted
+  // every stamp by the browser's UTC offset (~5.5h for IST) and showed
+  // e.g. a 3:09 PM IST arrival as "09:39 AM". parseServerDate treats a
+  // timezone-less string as UTC (correctly) before formatting it.
+  const d = parseServerDate(iso);
+  if (!d) return "--:--";
+  return d.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
