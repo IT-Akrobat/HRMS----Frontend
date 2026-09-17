@@ -26,8 +26,9 @@ import { unwrap } from "../../utils/unwrap";
 // in at a previous site, that one is auto-closed (arriving somewhere
 // new implies leaving the last place) — so visiting 3 sites in a day is
 // just "Arrived" x3, no separate "Departed" in between needed. Tap
-// "Departed" explicitly for the last site of the day, or just Check Out
-// for the day and it closes automatically as a safety net.
+// "Departed" explicitly for the last site of the day — Check Out for
+// the day does NOT close an open visit anymore, so forgetting to tap
+// Departed leaves that visit open indefinitely.
 // ---------------------------------------------------------------------
 
 function formatTime(iso) {
@@ -190,18 +191,41 @@ export default function SiteVisitCard({
   // also sees a warning, not just their manager.
   const [outOfRange, setOutOfRange] = useState(false);
 
+  // Every failure mode in the old version of this function was swallowed
+  // silently (empty `() => {}` geolocation error handler, empty `.catch`
+  // on the POST) — so a denied location permission, a GPS timeout, or a
+  // dropped request all looked identical to "everything's fine" from the
+  // employee's side, and showed up on the admin's Live Site Tracking page
+  // as an unexplained "No live ping yet" with no way to tell why. This
+  // state surfaces which of those actually happened so the employee (and
+  // whoever's debugging with them) can see it and fix it, instead of it
+  // failing invisibly every 60s.
+  const [pingIssue, setPingIssue] = useState(null); // 'denied' | 'unavailable' | 'timeout' | 'network' | null
+
   function pingPresence() {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      setPingIssue("unavailable");
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
         setCoords({ latitude, longitude });
         apiClient
           .post("/attendance/site-visit/ping", { latitude, longitude })
-          .then((res) => setOutOfRange(Boolean(res?.data?.outside_radius)))
-          .catch(() => {}); // best-effort — a missed ping just gets caught by the next one
+          .then((res) => {
+            setOutOfRange(Boolean(res?.data?.outside_radius));
+            setPingIssue(null);
+          })
+          .catch(() => setPingIssue("network")); // reaches the device fine, request itself failed — will retry in 60s
       },
-      () => {},
+      (err) => {
+        // GeolocationPositionError codes: 1 = PERMISSION_DENIED,
+        // 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT.
+        if (err.code === 1) setPingIssue("denied");
+        else if (err.code === 3) setPingIssue("timeout");
+        else setPingIssue("unavailable");
+      },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }
@@ -209,6 +233,7 @@ export default function SiteVisitCard({
   useEffect(() => {
     if (!hasOpenVisit) {
       setOutOfRange(false);
+      setPingIssue(null);
       return;
     }
     pingPresence(); // first ping right when a visit opens, not 60s later
@@ -216,6 +241,17 @@ export default function SiteVisitCard({
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasOpenVisit]);
+
+  const PING_ISSUE_MESSAGES = {
+    denied:
+      "Location access is turned off for this app, so we can't confirm you're still on site. Enable location permission to keep your live presence updating.",
+    timeout:
+      "Couldn't get a location fix just now — we'll keep trying every minute.",
+    unavailable:
+      "Location isn't available on this device right now — we'll keep trying every minute.",
+    network:
+      "Couldn't reach the server to update your presence — we'll retry automatically.",
+  };
 
   // Grabs a brand-new GPS fix at the exact moment of the action, instead
   // of trusting the `coords` state (which is only set once on page load
@@ -287,10 +323,14 @@ export default function SiteVisitCard({
   const openVisit = visits.find((v) => !v.departure_time);
   const totalsBySite = summary?.total_minutes_by_site || {};
 
-  if (!checkedIn || checkedOut) {
-    // Only relevant during the working day — before check-in there's
-    // nothing to log yet, and after check-out the day's visits are
-    // already closed (see the safety-net close in check_out()).
+  if (!checkedIn) {
+    // Before check-in there's no attendance row yet for today, so there's
+    // nothing a site visit could be logged against — see
+    // _get_open_attendance_or_400 in app/attendance/services.py, which
+    // every arrive/depart call goes through. checkedOut deliberately does
+    // NOT hide this card anymore: field staff who check out for the day
+    // and then head to a site that evening (or check in, visit a site,
+    // and check out much later) still need to log it against today.
     return null;
   }
 
@@ -325,11 +365,11 @@ export default function SiteVisitCard({
         site automatically closes the time on the last one.
       </p>
 
-      {assignedSites.length > 0 && (
+      {/* {assignedSites.length > 0 && (
         <p className="hidden lg:block text-xs text-orange-600 bg-orange-50 rounded-lg px-3 py-2 mb-3">
           Only showing sites your manager assigned you to.
         </p>
-      )}
+      )} */}
 
       {outOfRange && (
         <div className="mb-3 flex items-start gap-2 text-xs bg-orange-50 text-orange-700 rounded-lg px-3 py-2">
@@ -339,6 +379,17 @@ export default function SiteVisitCard({
             site" — your manager has been notified. Tap Departed if you've
             actually left, or move back within range.
           </span>
+        </div>
+      )}
+
+      {/* Surfaces why the live presence ping isn't updating, instead of it
+          failing silently and only showing up as "No live ping yet" on the
+          admin's Live Site Tracking page with no explanation. Only shown
+          while a visit is actually open — see pingPresence() above. */}
+      {hasOpenVisit && pingIssue && (
+        <div className="mb-3 flex items-start gap-2 text-xs bg-amber-50 text-amber-700 rounded-lg px-3 py-2">
+          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+          <span>{PING_ISSUE_MESSAGES[pingIssue]}</span>
         </div>
       )}
 

@@ -567,6 +567,41 @@ export default function Users() {
       });
   }, []);
 
+  // The "All Designations" dropdown used to always list every
+  // designation company-wide, regardless of which department was picked
+  // in "All Departments" — so choosing a department did nothing to it,
+  // and picking a designation from a *different* department than the
+  // one selected just silently produced zero rows in the table below
+  // (the two filters are AND'ed in `filtered`). Narrow the dropdown's own
+  // OPTIONS to the selected department's designations instead — each
+  // designation row from GET /designations/ already carries its own
+  // department_id (see app/designations/services.py's get_designations,
+  // a bare `select("*")`), so this is a plain client-side filter with no
+  // extra request needed.
+  const designationOptions = useMemo(
+    () =>
+      deptFilter
+        ? designations.filter((d) => d.department_id === deptFilter)
+        : designations,
+    [designations, deptFilter],
+  );
+
+  // If a designation was already selected and the department filter then
+  // changes to something that designation doesn't belong to, clear it —
+  // otherwise the dropdown would show a designation as "selected" that
+  // isn't even in its own option list anymore, and the table stays
+  // filtered by a designation_id the person can no longer see or unpick
+  // from the (now-narrowed) dropdown.
+  useEffect(() => {
+    if (
+      designationFilter &&
+      !designationOptions.some((d) => d.id === designationFilter)
+    ) {
+      setDesignationFilter("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deptFilter]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return users.filter((u) => {
@@ -718,7 +753,7 @@ export default function Users() {
             allLabel="All Designations"
             value={designationFilter}
             onChange={setDesignationFilter}
-            options={designations}
+            options={designationOptions}
             getKey={(d) => d.id}
             getLabel={(d) => d.designation_name}
           />

@@ -16,6 +16,7 @@ import SearchInput from "../../components/common/SearchInput";
 import SelectDropdown from "../../components/common/SelectDropdown";
 import DatePicker from "../../components/layout/DatePicker";
 import { apiClient } from "../../services/apiClient";
+import { parseServerDate } from "../../utils/date";
 function asList(res) {
   if (Array.isArray(res)) return res;
   if (Array.isArray(res?.data)) return res.data;
@@ -37,10 +38,19 @@ function formatDateLabel(iso) {
   return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
 }
 
+// check_in_time / check_out_time come back from `/attendance/org/report`
+// as the raw DB value: a bare UTC timestamp with no "Z" or offset, e.g.
+// "2026-08-03T03:45:00.123456". Per the JS spec a date-time string with
+// no timezone designator is parsed as *local* time, so a plain
+// `new Date(iso)` was reading 03:45 UTC as 03:45 IST — every check-in /
+// check-out rendered ~5h30m earlier than it actually happened, both in
+// the table and in the CSV export. parseServerDate() appends the missing
+// "Z" so the value is parsed as UTC and then formatted in the viewer's
+// local zone (see utils/date.js; manager/AttendanceReports.jsx already
+// does this).
 function formatTime(iso) {
-  if (!iso) return "--";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "--";
+  const d = parseServerDate(iso);
+  if (!d) return "--";
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 

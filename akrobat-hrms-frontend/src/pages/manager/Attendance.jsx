@@ -157,6 +157,13 @@ function FieldStaffRow({ row }) {
   const [showHistory, setShowHistory] = useState(false);
   const style = STATUS_STYLE[row.live_status] || STATUS_STYLE.not_checked_in;
   const hasVisits = (row.visits || []).length > 0;
+  // Populated from GET /attendance/team/site-visit-status-today and
+  // merged onto this row by employee_id in ManagerAttendance below — see
+  // that fetch for what "missed" actually means (shift over + grace,
+  // assignment covers today, nothing logged). Empty/undefined just means
+  // "nothing to flag", not "still loading", so it's safe to default to [].
+  const missedSites = row.missed_sites || [];
+  const hasMissed = missedSites.length > 0;
 
   return (
     <div className="border-b border-slate-100 last:border-0">
@@ -199,6 +206,23 @@ function FieldStaffRow({ row }) {
           </span>
         )}
 
+        {/* Shift for the day is over and at least one site assigned for
+            today (see employee_site_assignments' assigned_from/
+            assigned_to) has no attendance_site_visits row logged — the
+            manager was already notified once when this first tripped
+            (get_site_visit_compliance_status), this badge is just the
+            persistent, always-visible version of that same fact. */}
+        {hasMissed && (
+          <span
+            className="hidden sm:flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full shrink-0"
+            title={`Not visited today: ${missedSites
+              .map((s) => s.location_name)
+              .join(", ")}`}
+          >
+            <AlertTriangle size={11} /> Not visited
+          </span>
+        )}
+
         {/* Live presence ping (~every 60s while on site — see
             SiteVisitCard.jsx / ping_site_visit) flagged this employee as
             more than 500m from their site while still marked "on site". */}
@@ -230,6 +254,19 @@ function FieldStaffRow({ row }) {
 
       {expanded && (
         <div className="pb-3 pl-12 pr-2 space-y-2">
+          {/* Repeats the header badge's info as text, mainly so it's
+              visible on mobile where the badge itself is hidden
+              (`hidden sm:flex`, same as the "Out of range" badge above). */}
+          {hasMissed && (
+            <div className="flex items-start gap-2 text-xs bg-red-50 text-red-700 rounded-lg px-3 py-2">
+              <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+              <span>
+                Not visited today:{" "}
+                {missedSites.map((s) => s.location_name).join(", ")}
+              </span>
+            </div>
+          )}
+
           {hasVisits ? (
             row.visits.map((v) => (
               <div
@@ -346,6 +383,14 @@ export default function ManagerAttendance() {
   const [officeTeam, setOfficeTeam] = useState([]);
   const [officeLoading, setOfficeLoading] = useState(true);
 
+  // { [employee_id]: { missed_sites, has_missed } } from GET
+  // /attendance/team/site-visit-status-today — merged onto the matching
+  // fieldStaff row below by employee_id so FieldStaffRow can render its
+  // "Not visited" badge. Kept in its own bit of state (rather than baked
+  // into fieldStaff) since it comes from a separate, read-only endpoint
+  // with its own refresh cadence.
+  const [missedStatus, setMissedStatus] = useState({});
+
   function loadFieldStaff() {
     apiClient
       .get("/attendance/team/site-visits")
@@ -362,9 +407,35 @@ export default function ManagerAttendance() {
       .finally(() => setOfficeLoading(false));
   }
 
+  // Best-effort, same as SiteVisitCard's own compliance-today poll — a
+  // failure here should never block the rest of the page, it just means
+  // the "Not visited" badge doesn't show up until the next successful
+  // fetch.
+  function loadMissedStatus() {
+    apiClient
+      .get("/attendance/team/site-visit-status-today")
+      .then((res) => {
+        const byEmployee = {};
+        for (const row of unwrap(res) || []) {
+          byEmployee[row.employee_id] = row.missed_sites || [];
+        }
+        setMissedStatus(byEmployee);
+      })
+      .catch(() => {});
+  }
+
   useEffect(() => {
     loadFieldStaff();
     loadOfficeTeam();
+    loadMissedStatus();
+
+    // A visit only turns into "missed" once the employee's shift for the
+    // day has ended, so — unlike the live check-in/out feed below — there's
+    // no event to react to here; a slow poll is the only way this updates
+    // over the course of the day. Same 5-minute cadence as
+    // SiteVisitCard's own compliance-today poll.
+    const id = setInterval(loadMissedStatus, 5 * 60 * 1000);
+    return () => clearInterval(id);
   }, []);
 
   // "Live status" should stay live — instead of waiting on a poll timer,
@@ -376,6 +447,11 @@ export default function ManagerAttendance() {
     loadFieldStaff();
     loadOfficeTeam();
   });
+
+  const fieldStaffWithStatus = fieldStaff.map((row) => ({
+    ...row,
+    missed_sites: missedStatus[row.employee_id] || [],
+  }));
 
   const fieldIds = new Set(fieldStaff.map((r) => r.employee_id));
   const officeOnly = officeTeam.filter((row) => !fieldIds.has(row.employee_id));
@@ -458,7 +534,7 @@ export default function ManagerAttendance() {
             </p>
           ) : (
             <div>
-              {fieldStaff.map((row) => (
+              {fieldStaffWithStatus.map((row) => (
                 <FieldStaffRow key={row.employee_id} row={row} />
               ))}
             </div>
@@ -593,7 +669,7 @@ export default function ManagerAttendance() {
             </p>
           ) : (
             <div>
-              {fieldStaff.map((row) => (
+              {fieldStaffWithStatus.map((row) => (
                 <FieldStaffRow key={row.employee_id} row={row} />
               ))}
             </div>
