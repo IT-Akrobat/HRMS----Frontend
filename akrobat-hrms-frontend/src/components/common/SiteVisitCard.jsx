@@ -135,7 +135,20 @@ export default function SiteVisitCard({
       .get("/site-assignments/my")
       .then((res) =>
         setAssignedSites(
-          (unwrap(res) || []).map((a) => a.locations).filter(Boolean),
+          (unwrap(res) || [])
+            .filter((a) => a.locations)
+            // is_missed/missed_since live on the ASSIGNMENT row, not the
+            // location — carry them onto the site object so the lock
+            // below survives past today (see sql/035_persistent_missed_
+            // site_flag.sql). Previously this only checked
+            // missed_site_ids from /site-visit/compliance-today, which
+            // is recomputed fresh every day and forgot the lock at
+            // midnight even though the manager was never re-notified.
+            .map((a) => ({
+              ...a.locations,
+              is_missed: a.is_missed || false,
+              missed_since: a.missed_since || null,
+            })),
         ),
       )
       .catch(() => setAssignedSites([]))
@@ -412,7 +425,13 @@ export default function SiteVisitCard({
             <div className="space-y-2 mb-4">
               {siteOptions.map((site) => {
                 const isOpenHere = openVisit?.location_id === site.id;
-                const isMissed = missedSiteIds.includes(site.id);
+                // Persistent flag (site.is_missed, from /site-assignments/my)
+                // OR today's fresh compliance check (missedSiteIds) — either
+                // one locks "Arrived". The persistent flag is what keeps
+                // this locked on days AFTER the one it was first missed on;
+                // see sql/035_persistent_missed_site_flag.sql.
+                const isMissed =
+                  site.is_missed || missedSiteIds.includes(site.id);
                 const lastAtSite = [...visits]
                   .reverse()
                   .find((v) => v.location_id === site.id);
@@ -443,7 +462,7 @@ export default function SiteVisitCard({
                           {isOpenHere
                             ? `${formatTime(openVisit.arrival_time)} – now · ${formatVisitDuration(openVisit)}`
                             : isMissed
-                              ? "Missed today — your manager has been notified"
+                              ? "Missed — locked until your manager reassigns this site"
                               : lastAtSite
                                 ? `Last visit ${formatTime(lastAtSite.arrival_time)}–${formatTime(lastAtSite.departure_time)} · ${formatVisitDuration(lastAtSite)}`
                                 : "Not visited yet today"}
@@ -456,7 +475,7 @@ export default function SiteVisitCard({
                         disabled={busy || isOpenHere || isMissed}
                         title={
                           isMissed
-                            ? "Today's visit to this site was already flagged as missed to your manager."
+                            ? "This visit was flagged as missed to your manager. It stays locked until your manager reassigns the site."
                             : undefined
                         }
                         className="flex items-center gap-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap"

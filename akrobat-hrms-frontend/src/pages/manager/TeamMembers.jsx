@@ -278,14 +278,30 @@ export default function TeamMembers() {
                     <td className="px-4 py-3">
                       {member.assigned_sites?.length ? (
                         <div className="flex flex-wrap gap-1.5">
-                          {member.assigned_sites.map((site) => (
-                            <span
-                              key={site?.id}
-                              className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full"
-                            >
-                              <Building2 size={11} /> {site?.location_name}
-                            </span>
-                          ))}
+                          {member.assigned_sites.map((site) =>
+                            // Persisted on the assignment row (see
+                            // sql/035_persistent_missed_site_flag.sql) —
+                            // stays true across days until this member's
+                            // site is reassigned below, not just for the
+                            // day it was missed on.
+                            site?.is_missed ? (
+                              <span
+                                key={site?.id}
+                                title="Shift ended with no visit logged — locked until reassigned"
+                                className="flex items-center gap-1 text-xs bg-red-50 text-red-600 px-2 py-1 rounded-full"
+                              >
+                                <AlertTriangle size={11} />{" "}
+                                {site?.location_name} · Missed
+                              </span>
+                            ) : (
+                              <span
+                                key={site?.id}
+                                className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full"
+                              >
+                                <Building2 size={11} /> {site?.location_name}
+                              </span>
+                            ),
+                          )}
                         </div>
                       ) : (
                         <span className="text-xs text-slate-400">
@@ -349,14 +365,24 @@ export default function TeamMembers() {
 
                       {member.assigned_sites?.length ? (
                         <div className="flex flex-wrap gap-1.5 mt-2">
-                          {member.assigned_sites.map((site) => (
-                            <span
-                              key={site?.id}
-                              className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full"
-                            >
-                              <Building2 size={11} /> {site?.location_name}
-                            </span>
-                          ))}
+                          {member.assigned_sites.map((site) =>
+                            site?.is_missed ? (
+                              <span
+                                key={site?.id}
+                                className="flex items-center gap-1 text-xs bg-red-50 text-red-600 px-2 py-1 rounded-full"
+                              >
+                                <AlertTriangle size={11} />{" "}
+                                {site?.location_name} · Missed
+                              </span>
+                            ) : (
+                              <span
+                                key={site?.id}
+                                className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full"
+                              >
+                                <Building2 size={11} /> {site?.location_name}
+                              </span>
+                            ),
+                          )}
                         </div>
                       ) : (
                         <span className="inline-block text-xs text-slate-400 mt-2">

@@ -89,6 +89,7 @@ export default function Modal({
   onClose,
   title,
   subtitle,
+  icon,
   children,
   footer,
   width = "max-w-lg",
@@ -170,11 +171,26 @@ export default function Modal({
         <div className="w-10 h-1 rounded-full bg-slate-200 mx-auto mt-2.5 mb-0.5 sm:hidden shrink-0" />
 
         <div className="flex items-start justify-between gap-3 px-5 pt-3 pb-3 sm:py-4 border-b border-slate-100 shrink-0">
-          <div className="min-w-0">
-            <h3 className="text-base font-semibold text-slate-800">{title}</h3>
-            {subtitle && (
-              <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
-            )}
+          {/* `icon` is opt-in (see EditAttendanceModal in hr-admin/
+              Attendance.jsx for the first user) — every other caller of
+              this shared Modal leaves it unset and renders exactly as
+              before: a plain text-base title with no leading avatar. */}
+          <div className="flex items-center gap-3 min-w-0">
+            {icon && <div className="shrink-0">{icon}</div>}
+            <div className="min-w-0">
+              <h3
+                className={
+                  icon
+                    ? "text-xl font-bold text-slate-800 leading-tight"
+                    : "text-base font-semibold text-slate-800"
+                }
+              >
+                {title}
+              </h3>
+              {subtitle && (
+                <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+              )}
+            </div>
           </div>
           <button
             onClick={onClose}

@@ -3,15 +3,19 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
   Clock,
   LogIn,
   MapPin,
+  Moon,
   Pencil,
+  Save,
   Search,
+  Sparkles,
   Timer,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
@@ -95,147 +99,147 @@ function toLocalTimePart(iso) {
 
 const pad2 = (n) => String(n).padStart(2, "0");
 
-// Inline hour / minute / meridiem picker, controlled on an "HH:mm" (24h)
-// string so it stays a drop-in swap for the native <input type="time">
-// this replaced.
-//
-// Redesigned as a single bordered card (readout + wheels share one
-// rounded-xl shell, split by a single hairline) instead of three
-// separately-boxed columns -- the earlier version's mismatched heights
-// (76px AM/PM buttons next to a 160px scroll list) and boxed-inside-a-
-// boxed look read as cluttered. Hour/Min/AM-PM now sit as plain columns
-// divided by hairlines, all sized off one shared ROW_H, with a soft
-// fade at the top/bottom of the two scrolling lists to hint there's
-// more above/below without a visible scrollbar.
-const ROW_H = 28;
-const VISIBLE_ROWS = 3;
+// "Select checkout time" picker redesigned to match the missed-checkout
+// dialog mock: two number boxes (Hour / Minute) with an up/down stepper
+// each — clicking an arrow directly increments or decrements that
+// value and wraps at the ends (12 -> 1, 59 -> 0 and back), no dropdown
+// list to open/close. Controlled on an "HH:mm" (24h) string, same
+// contract the old picker used, so callers didn't need to change.
+function TimeSpinnerBox({ label, value, min, max, onChange }) {
+  function step(delta) {
+    const base = value ?? min;
+    const range = max - min + 1;
+    const next = ((((base - min + delta) % range) + range) % range) + min;
+    onChange(next);
+  }
 
-function InlineTimePicker({ value, onChange }) {
-  const hourRef = useRef(null);
-  const minuteRef = useRef(null);
+  return (
+    <div className="flex-1 min-w-0 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2 text-center">
+      <div className="text-xs font-medium text-slate-500 mb-0.5">{label}</div>
+      <button
+        type="button"
+        onClick={() => step(1)}
+        aria-label={`Increase ${label.toLowerCase()}`}
+        className="w-full flex justify-center text-slate-400 hover:text-slate-600 py-0.5"
+      >
+        <ChevronUp size={16} />
+      </button>
+      <div className="text-3xl font-bold text-slate-800 tabular-nums leading-tight py-0.5">
+        {value != null ? pad2(value) : "--"}
+      </div>
+      <button
+        type="button"
+        onClick={() => step(-1)}
+        aria-label={`Decrease ${label.toLowerCase()}`}
+        className="w-full flex justify-center text-slate-400 hover:text-slate-600 py-0.5"
+      >
+        <ChevronDown size={16} />
+      </button>
+    </div>
+  );
+}
 
+// Vertical AM/PM capsule — filled navy on the selected half, matching
+// the mock (rather than the old horizontal-column AM/PM buttons).
+function MeridiemToggle({ isPm, onChange }) {
+  return (
+    <div className="w-16 shrink-0 rounded-xl bg-slate-50 border border-slate-100 p-1 flex flex-col gap-1">
+      {[false, true].map((pm) => (
+        <button
+          type="button"
+          key={pm ? "PM" : "AM"}
+          onClick={() => onChange(pm)}
+          className={`flex-1 rounded-lg text-sm font-semibold transition-colors ${
+            isPm === pm
+              ? "bg-blue-950 text-white"
+              : "text-slate-400 hover:bg-white"
+          }`}
+        >
+          {pm ? "PM" : "AM"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function InlineTimePicker({ value, onChange, helperText }) {
   const [h24, minute] = (value || "").split(":").map(Number);
   const hasValue = Number.isFinite(h24) && Number.isFinite(minute);
   const hour12 = hasValue ? h24 % 12 || 12 : null;
   const isPm = hasValue ? h24 >= 12 : false;
-
-  // Park each column on its current value on open, so 03:37 PM doesn't
-  // show the list scrolled to the top at 12 / 00.
-  useEffect(() => {
-    [hourRef, minuteRef].forEach((ref) => {
-      const active = ref.current?.querySelector("[data-selected='true']");
-      if (active) active.scrollIntoView({ block: "center" });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function emit({ nextHour12 = hour12, nextMinute = minute, nextPm = isPm }) {
     const base = (nextHour12 ?? 12) % 12;
     onChange?.(`${pad2(base + (nextPm ? 12 : 0))}:${pad2(nextMinute ?? 0)}`);
   }
 
-  function ScrollColumn({ innerRef, items, selected, onPick, format }) {
-    return (
-      <div className="relative flex-1 min-w-0">
-        <div
-          ref={innerRef}
-          style={{ height: ROW_H * VISIBLE_ROWS }}
-          className="overflow-y-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {items.map((n) => {
-            const isSelected = selected === n;
-            return (
-              <button
-                type="button"
-                key={n}
-                data-selected={isSelected}
-                onClick={() => onPick(n)}
-                style={{ height: ROW_H }}
-                className={`w-full text-sm tabular-nums transition-colors ${
-                  isSelected
-                    ? "text-blue-900 font-bold"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                {format(n)}
-              </button>
-            );
-          })}
-        </div>
-        {/* Fade top/bottom of the scroll area instead of a visible
-            scrollbar, as a quiet "there's more" cue. */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-3 bg-gradient-to-b from-white to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3 bg-gradient-to-t from-white to-transparent" />
-      </div>
-    );
-  }
-
   return (
-    <div className="rounded-xl border border-slate-200 overflow-hidden">
-      {/* Readout */}
-      <div className="flex items-center justify-center gap-2 bg-slate-50 py-2 border-b border-slate-200">
-        <Clock size={13} className="text-slate-400" />
-        <span className="text-lg font-semibold tabular-nums tracking-tight text-slate-800">
-          {hasValue ? `${pad2(hour12)}:${pad2(minute)}` : "--:--"}
-        </span>
-        <span className="text-[11px] font-semibold text-slate-400">
-          {hasValue ? (isPm ? "PM" : "AM") : ""}
-        </span>
+    <div className="flex items-start gap-4">
+      <div className="flex items-center gap-2.5 flex-1 min-w-0">
+        <TimeSpinnerBox
+          label="Hour"
+          value={hour12}
+          min={1}
+          max={12}
+          onChange={(n) => emit({ nextHour12: n })}
+        />
+        <span className="text-xl font-bold text-slate-300 mt-4">:</span>
+        <TimeSpinnerBox
+          label="Minute"
+          value={minute}
+          min={0}
+          max={59}
+          onChange={(n) => emit({ nextMinute: n })}
+        />
+        <MeridiemToggle isPm={isPm} onChange={(pm) => emit({ nextPm: pm })} />
       </div>
 
-      {/* Wheels — one shared selection band running across all three
-          columns marks the middle row, so the picker reads as a single
-          control rather than three independent lists. */}
-      <div className="relative flex divide-x divide-slate-100">
-        <div
-          className="pointer-events-none absolute inset-x-2 bg-blue-50 rounded-md"
-          style={{
-            top: ROW_H * Math.floor(VISIBLE_ROWS / 2),
-            height: ROW_H,
-          }}
-        />
-        <ScrollColumn
-          innerRef={hourRef}
-          items={Array.from({ length: 12 }, (_, i) => i + 1)}
-          selected={hour12}
-          format={pad2}
-          onPick={(n) => emit({ nextHour12: n })}
-        />
-        <ScrollColumn
-          innerRef={minuteRef}
-          items={Array.from({ length: 60 }, (_, i) => i)}
-          selected={minute}
-          format={pad2}
-          onPick={(n) => emit({ nextMinute: n })}
-        />
-        <div className="flex-1 min-w-0 flex flex-col items-stretch justify-center">
-          {[false, true].map((pm) => (
-            <button
-              type="button"
-              key={pm ? "PM" : "AM"}
-              onClick={() => emit({ nextPm: pm })}
-              style={{ height: ROW_H }}
-              className={`text-sm transition-colors ${
-                hasValue && isPm === pm
-                  ? "text-blue-900 font-bold"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {pm ? "PM" : "AM"}
-            </button>
-          ))}
+      {/* Decorative preview panel — desktop-only breathing room next to
+          the pickers, mirroring the mock's clock illustration + helper
+          copy. Hidden on narrow screens rather than squeezed in. */}
+      {helperText && (
+        <div className="hidden sm:flex flex-col items-center text-center w-32 shrink-0 border-l border-slate-100 pl-4 ml-1">
+          <div className="relative w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mb-2">
+            <Clock size={22} className="text-blue-900" />
+            <Sparkles
+              size={12}
+              className="absolute -top-1 -right-1 text-orange-400"
+            />
+          </div>
+          <p className="text-[11px] leading-snug text-slate-500">
+            {helperText}
+          </p>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 // Recombines a "YYYY-MM-DD" date part + "HH:mm" time part (both local)
 // back into the UTC ISO string the API expects.
-function combineDateAndTimeToServerISOString(datePart, timePart) {
+//
+// checkInIso, when given, guards against overnight shifts: this modal
+// has no date field (see EditAttendanceModal above -- the date is
+// fixed to the row being edited), so picking a checkout clock-time
+// that's earlier than the check-in clock-time -- e.g. checked in 10:07
+// PM, checking out 06:00 AM -- would otherwise combine onto the SAME
+// calendar date as check-in, landing before it. That produced a
+// negative (clamped to 0) working_minutes and an "Early Checkout"
+// status for a perfectly normal overnight shift. If the combined
+// instant is at or before check-in, roll it forward one day instead --
+// the standard "this clock time means whichever occurrence comes after
+// check-in" reading used by every shift-based time tracker.
+function combineDateAndTimeToServerISOString(datePart, timePart, checkInIso) {
   if (!datePart || !timePart) return null;
-  const d = new Date(`${datePart}T${timePart}:00`);
-  return isNaN(d.getTime()) ? null : d.toISOString();
+  let d = new Date(`${datePart}T${timePart}:00`);
+  if (isNaN(d.getTime())) return null;
+
+  const checkIn = checkInIso ? parseServerDate(checkInIso) : null;
+  if (checkIn && d.getTime() <= checkIn.getTime()) {
+    d = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  return d.toISOString();
 }
 
 function initials(name) {
@@ -464,11 +468,48 @@ function EditAttendanceModal({ record, onClose, onSaved }) {
   const open = !!record;
 
   // No date picker: this modal is always opened from one specific day's
-  // attendance row, so the date is already decided. Prefer the date an
-  // existing check_out_time is on (covers a shift that already crossed
-  // midnight) and fall back to the row's own attendance_date.
-  const checkOutDate =
-    toLocalDatePart(record?.check_out_time) || record?.attendance_date || "";
+  // attendance row, so the date is already decided -- always anchor to
+  // the row's own attendance_date.
+  //
+  // This used to prefer the date an *existing* check_out_time was
+  // already on, to "cover a shift that already crossed midnight". That
+  // backfires the moment the existing check_out_time is itself wrong:
+  // picking a time is re-anchored against whatever day that bad value
+  // happened to land on, not the actual attendance day, so the error
+  // compounds instead of getting corrected. Concretely -- check-in
+  // 9:37 AM, forgotten checkout, HR opens this modal the next day and
+  // saves 6:00 PM: combineDateAndTimeToServerISOString correctly
+  // stores that same-day 6:00 PM (no rollover, since 6:00 PM is after
+  // 9:37 AM). But if that first save had instead landed on the next
+  // calendar day for any reason (e.g. an earlier mis-pick that *did*
+  // roll over), reopening this modal would seed checkOutDate from that
+  // already-rolled date, and a subsequent 6:00 PM pick -- still after
+  // 9:37 AM relative to *that* day -- would no longer trigger a
+  // rollover check against the true check-in day at all, permanently
+  // locking the record a full day ahead (~32h "worked" instead of
+  // ~8h23m; see the Attendance Overview bars showing 28-32h stints).
+  // Anchoring to attendance_date every time makes repeated edits
+  // idempotent: the rollover is always decided fresh against the real
+  // check-in, never against a previous edit's possibly-wrong result.
+  const checkOutDate = record?.attendance_date || "";
+
+  // Live preview of where combineDateAndTimeToServerISOString's overnight
+  // roll-over (see its comment) would land the current picker
+  // selection, so the modal can surface it instead of silently filing
+  // an overnight checkout under the next day with no explanation.
+  const previewCheckoutIso = combineDateAndTimeToServerISOString(
+    checkOutDate,
+    checkOutTime,
+    record?.check_in_time,
+  );
+  const rolledToNextDay =
+    !!previewCheckoutIso &&
+    toLocalDatePart(previewCheckoutIso) !== checkOutDate;
+  const nextDayLabel = rolledToNextDay
+    ? new Date(
+        `${toLocalDatePart(previewCheckoutIso)}T00:00:00`,
+      ).toLocaleDateString(undefined, { day: "2-digit", month: "short" })
+    : "";
 
   // Re-seed whenever a different record is opened -- this modal stays
   // mounted (record just switches between a row and null) so the state
@@ -498,6 +539,7 @@ function EditAttendanceModal({ record, onClose, onSaved }) {
       check_out_time: combineDateAndTimeToServerISOString(
         checkOutDate,
         checkOutTime,
+        record?.check_in_time,
       ),
     };
 
@@ -530,6 +572,7 @@ function EditAttendanceModal({ record, onClose, onSaved }) {
     <Modal
       open={open}
       onClose={onClose}
+      width="max-w-2xl"
       title="Log a missed checkout"
       subtitle={
         record
@@ -538,40 +581,95 @@ function EditAttendanceModal({ record, onClose, onSaved }) {
             }`
           : ""
       }
+      icon={
+        <div className="relative w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center">
+          <Clock size={24} className="text-orange-500" />
+          <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-orange-500 border-2 border-white flex items-center justify-center text-white text-[10px] font-bold leading-none">
+            !
+          </span>
+        </div>
+      }
       footer={
         <>
           <button
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-50"
+            className="px-5 py-2.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50"
           >
+            <Save size={15} />
             {saving ? "Saving..." : "Save changes"}
           </button>
         </>
       }
     >
       <div className="space-y-4">
-        {/* Check-in is read-only context, not an editable field — shown as
-            a compact inline row rather than a full-width faux input box so
-            it doesn't read as something you're meant to type into. */}
-        <div className="flex items-center gap-2.5 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2.5">
-          <span className="grid place-items-center w-7 h-7 rounded-md bg-white border border-slate-200 text-slate-400 shrink-0">
-            <LogIn size={14} />
+        {/* Checked-in context banner — a warm peach panel instead of the
+            plain gray inline row this used to be, with the check-in
+            time set off on the right by a divider, matching the mock's
+            "Checked in" info card. */}
+        <div className="flex items-center gap-3 rounded-xl bg-orange-50/70 border border-orange-100 px-4 py-3.5">
+          <span className="grid place-items-center w-9 h-9 rounded-full bg-orange-500 text-white shrink-0">
+            <LogIn size={16} />
           </span>
-          <span className="text-xs text-slate-500">Checked in</span>
-          <span className="ml-auto text-sm font-semibold text-slate-700 tabular-nums">
-            {record?.check_in_time ? formatTime(record.check_in_time) : "—"}
-          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-800">
+              Checked in
+            </div>
+          </div>
+          <div className="ml-auto pl-4 border-l border-orange-200/70 flex items-center gap-1.5 shrink-0">
+            <Clock size={14} className="text-slate-400" />
+            <div>
+              <div className="text-sm font-bold text-slate-800 tabular-nums leading-tight">
+                {record?.check_in_time ? formatTime(record.check_in_time) : "—"}
+              </div>
+              <div className="text-[10px] text-slate-400">Check-in time</div>
+            </div>
+          </div>
         </div>
 
-        <InlineTimePicker value={checkOutTime} onChange={setCheckOutTime} />
+        {/* Picker card — matches the mock's light slate panel with its
+            own icon/heading/description instead of the picker sitting
+            bare on the modal body. */}
+        <div className="rounded-xl bg-slate-50/70 border border-slate-100 p-4">
+          <div className="flex items-start gap-2.5 mb-4">
+            <span className="grid place-items-center w-8 h-8 rounded-lg bg-blue-50 text-blue-900 shrink-0">
+              <AlarmClock size={16} />
+            </span>
+            <div>
+              <div className="text-sm font-semibold text-slate-800">
+                Select checkout time
+              </div>
+              <div className="text-xs text-slate-500">
+                Choose the time when you want to log your checkout.
+              </div>
+            </div>
+          </div>
+
+          <InlineTimePicker
+            value={checkOutTime}
+            onChange={setCheckOutTime}
+            helperText={
+              checkOutDate
+                ? `The selected time will be saved as your checkout time for ${checkOutDate}.`
+                : undefined
+            }
+          />
+        </div>
+
+        {rolledToNextDay && (
+          <p className="flex items-center gap-1.5 text-xs text-slate-500">
+            <Moon size={12} className="text-slate-400 shrink-0" />
+            Earlier than check-in — this will be logged as a checkout on{" "}
+            {nextDayLabel}.
+          </p>
+        )}
       </div>
     </Modal>
   );
