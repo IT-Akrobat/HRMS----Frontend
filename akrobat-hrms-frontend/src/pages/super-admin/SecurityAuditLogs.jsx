@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Filter,
   LogIn,
+  MapPin,
   Pencil,
   Plus,
   Search,
@@ -74,7 +75,24 @@ const ACTION_META = {
     text: "text-slate-500",
     bg: "bg-slate-100",
   },
+  SITE_VISIT_ARRIVE: {
+    icon: MapPin,
+    text: "text-orange-600",
+    bg: "bg-orange-50",
+  },
+  SITE_VISIT_DEPART: {
+    icon: MapPin,
+    text: "text-slate-500",
+    bg: "bg-slate-100",
+  },
 };
+
+// The two site-visit check-in/check-out actions (app/attendance/services.py
+// ::arrive_at_site / depart_site) — used both for the "Site Visit" quick
+// filter below (matched together, since a visit is arrive OR depart, never
+// both in one row) and to give them a shared "Site Visit" label instead of
+// the raw SITE_VISIT_ARRIVE / SITE_VISIT_DEPART action name.
+const SITE_VISIT_ACTIONS = ["SITE_VISIT_ARRIVE", "SITE_VISIT_DEPART"];
 
 function actionMeta(action) {
   return (
@@ -84,6 +102,15 @@ function actionMeta(action) {
       bg: "bg-slate-100",
     }
   );
+}
+
+// Row label shown in the Action badge — "Site Visit" for both the arrive
+// and depart events (which site / how long is already in the Description
+// column), everything else keeps its raw action name.
+function actionLabel(action) {
+  return SITE_VISIT_ACTIONS.includes((action || "").toUpperCase())
+    ? "Site Visit"
+    : action;
 }
 
 // description can be plain text, or JSON packed by record_audit_log's
@@ -368,6 +395,40 @@ export default function SecurityAuditLogs() {
     return records.filter((r) => r.action === "LOGIN").length;
   }, [records]);
 
+  // Which SITE_VISIT_ARRIVE rows (by id) are still open, i.e. have no
+  // SITE_VISIT_DEPART after them — shown as "In Progress" instead of a
+  // plain action badge. record_id on these rows is the day's attendance_id
+  // (see arrive_at_site/depart_site), which every visit logged that day
+  // shares, so it can't pair an exact arrive with its depart — the closest
+  // signal the audit trail itself offers is "same employee, in time order"
+  // within whatever page of logs is currently loaded.
+  const openSiteVisitIds = useMemo(() => {
+    if (!records) return new Set();
+    const byEmployee = new Map();
+    for (const r of records) {
+      if (!SITE_VISIT_ACTIONS.includes((r.action || "").toUpperCase())) {
+        continue;
+      }
+      const key = r.employee_id || "unknown";
+      if (!byEmployee.has(key)) byEmployee.set(key, []);
+      byEmployee.get(key).push(r);
+    }
+
+    const openIds = new Set();
+    for (const rows of byEmployee.values()) {
+      const sorted = [...rows].sort(
+        (a, b) => new Date(a.created_at) - new Date(b.created_at),
+      );
+      let openArriveId = null;
+      for (const r of sorted) {
+        if (r.action === "SITE_VISIT_ARRIVE") openArriveId = r.id;
+        else if (r.action === "SITE_VISIT_DEPART") openArriveId = null;
+      }
+      if (openArriveId) openIds.add(openArriveId);
+    }
+    return openIds;
+  }, [records]);
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
@@ -454,6 +515,20 @@ export default function SecurityAuditLogs() {
               }`}
             >
               Check Out
+            </button>
+            <button
+              onClick={() => {
+                setModule("");
+                setActionFilter(SITE_VISIT_ACTIONS.join(","));
+                setPage(1);
+              }}
+              className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                actionFilter === SITE_VISIT_ACTIONS.join(",")
+                  ? "bg-orange-500 border-orange-500 text-white"
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Site Visit
             </button>
             {MODULES.map((m) => (
               <button
@@ -546,6 +621,7 @@ export default function SecurityAuditLogs() {
                       (lat != null && lon != null
                         ? `${lat.toFixed(4)}, ${lon.toFixed(4)}`
                         : "—");
+                    const isOpenVisit = openSiteVisitIds.has(log.id);
 
                     return (
                       <tr
@@ -575,12 +651,19 @@ export default function SecurityAuditLogs() {
                           </span>
                         </td>
                         <td className="px-3 py-3">
-                          <span
-                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${meta.bg} ${meta.text}`}
-                          >
-                            <ActionIcon size={12} />
-                            {log.action}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${meta.bg} ${meta.text}`}
+                            >
+                              <ActionIcon size={12} />
+                              {actionLabel(log.action)}
+                            </span>
+                            {isOpenVisit && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full text-blue-600 bg-blue-50">
+                                In Progress
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-3 py-3 max-w-xs">
                           <p className="text-sm text-slate-600 truncate">
@@ -626,6 +709,7 @@ export default function SecurityAuditLogs() {
                   (lat != null && lon != null
                     ? `${lat.toFixed(4)}, ${lon.toFixed(4)}`
                     : "—");
+                const isOpenVisit = openSiteVisitIds.has(log.id);
 
                 return (
                   <div
@@ -658,8 +742,13 @@ export default function SecurityAuditLogs() {
                         className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${meta.bg} ${meta.text}`}
                       >
                         <ActionIcon size={12} />
-                        {log.action}
+                        {actionLabel(log.action)}
                       </span>
+                      {isOpenVisit && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full text-blue-600 bg-blue-50">
+                          In Progress
+                        </span>
+                      )}
                       <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
                         {log.module}
                       </span>
@@ -713,7 +802,13 @@ export default function SecurityAuditLogs() {
         open={!!selected}
         onClose={() => setSelected(null)}
         title="Audit Log Detail"
-        subtitle={selected ? `${selected.module} · ${selected.action}` : ""}
+        subtitle={
+          selected
+            ? `${selected.module} · ${actionLabel(selected.action)}${
+                openSiteVisitIds.has(selected.id) ? " · In Progress" : ""
+              }`
+            : ""
+        }
       >
         {selected && <AuditDetail log={selected} />}
       </Modal>
