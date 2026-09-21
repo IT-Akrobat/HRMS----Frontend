@@ -25,7 +25,7 @@ const memoryCache = new Map();
 // Bumped from v1 to v2 — v1 entries may contain non-English addresses
 // cached before accept-language=en was added below, so this invalidates
 // every old cached entry across all users' browsers in one shot.
-const STORAGE_KEY = "akrobat_geocode_cache_v3"; // bumped: v2 entries were cached before the isEnglishText filter below existed
+const STORAGE_KEY = "akrobat_geocode_cache_v4"; // bumped: v3 entries were keyed at ~100m precision (see placeKey) — those coarse keys could still return a stale/wrong-neighbor address under the new ~11m keying, so this starts every browser fresh instead of half-matching old coarse entries
 
 // Singapore's bounding box (rough, with a little padding). Points
 // outside this box skip the OneMap call entirely.
@@ -81,12 +81,20 @@ async function reverseGeocodeLocalProvider(lat, lon) {
   }
 }
 
-// Rounds to ~100m precision so nearby check-ins/logouts from the same
-// spot share one cache entry/lookup instead of firing a fresh
-// reverse-geocode call for every single log row.
+// Rounds to ~11m precision so *the same exact spot* (repeated GPS jitter
+// on a retry, or several audit-log rows from one real check-in) shares
+// one cache entry/lookup instead of firing a fresh reverse-geocode call
+// every time — without merging genuinely different nearby locations
+// together. This used to round to 3 decimal places (~100m), which meant
+// ANY two check-ins within ~100m of each other — even at clearly
+// different buildings — shared one cached address: whichever spot got
+// geocoded first "won", and every other real, distinct location within
+// that ~100m got silently shown that same cached address instead of its
+// own exact one. 4 decimal places (~11m) keeps genuinely different
+// locations from colliding while still deduping true retries at one spot.
 export function placeKey(lat, lon) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  return `${lat.toFixed(3)},${lon.toFixed(3)}`;
+  return `${lat.toFixed(4)},${lon.toFixed(4)}`;
 }
 
 function loadStorageCache() {
