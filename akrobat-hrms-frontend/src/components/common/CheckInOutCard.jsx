@@ -412,11 +412,36 @@ export default function CheckInOutCard({
   }, [coords, eligibleLocations]);
 
   // Resolve real place names for wherever the employee actually was when
-  // they checked in / out today, straight from the saved lat/lon — this is
-  // what drives the "at <place>" label under each timeline entry below,
-  // instead of only the nearest-configured-office guess.
+  // they checked in / out today — this is what drives the "at <place>"
+  // label under each timeline entry below, instead of only the
+  // nearest-configured-office guess.
+  //
+  // Always prefer `today.check_in_address` / `check_out_address` — the
+  // address that was already resolved once, at check-in/out time, and
+  // saved on the attendance row (see check_in_address/check_out_address
+  // in app/attendance/services.py). That saved string is also exactly
+  // what the Audit Logs page shows for this same event (see
+  // extractStoredAddress in Auditlogs.jsx). Re-resolving the same lat/lon
+  // again here from scratch on every dashboard load — which is what this
+  // used to do unconditionally — hits the reverse-geocoding service a
+  // second time for the same point, and a live lookup can word the
+  // result differently between calls (a different tag chosen, cache vs.
+  // fresh, a provider fallback kicking in). That's why this card could
+  // show "PAYA UBI INDUSTRIAL PARK, 53 UBI AVENUE 1, Singapore, 408934"
+  // for the very same check-in the Audit Log correctly showed as
+  // "Dcpro Bike, B.No 10, Kampong Ubi, Singapore" — two different
+  // geocode calls for one real-world point, neither one "wrong", just
+  // inconsistent. Only fall back to a fresh live geocode when there's no
+  // stored address to reuse (attendance rows recorded before this field
+  // existed, or a check-in where the client's own geocode failed/timed
+  // out at the time).
   useEffect(() => {
-    if (today?.check_in_latitude != null && today?.check_in_longitude != null) {
+    if (today?.check_in_address) {
+      setCheckInPlace(today.check_in_address);
+    } else if (
+      today?.check_in_latitude != null &&
+      today?.check_in_longitude != null
+    ) {
       reverseGeocodePlace(
         today.check_in_latitude,
         today.check_in_longitude,
@@ -424,10 +449,16 @@ export default function CheckInOutCard({
     } else {
       setCheckInPlace(null);
     }
-  }, [today?.check_in_latitude, today?.check_in_longitude]);
+  }, [
+    today?.check_in_address,
+    today?.check_in_latitude,
+    today?.check_in_longitude,
+  ]);
 
   useEffect(() => {
-    if (
+    if (today?.check_out_address) {
+      setCheckOutPlace(today.check_out_address);
+    } else if (
       today?.check_out_latitude != null &&
       today?.check_out_longitude != null
     ) {
@@ -438,7 +469,11 @@ export default function CheckInOutCard({
     } else {
       setCheckOutPlace(null);
     }
-  }, [today?.check_out_latitude, today?.check_out_longitude]);
+  }, [
+    today?.check_out_address,
+    today?.check_out_latitude,
+    today?.check_out_longitude,
+  ]);
 
   // On-demand GPS fetch, used as a fallback right before check-in/out —
   // separate from detectLocation() (which runs automatically on mount and

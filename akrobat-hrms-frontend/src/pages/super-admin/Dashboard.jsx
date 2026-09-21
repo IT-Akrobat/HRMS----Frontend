@@ -64,6 +64,13 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Only returns a name when the point is actually within that site's own
+// configured radius — previously this picked whichever configured site
+// was closest with no distance cutoff at all, so a check-in with a real
+// GPS fix nowhere near any office (e.g. Singapore, with only a Chennai
+// site configured) could still get labelled with that far-away site's
+// name here. See the identical fix in CheckInOutCard.jsx's `nearest`
+// matching for the full explanation.
 function resolveLocationName(lat, lon, locations) {
   if (lat == null || lon == null || !locations || locations.length === 0) {
     return null;
@@ -74,7 +81,9 @@ function resolveLocationName(lat, lon, locations) {
     const d = distanceMeters(lat, lon, loc.latitude, loc.longitude);
     if (!best || d < best.distance) best = { loc, distance: d };
   }
-  return best ? best.loc.location_name : null;
+  if (!best) return null;
+  if (best.distance > (best.loc.radius ?? 0)) return null;
+  return best.loc.location_name;
 }
 
 // "Xh Ym" for a minutes count — mirrors formatDuration in CheckInOutCard.jsx,
@@ -177,6 +186,19 @@ function parseLogEntry(log, locations = []) {
   const lat = rawLat != null && rawLat !== "" ? Number(rawLat) : null;
   const lon = rawLon != null && rawLon !== "" ? Number(rawLon) : null;
 
+  // The address already resolved once at check-in/out time and saved on
+  // the attendance row (see check_in_address/check_out_address in
+  // app/attendance/services.py) — the same value Auditlogs.jsx and
+  // CheckInOutCard.jsx now both prefer. Reusing it here instead of
+  // re-geocoding lat/lon from scratch is what keeps this panel, the
+  // Audit Logs page, and the Today's Attendance card all showing the
+  // *same* address for the same event, instead of three independent
+  // geocode calls landing on three slightly different wordings.
+  const address =
+    diffValue(changes.check_in_address) ??
+    diffValue(changes.check_out_address) ??
+    null;
+
   // What kind of entry this is, purely for choosing an icon/color.
   let kind = "other";
   const actionUpper = (log.action || "").toUpperCase();
@@ -185,7 +207,7 @@ function parseLogEntry(log, locations = []) {
   else if (actionUpper.includes("LOGIN")) kind = "login";
   else if (actionUpper.includes("LOGOUT")) kind = "logout";
 
-  return { name, action, time, lat, lon, kind };
+  return { name, action, time, lat, lon, address, kind };
 }
 
 function formatTime(value) {
@@ -985,7 +1007,14 @@ export default function SuperAdminDashboard() {
                     entry.lon,
                     locations,
                   );
+                  // Priority: the address already saved on the attendance
+                  // row at check-in/out time (matches Audit Logs / Today's
+                  // Attendance for this same event) -> a fresh live geocode
+                  // for older rows saved before that field existed ->
+                  // matched company office name (only when genuinely
+                  // within its radius) -> raw coordinates as a last resort.
                   const locationName =
+                    entry.address ||
                     geocoded ||
                     matchedOffice ||
                     (entry.lat != null && entry.lon != null
@@ -1273,7 +1302,13 @@ export default function SuperAdminDashboard() {
                           entry.lon,
                           locations,
                         );
+                        // Priority: stored address from check-in/out time
+                        // (matches Audit Logs / Today's Attendance) -> a
+                        // fresh live geocode for older rows -> matched
+                        // company office name (only within its radius) ->
+                        // raw coordinates as a last resort.
                         const locationName =
+                          entry.address ||
                           geocoded ||
                           matchedOffice ||
                           (entry.lat != null && entry.lon != null
@@ -1542,12 +1577,17 @@ export default function SuperAdminDashboard() {
                     entry.lon,
                     locations,
                   );
-                  // Priority: reverse-geocoded "City, State, Country" ->
-                  // matched company office name -> raw coordinates (so a
-                  // check-in from outside every registered office, or one
-                  // whose geocode hasn't resolved yet, still shows
-                  // *something* instead of the location silently vanishing.
+                  // Priority: the address already saved on the attendance
+                  // row at check-in/out time (matches Audit Logs / Today's
+                  // Attendance for this same event) -> a fresh live geocode
+                  // for older rows saved before that field existed ->
+                  // matched company office name (only when genuinely
+                  // within its radius) -> raw coordinates (so a check-in
+                  // from outside every registered office, or one whose
+                  // geocode hasn't resolved yet, still shows *something*
+                  // instead of the location silently vanishing.
                   const locationName =
+                    entry.address ||
                     geocoded ||
                     matchedOffice ||
                     (entry.lat != null && entry.lon != null
