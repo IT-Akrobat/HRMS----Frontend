@@ -509,15 +509,31 @@ export default function CheckInOutCard({
         ]);
         setPlace(liveAddress);
       }
-      // location_id is only included when we actually matched one — the
-      // backend skips the geofence check entirely if location_id is
-      // missing, so an unmatched location deliberately does NOT get
-      // silently treated as "in range".
+      // location_id is only included when we matched one *and* it's
+      // actually within that site's configured radius.
+      //
+      // `nearest` always finds the closest configured/assigned location
+      // to the GPS fix, with no distance cutoff — that's fine for the
+      // "Within range of X" / "142m from X" preview banner, but it means
+      // `nearest.location` can be a site that's genuinely hundreds of km
+      // away (e.g. real GPS fix in Singapore, only a Chennai site
+      // configured). check-in/check-out don't enforce a geofence server
+      // side (see check_in/check_out in app/attendance/services.py), so
+      // an out-of-range location_id doesn't get rejected there — the
+      // backend just trusts it and uses it to resolve the location name
+      // for the audit-log description ("Checked in — at <name>"), which
+      // used to end up flatly wrong (e.g. "at rani hall" while the
+      // separately-stored/reverse-geocoded address correctly showed a
+      // Singapore address). Gating on withinRadius here means an
+      // out-of-range check-in just omits the "at ..." clause instead of
+      // silently attributing it to the nearest configured site.
+      const matchedLocationId =
+        nearest && nearest.withinRadius ? nearest.location.id : null;
       const body = liveCoords
         ? {
             latitude: liveCoords.latitude,
             longitude: liveCoords.longitude,
-            ...(nearest ? { location_id: nearest.location.id } : {}),
+            ...(matchedLocationId ? { location_id: matchedLocationId } : {}),
             ...(liveAddress ? { address: liveAddress } : {}),
           }
         : {};
