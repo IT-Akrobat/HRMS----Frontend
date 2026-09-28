@@ -599,8 +599,8 @@ function downloadAttendanceExcel(rows, monthLabel) {
 // The backend returns one entry per date of the month:
 //   { attendance_date, day_type: "Record" | "Leave" | "Holiday" | "Off",
 //     holiday_name, record }
-//   - "Off"    (Sunday / a Saturday the employee doesn't work) -> the
-//              date is shown, every other cell is left empty
+//   - "Off"    (Sunday / a Saturday the employee doesn't work) -> Status
+//              says "Weekend", every other cell is left empty
 //   - "Holiday" (public holiday on a working day) -> Status says
 //              "Holiday (<name>)", rest empty
 //   - "Leave"  (approved leave) -> Status says "Leave", rest empty
@@ -608,26 +608,30 @@ function downloadAttendanceExcel(rows, monthLabel) {
 // ---------------------------------------------------------------------
 function dayExportCells(day) {
   const rec = day.record;
-  if (day.day_type === "Off") return ["", "", "", "", "", "", ""];
+  const blank = ["", "", "", "", "", ""];
+  // Weekend: Sunday, or a Saturday this employee doesn't work.
+  if (day.day_type === "Off") return [...blank, "Weekend"];
   if (day.day_type === "Holiday")
     return [
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
+      ...blank,
       day.holiday_name ? `Holiday (${day.holiday_name})` : "Holiday",
     ];
-  if (day.day_type === "Leave") return ["", "", "", "", "", "", "Leave"];
-  if (!rec) return ["", "", "", "", "", "", ""];
+  if (day.day_type === "Leave") return [...blank, "Leave"];
+  if (!rec || !rec.check_in_time) {
+    // Working day with no check-in. Only for days that are over --
+    // today and future dates are still open, so they stay empty.
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const isPast = day.attendance_date < todayStr;
+    return [...blank, rec?.status || (isPast ? "Not Check-in" : "")];
+  }
   return [
-    rec.check_in_time ? formatTime(rec.check_in_time) : "",
+    formatTime(rec.check_in_time),
     rec.check_out_time ? formatTime(rec.check_out_time) : "",
-    rec.check_in_time ? formatMinutes(rec.working_minutes) : "",
-    rec.check_in_time ? formatMinutes(rec.break_minutes) : "",
-    rec.check_in_time ? formatMinutes(rec.overtime_minutes) : "",
-    rec.check_in_time ? rec.late_minutes || 0 : "",
+    formatMinutes(rec.working_minutes),
+    formatMinutes(rec.break_minutes),
+    formatMinutes(rec.overtime_minutes),
+    rec.late_minutes || 0,
     rec.status || "",
   ];
 }
