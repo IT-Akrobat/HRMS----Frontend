@@ -62,6 +62,45 @@ function styleHeaderRow(sheet, colCount) {
   }
 }
 
+// Status column colouring for the attendance Excel exports (needs
+// xlsx-js-style, see the import note at the top of this file).
+const STATUS_COLORS = {
+  present: { bg: "C6EFCE", fg: "006100" }, // green
+  "half day": { bg: "FFEB9C", fg: "7F6000" }, // yellow
+  absent: { bg: "FFC7CE", fg: "9C0006" }, // red
+  "not check-in": { bg: "F4B183", fg: "7F2F00" }, // orange
+  "early checkout": { bg: "FCE4D6", fg: "843C0C" }, // light orange
+  late: { bg: "FFF2CC", fg: "7F6000" }, // light yellow
+  leave: { bg: "BDD7EE", fg: "1F4E79" }, // blue
+  holiday: { bg: "E4DFEC", fg: "5B3F86" }, // purple
+  weekend: { bg: "D9D9D9", fg: "404040" }, // grey
+};
+
+function statusColor(value) {
+  const v = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!v) return null;
+  if (v.startsWith("holiday")) return STATUS_COLORS.holiday;
+  return STATUS_COLORS[v] || null;
+}
+
+// Colours the Status cells in column `col` for data rows firstRow..lastRow
+// (0-based sheet rows; row 0 is the header).
+function styleStatusColumn(sheet, col, firstRow, lastRow) {
+  for (let r = firstRow; r <= lastRow; r++) {
+    const cell = sheet[XLSX.utils.encode_cell({ r, c: col })];
+    if (!cell) continue;
+    const color = statusColor(cell.v);
+    if (!color) continue;
+    cell.s = {
+      font: { bold: true, color: { rgb: color.fg } },
+      fill: { patternType: "solid", fgColor: { rgb: color.bg } },
+      alignment: { horizontal: "center" },
+    };
+  }
+}
+
 // ---------------------------------------------------------------------
 // Wired to the real backend: GET /reports/dashboard (counts) and
 // GET /reports/{employees,attendance,leaves,payroll,projects} (row data),
@@ -581,6 +620,7 @@ function downloadAttendanceExcel(rows, monthLabel) {
     { wch: 12 },
   ];
   styleHeaderRow(sheet, ATTENDANCE_EXPORT_HEADER.length);
+  styleStatusColumn(sheet, 9, 1, rows.length);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Attendance");
   // Month-only download (no employee picked) gets a filename tagged
@@ -669,6 +709,7 @@ function downloadMonthlyCalendarExcel(employees, monthLabel) {
     { wch: 12 },
   ];
   styleHeaderRow(sheet, header.length);
+  styleStatusColumn(sheet, header.length - 1, 1, rows.length);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Attendance");
   XLSX.writeFile(workbook, `attendance-report-${monthLabel}.xlsx`);
@@ -1192,6 +1233,7 @@ export default function Reports() {
           { wch: 30 },
         ];
         styleHeaderRow(sheet, header.length);
+        styleStatusColumn(sheet, header.length - 1, 1, rows.length);
         // TOTAL row sits after the header + all data rows + one blank
         // spacer row -- bolded the same way as a label, so it stands
         // out from the daily rows above it.
