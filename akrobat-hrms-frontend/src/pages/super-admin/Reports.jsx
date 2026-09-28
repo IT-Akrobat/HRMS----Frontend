@@ -594,6 +594,92 @@ function downloadAttendanceExcel(rows, monthLabel) {
   );
 }
 
+// ---------------------------------------------------------------------
+// Full-calendar monthly export helpers.
+// The backend returns one entry per date of the month:
+//   { attendance_date, day_type: "Record" | "Leave" | "Holiday" | "Off",
+//     holiday_name, record }
+//   - "Off"    (Sunday / a Saturday the employee doesn't work) -> the
+//              date is shown, every other cell is left empty
+//   - "Holiday" (public holiday on a working day) -> Status says
+//              "Holiday (<name>)", rest empty
+//   - "Leave"  (approved leave) -> Status says "Leave", rest empty
+//   - "Record" -> normal attendance row (empty cells if no record yet)
+// ---------------------------------------------------------------------
+function dayExportCells(day) {
+  const rec = day.record;
+  if (day.day_type === "Off") return ["", "", "", "", "", "", ""];
+  if (day.day_type === "Holiday")
+    return [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      day.holiday_name ? `Holiday (${day.holiday_name})` : "Holiday",
+    ];
+  if (day.day_type === "Leave") return ["", "", "", "", "", "", "Leave"];
+  if (!rec) return ["", "", "", "", "", "", ""];
+  return [
+    rec.check_in_time ? formatTime(rec.check_in_time) : "",
+    rec.check_out_time ? formatTime(rec.check_out_time) : "",
+    rec.check_in_time ? formatMinutes(rec.working_minutes) : "",
+    rec.check_in_time ? formatMinutes(rec.break_minutes) : "",
+    rec.check_in_time ? formatMinutes(rec.overtime_minutes) : "",
+    rec.check_in_time ? rec.late_minutes || 0 : "",
+    rec.status || "",
+  ];
+}
+
+// Every employee x every date of the month, in one sheet.
+function downloadMonthlyCalendarExcel(employees, monthLabel) {
+  const header = [
+    "Employee Name",
+    "Employee ID",
+    "Date",
+    ...MONTHLY_DAY_HEADER,
+  ];
+  const rows = [];
+  employees.forEach((emp) => {
+    (emp.days || []).forEach((day) => {
+      rows.push([
+        emp.employee?.full_name || "",
+        emp.employee?.employee_id || "",
+        formatDate(day.attendance_date),
+        ...dayExportCells(day),
+      ]);
+    });
+  });
+  const sheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  sheet["!cols"] = [
+    { wch: 20 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 12 },
+  ];
+  styleHeaderRow(sheet, header.length);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, "Attendance");
+  XLSX.writeFile(workbook, `attendance-report-${monthLabel}.xlsx`);
+}
+
+const MONTHLY_DAY_HEADER = [
+  "Check In",
+  "Check Out",
+  "Working Hours",
+  "Break",
+  "Overtime",
+  "Late (min)",
+  "Status",
+];
+
 // Type-to-search employee picker — replaces the plain <select> on the
 // Attendance tab's "download this employee's monthly attendance"
 // control. Same options/value/onChange shape as a native select would
@@ -1027,22 +1113,28 @@ export default function Reports() {
     if (!monthlyEmployeeId) {
       setMonthlyDownloading(true);
       const typed = monthlyEmployeeQuery.trim().toLowerCase();
-      const monthRows = (reportData.attendance || []).filter((r) => {
-        if (!(r.attendance_date || "").startsWith(monthlyMonth)) return false;
-        if (!typed) return true;
-        return [r.employees?.full_name, r.employees?.employee_id]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(typed);
-      });
-      if (!monthRows.length) {
-        setMonthlyError("No matching attendance records found.");
-        setMonthlyDownloading(false);
-        return;
-      }
-      downloadAttendanceExcel(monthRows, monthlyMonth);
-      setMonthlyDownloading(false);
+      reportsService
+        .allEmployeesMonthlyAttendance(monthlyMonth)
+        .then((res) => {
+          const all = res?.data?.employees || [];
+          const matched = all.filter((e) => {
+            if (!typed) return true;
+            return [e.employee?.full_name, e.employee?.employee_id]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase()
+              .includes(typed);
+          });
+          if (!matched.length) {
+            setMonthlyError("No matching employees found.");
+            return;
+          }
+          downloadMonthlyCalendarExcel(matched, monthlyMonth);
+        })
+        .catch((err) =>
+          setMonthlyError(err.message || "Couldn't download attendance."),
+        )
+        .finally(() => setMonthlyDownloading(false));
       return;
     }
 
@@ -1055,9 +1147,9 @@ export default function Reports() {
           setMonthlyError("No attendance data found for this employee/month.");
           return;
         }
-        if (!(data.records || []).length) {
+        if (!(data.days || []).length) {
           setMonthlyError(
-            `No attendance records found for ${employeeLabel(
+            `No attendance data found for ${employeeLabel(
               data.employee?.full_name,
               data.employee?.employee_id,
             )} in ${monthlyMonth}.`,
@@ -1066,25 +1158,12 @@ export default function Reports() {
         }
         const summary = data.summary || {};
 
-        const header = [
-          "Date",
-          "Check In",
-          "Check Out",
-          "Working Hours",
-          "Break",
-          "Overtime",
-          "Late (min)",
-          "Status",
-        ];
-        const rows = (data.records || []).map((r) => [
-          formatDate(r.attendance_date),
-          formatTime(r.check_in_time),
-          formatTime(r.check_out_time),
-          formatMinutes(r.working_minutes),
-          formatMinutes(r.break_minutes),
-          formatMinutes(r.overtime_minutes),
-          r.late_minutes || 0,
-          r.status || "",
+        const header = ["Date", ...MONTHLY_DAY_HEADER];
+        // One row per calendar date: leave days say "Leave", Sundays and
+        // non-working Saturdays are empty (date only).
+        const rows = (data.days || []).map((day) => [
+          formatDate(day.attendance_date),
+          ...dayExportCells(day),
         ]);
         const totalsRow = [
           "TOTAL",

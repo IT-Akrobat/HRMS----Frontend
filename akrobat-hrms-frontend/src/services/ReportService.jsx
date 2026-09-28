@@ -23,4 +23,10 @@ export const reportsService = {
     apiClient.get(
       `/reports/attendance/employee/${employeeId}?month=${encodeURIComponent(month)}`,
     ),
+  // Every employee, one calendar month ("YYYY-MM") — one entry per date
+  // (Record / Leave / Off) so the Excel export lists ALL dates.
+  allEmployeesMonthlyAttendance: (month) =>
+    apiClient.get(
+      `/reports/attendance/monthly?month=${encodeURIComponent(month)}`,
+    ),
 };
