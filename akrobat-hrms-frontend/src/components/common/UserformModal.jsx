@@ -2024,16 +2024,9 @@ export default function UserFormModal({
       setError("Please select a role.");
       return;
     }
-    // The backend requires email on create (EmployeeCreate.email is a
-    // mandatory EmailStr — the old "auto-generate a placeholder login
-    // email from the employee code when left blank" flow was removed).
-    // This form never enforced that client-side, so a blank email used
-    // to sail past this point, get submitted as "", and bounce off the
-    // backend's required-email validation with a confusing error.
-    if (!isEdit && !form.email.trim()) {
-      setError("Email is required.");
-      return;
-    }
+    // Email is optional on create -- leave it blank and HR can add it
+    // later via Edit User (EmployeeCreate.email is Optional on the
+    // backend; the employee logs in with the employee code either way).
     if (!isEdit && !form.annual_leave_tier_id) {
       // Every employee must be on one of the Annual Leave tiers
       // (21/20/14/11/10 days) -- required on EmployeeCreate.
@@ -2104,7 +2097,7 @@ export default function UserFormModal({
         // below).
         const payload = {
           full_name: form.full_name.trim(),
-          email: form.email.trim(),
+          email: orUndefined(form.email.trim()),
           phone: form.phone.trim() || undefined,
           department_id: orUndefined(form.department_id),
           designation_id: orUndefined(form.designation_id),
@@ -2322,7 +2315,7 @@ export default function UserFormModal({
                   placeholder="John Doe"
                 />
               </Field>
-              <Field label="Email Address" required={!isEdit}>
+              <Field label="Email Address">
                 <input
                   type="email"
                   className={inputCls}
