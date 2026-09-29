@@ -196,8 +196,10 @@ export default function AttendanceTrendChart({
       t.onTime += Math.max(0, (d.present || 0) - (d.late || 0));
       t.late += d.late || 0;
       t.on_leave += d.on_leave || 0;
-      t.absent += d.absent || 0;
     });
+    // Absent is a head-count of employees absent on the latest day
+    // (today), not a sum of absent person-days across the range.
+    t.absent = days.length ? days[days.length - 1].absent || 0 : 0;
     return t;
   }, [days]);
 
