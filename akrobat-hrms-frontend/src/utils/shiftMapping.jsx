@@ -48,7 +48,11 @@ export const WORK_SHOP_SHIFT_NAME = "WORK SHOP - WEEKDAY";
  * callers should use resolveShiftNamesForSelection for the full list in
  * that situation instead of a single forced value).
  */
-export function resolveShiftNameForSelection(departmentName, designationName) {
+export function resolveShiftNameForSelection(
+  departmentName,
+  designationName,
+  roleName,
+) {
   if (!departmentName) return null;
 
   const dept = departmentName.trim().toUpperCase();
@@ -56,11 +60,16 @@ export function resolveShiftNameForSelection(departmentName, designationName) {
 
   if (desig.includes("STOREMAN")) return WORK_SHOP_SHIFT_NAME;
   if (dept === "INSPECTION") return INSPECTION_SITE_SHIFT_NAME;
-  // Project Managers in Operation work normal office hours (8:30-5:30 or
-  // 9:00-6:00), not the fixed Operation Site timing — fall through to the
-  // office choice below.
-  if (dept === "OPERATION" && !desig.includes("PROJECT MANAGER"))
-    return OPERATION_SITE_SHIFT_NAME;
+  // Operation > Project Manager works normal office hours (8:30-5:30 or
+  // 9:00-6:00) ONLY when their login role is MANAGER — fall through to the
+  // office choice below. With the EMPLOYEE role (or any other / no role
+  // picked yet) they stay on the fixed Operation Site timing like the rest
+  // of Operation.
+  if (dept === "OPERATION") {
+    const isManagerRole = (roleName || "").trim().toUpperCase() === "MANAGER";
+    if (!(desig.includes("PROJECT MANAGER") && isManagerRole))
+      return OPERATION_SITE_SHIFT_NAME;
+  }
   // QS, DESIGN, HR, ACCOUNT, PURCHASING & LOGISTICS, SALES, and anything
   // else not called out above are Office — but Office has two valid
   // timings, not one, so there's no single answer here.
@@ -74,10 +83,18 @@ export function resolveShiftNameForSelection(departmentName, designationName) {
  * timings, since HR chooses per staff member which one applies. Returns
  * null if the department isn't picked yet (caller should show every shift).
  */
-export function resolveShiftNamesForSelection(departmentName, designationName) {
+export function resolveShiftNamesForSelection(
+  departmentName,
+  designationName,
+  roleName,
+) {
   if (!departmentName) return null;
 
-  const single = resolveShiftNameForSelection(departmentName, designationName);
+  const single = resolveShiftNameForSelection(
+    departmentName,
+    designationName,
+    roleName,
+  );
   if (single) return [single];
 
   return OFFICE_SHIFT_NAMES;
@@ -104,10 +121,12 @@ export function filterShiftsForSelection(
   shifts,
   departmentName,
   designationName,
+  roleName,
 ) {
   const shiftNames = resolveShiftNamesForSelection(
     departmentName,
     designationName,
+    roleName,
   );
   if (!shiftNames) return shifts;
   const match = shifts.filter((s) => shiftNames.includes(s.shift_name));
@@ -161,11 +180,13 @@ export function pickDefaultShiftId(
   departmentName,
   designationName,
   defaultShiftId,
+  roleName,
 ) {
   const valid = filterShiftsForSelection(
     shifts,
     departmentName,
     designationName,
+    roleName,
   );
   if (defaultShiftId && valid.some((s) => s.id === defaultShiftId)) {
     return defaultShiftId;

@@ -1984,14 +1984,29 @@ export default function UserFormModal({
   // src/utils/shiftMapping.js) — so the Shift dropdown is filtered down
   // to just that one option, e.g. picking INSPECTION only shows
   // Inspection Site's timing, not Office/Work Shop/Operation Site.
+  // Role name of the role currently picked in the form — Operation Project
+  // Manager only gets Office timing when the role is MANAGER (see
+  // shiftMapping.resolveShiftNameForSelection).
+  const selectedRoleName = useMemo(
+    () => roles.find((r) => r.id === form.role_id)?.role_name,
+    [roles, form.role_id],
+  );
+
   const filteredShifts = useMemo(() => {
     const dept = departments.find((d) => d.id === form.department_id);
     return filterShiftsForSelection(
       shifts,
       dept?.department_name,
       selectedDesignation?.designation_name,
+      selectedRoleName,
     );
-  }, [shifts, departments, form.department_id, selectedDesignation]);
+  }, [
+    shifts,
+    departments,
+    form.department_id,
+    selectedDesignation,
+    selectedRoleName,
+  ]);
 
   // The weekday shift currently in effect — either the one HR explicitly
   // picked (Office's two-timing case) or the single fixed option for
@@ -2053,10 +2068,40 @@ export default function UserFormModal({
         dept?.department_name,
         selectedDesignation.designation_name,
         selectedDesignation.shifts?.id,
+        selectedRoleName,
       );
       if (shiftId) setForm((f) => ({ ...f, shift_id: shiftId }));
     }
   }, [form.designation_id]);
+
+  // Role can be picked/changed AFTER the designation. For Operation Project
+  // Manager the valid timing depends on the role (MANAGER -> Office,
+  // otherwise Operation Site), so re-pick the default shift when the role
+  // changes — only for that designation, so a hand-picked shift on every
+  // other designation is never overwritten.
+  const didMountRole = useRef(false);
+  useEffect(() => {
+    if (!didMountRole.current) {
+      didMountRole.current = true;
+      return;
+    }
+    if (!selectedDesignation) return;
+    const dept = departments.find((d) => d.id === form.department_id);
+    const isOpsPM =
+      (dept?.department_name || "").trim().toUpperCase() === "OPERATION" &&
+      (selectedDesignation.designation_name || "")
+        .toUpperCase()
+        .includes("PROJECT MANAGER");
+    if (!isOpsPM) return;
+    const shiftId = pickDefaultShiftId(
+      shifts,
+      dept?.department_name,
+      selectedDesignation.designation_name,
+      selectedDesignation.shifts?.id,
+      selectedRoleName,
+    );
+    if (shiftId) setForm((f) => ({ ...f, shift_id: shiftId }));
+  }, [form.role_id]);
 
   async function handleSubmit(e) {
     e.preventDefault();

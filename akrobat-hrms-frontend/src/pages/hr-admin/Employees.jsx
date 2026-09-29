@@ -275,6 +275,28 @@ function EmployeeFormModal({
             dept?.department_name,
             picked.designation_name,
             picked.shifts?.id,
+            roles.find((r) => r.id === next.role_id)?.role_name,
+          );
+        }
+      }
+      // Operation Project Manager's timing depends on the role (MANAGER ->
+      // Office, otherwise Operation Site) — re-pick when the role changes.
+      if (key === "role_id") {
+        const picked = designations.find((d) => d.id === next.designation_id);
+        const dept = departments.find((d) => d.id === next.department_id);
+        if (
+          picked &&
+          (dept?.department_name || "").trim().toUpperCase() === "OPERATION" &&
+          (picked.designation_name || "")
+            .toUpperCase()
+            .includes("PROJECT MANAGER")
+        ) {
+          next.shift_id = pickDefaultShiftId(
+            shifts,
+            dept?.department_name,
+            picked.designation_name,
+            picked.shifts?.id,
+            roles.find((r) => r.id === value)?.role_name,
           );
         }
       }
@@ -296,6 +318,7 @@ function EmployeeFormModal({
     shifts,
     selectedDepartment?.department_name,
     selectedDesignation?.designation_name,
+    roles.find((r) => r.id === form.role_id)?.role_name,
   );
 
   async function handleSubmit(e) {
