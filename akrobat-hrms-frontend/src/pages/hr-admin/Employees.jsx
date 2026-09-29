@@ -16,6 +16,7 @@ import {
   MapPin,
   Pencil,
   Phone,
+  Plus,
   Trash2,
   UserCheck,
   Users,
@@ -364,7 +365,7 @@ function EmployeeFormModal({
         // the password, since it's never stored in plaintext.
         setCreatedCredentials({
           full_name: created?.full_name || form.full_name.trim(),
-          employee_id: created?.login_employee_id || created?.employee_id,
+          username: created?.login_username || created?.full_name,
           password: created?.login_password,
         });
       }
@@ -396,17 +397,17 @@ function EmployeeFormModal({
             <div className="rounded-lg border border-slate-200 px-4 py-3 flex items-center justify-between">
               <div>
                 <p className="text-xs text-slate-400 flex items-center gap-1">
-                  <Contact size={12} /> Employee Code
+                  <Contact size={12} /> Username
                 </p>
                 <p className="text-sm font-semibold text-slate-800 mt-0.5">
-                  {createdCredentials.employee_id || "—"}
+                  {createdCredentials.username || "—"}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() =>
                   navigator.clipboard?.writeText(
-                    createdCredentials.employee_id || "",
+                    createdCredentials.username || "",
                   )
                 }
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
@@ -549,9 +550,10 @@ function EmployeeFormModal({
                 <div className="col-span-2 flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-100 text-blue-700 text-xs px-3 py-2">
                   <Contact size={14} className="mt-0.5 shrink-0" />
                   <span>
-                    The employee code (based on department) and a login password
-                    will be generated automatically once you save — you'll see
-                    them on the next screen to share with the employee.
+                    The employee logs in with the name entered above as their
+                    username (each name must be unique). A login password will
+                    be generated automatically once you save — you'll see it on
+                    the next screen to share with the employee.
                   </span>
                 </div>
               )}
@@ -1310,6 +1312,182 @@ function MobileEmployeeBrowser({
 // Main page
 // ==========================================================================
 
+// ---------------------------------------------------------------------
+// Add a new Department or Designation (HR).
+//   POST /departments/  { department_name, department_code? }
+//   POST /designations/ { designation_name, department_id,
+//                         default_shift_id? }
+// The department code is optional -- the backend makes one from the
+// name when it's blank.
+// ---------------------------------------------------------------------
+function OrgAddModal({
+  kind,
+  departments,
+  shifts,
+  defaultDeptId,
+  onClose,
+  onSaved,
+}) {
+  const isDept = kind === "dept";
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [deptId, setDeptId] = useState(defaultDeptId || "");
+  const [shiftId, setShiftId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const inputCls =
+    "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:border-[#0b1f45]";
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      if (isDept) {
+        await apiClient.post("/departments/", {
+          department_name: name.trim(),
+          department_code: code.trim() || undefined,
+        });
+      } else {
+        await apiClient.post("/designations/", {
+          designation_name: name.trim(),
+          department_id: deptId,
+          default_shift_id: shiftId || undefined,
+        });
+      }
+      onSaved();
+    } catch (err) {
+      setError(err.message || "Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+      <form
+        onSubmit={submit}
+        className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl"
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <h2 className="text-lg font-bold text-slate-800">
+            {isDept ? "Add Department" : "Add Designation"}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-3">
+          {!isDept && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Department
+              </label>
+              <select
+                required
+                value={deptId}
+                onChange={(e) => setDeptId(e.target.value)}
+                className={inputCls}
+              >
+                <option value="">Select department</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.department_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              {isDept ? "Department name" : "Designation name"}
+            </label>
+            <input
+              required
+              minLength={2}
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={
+                isDept ? "e.g. Procurement" : "e.g. Procurement Officer"
+              }
+              className={inputCls}
+            />
+          </div>
+
+          {isDept ? (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Short code <span className="text-slate-400">(optional)</span>
+              </label>
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="Auto-filled if left blank"
+                maxLength={10}
+                className={inputCls}
+              />
+            </div>
+          ) : (
+            shifts.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Default working hours{" "}
+                  <span className="text-slate-400">(optional)</span>
+                </label>
+                <select
+                  value={shiftId}
+                  onChange={(e) => setShiftId(e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">None</option>
+                  {shifts.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.shift_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2 text-xs">
+              <AlertTriangle size={14} />
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving || !name.trim() || (!isDept && !deptId)}
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-60 flex items-center gap-2"
+          >
+            {saving && <Loader2 size={14} className="animate-spin" />}
+            Add
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function EmployeesHrAdmin() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1331,6 +1509,8 @@ export default function EmployeesHrAdmin() {
   const pageSize = 8;
 
   const [formState, setFormState] = useState(null);
+  // "dept" | "desig" | null -- the Add Department / Designation popup.
+  const [orgModal, setOrgModal] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -1349,7 +1529,7 @@ export default function EmployeesHrAdmin() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => {
+  function loadOrg() {
     apiClient
       .get("/departments/")
       .then((res) => setDepartments(asList(res)))
@@ -1358,6 +1538,10 @@ export default function EmployeesHrAdmin() {
       .get("/designations/")
       .then((res) => setDesignations(asList(res)))
       .catch(() => setDesignations([]));
+  }
+
+  useEffect(() => {
+    loadOrg();
     apiClient
       .get("/shifts/")
       .then((res) => setShifts(asList(res)))
@@ -1520,6 +1704,25 @@ export default function EmployeesHrAdmin() {
       <PageHeader
         title="Employees"
         subtitle="Browse by department and designation, or search the full list."
+        actions={
+          <>
+            <button
+              onClick={() => setOrgModal("dept")}
+              className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-1.5"
+            >
+              <Plus size={15} />
+              Department
+            </button>
+            <button
+              onClick={() => setOrgModal("desig")}
+              className="px-3 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center gap-1.5"
+            >
+              <Plus size={15} />
+              Designation
+            </button>
+          </>
+        }
+        // (old, unused) Add Employee button:
         // actions={
         //   // <button
         //   //   onClick={() => setFormState({ mode: "add" })}
@@ -1850,6 +2053,20 @@ export default function EmployeesHrAdmin() {
           )}
         </div>
       </div>
+
+      {orgModal && (
+        <OrgAddModal
+          kind={orgModal}
+          departments={departments}
+          shifts={shifts}
+          defaultDeptId={selectedDeptId}
+          onClose={() => setOrgModal(null)}
+          onSaved={() => {
+            setOrgModal(null);
+            loadOrg();
+          }}
+        />
+      )}
 
       {formState && (
         <EmployeeFormModal

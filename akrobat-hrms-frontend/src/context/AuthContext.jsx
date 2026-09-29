@@ -2,8 +2,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { authService } from "../services/authService";
 import { resetNotificationFallback } from "../services/Notificationfallback";
 import {
-    disablePushNotifications,
-    enablePushNotifications,
+  disablePushNotifications,
+  enablePushNotifications,
 } from "../services/pushService";
 
 const AuthContext = createContext(null);
@@ -59,11 +59,8 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const login = async (employeeCode, password) => {
-    const { user: loggedInUser } = await authService.login(
-      employeeCode,
-      password,
-    );
+  const login = async (username, password) => {
+    const { user: loggedInUser } = await authService.login(username, password);
     setUser(loggedInUser);
     // Fire-and-forget: prompts for notification permission and registers
     // this device for push (see src/services/pushService.js). Never

@@ -1,4 +1,4 @@
-import { Contact, Eye, EyeOff, Lock, Shield } from "lucide-react";
+import { Eye, EyeOff, Lock, Shield, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import logo from "../../assets/images/akrobat-logo.png"; // TODO: replace placeholder with real Akrobat logo
@@ -18,15 +18,19 @@ export default function Login() {
   const [current, setCurrent] = useState(0);
   const [showPwd, setShowPwd] = useState(false);
   const [remember, setRemember] = useState(false);
-  const [employeeCode, setEmployeeCode] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({ employeeCode: "", password: "" });
+  const [errors, setErrors] = useState({ username: "", password: "" });
   useEffect(() => {
-    const savedCode = localStorage.getItem("remember_employee_code");
+    // Old builds remembered the employee code under this key -- drop it
+    // so it never gets pre-filled into the username box.
+    localStorage.removeItem("remember_employee_code");
 
-    if (savedCode) {
-      setEmployeeCode(savedCode);
+    const savedUsername = localStorage.getItem("remember_username");
+
+    if (savedUsername) {
+      setUsername(savedUsername);
       setRemember(true);
     }
   }, []);
@@ -41,7 +45,7 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrors({ employeeCode: "", password: "" });
+    setErrors({ username: "", password: "" });
 
     try {
       setLoading(true);
@@ -50,11 +54,11 @@ export default function Login() {
       // and returns the normalized user object -- role, permissions,
       // sidebar, redirect_path all come from the backend, nothing is
       // decided here. See src/services/authService.js.
-      const user = await login(employeeCode, password);
+      const user = await login(username.trim(), password);
       if (remember) {
-        localStorage.setItem("remember_employee_code", employeeCode);
+        localStorage.setItem("remember_username", username.trim());
       } else {
-        localStorage.removeItem("remember_employee_code");
+        localStorage.removeItem("remember_username");
       }
       // Prefer wherever the user was headed before being bounced to
       // /login (ProtectedRoute sets this), otherwise their role's
@@ -83,13 +87,13 @@ export default function Login() {
           : err.message || "Login failed.";
 
       setErrors({
-        employeeCode: "",
+        username: "",
         password: message,
       });
 
       setTimeout(() => {
         setErrors({
-          employeeCode: "",
+          username: "",
           password: "",
         });
       }, 5000);
@@ -177,27 +181,27 @@ export default function Login() {
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-2">
-                  Employee Code
+                  Username
                 </label>
                 <div className="relative">
-                  <Contact className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
                     type="text"
                     required
-                    value={employeeCode}
-                    onChange={(e) => setEmployeeCode(e.target.value)}
-                    placeholder="e.g. HR-0001"
-                    autoCapitalize="characters"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Your name, e.g. Priya Kumar"
+                    autoComplete="username"
                     className={`w-full pl-11 pr-4 py-3 rounded-lg border transition-colors
     ${
-      errors.employeeCode
+      errors.username
         ? "border-orange-500 focus:border-orange-500 focus:ring-orange-500"
         : "border-gray-200 focus:border-[#0b1f45] focus:ring-[#0b1f45]"
     }`}
                   />
-                  {errors.employeeCode && (
+                  {errors.username && (
                     <p className="mt-2 text-sm text-orange-500">
-                      {errors.employeeCode}
+                      {errors.username}
                     </p>
                   )}
                 </div>

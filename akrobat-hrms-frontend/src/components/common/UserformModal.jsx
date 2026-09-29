@@ -2119,7 +2119,7 @@ export default function UserFormModal({
         };
         const res = await apiClient.post("/employees/", payload);
         setCredentials({
-          employee_id: res?.data?.login_employee_id,
+          username: res?.data?.login_username || payload.full_name,
           password: res?.data?.login_password,
         });
       }
@@ -2148,10 +2148,10 @@ export default function UserFormModal({
           <div className="px-6 py-5 space-y-3">
             <div>
               <span className="text-xs font-medium text-slate-600 mb-1 block">
-                Employee Code
+                Username
               </span>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
-                {credentials.employee_id}
+                {credentials.username}
               </div>
             </div>
             <div>

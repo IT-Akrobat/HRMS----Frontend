@@ -20,10 +20,10 @@ import { apiClient, clearSession } from "./apiClient";
 const RESTORE_TIMEOUT_MS = 45000;
 
 export const authService = {
-  async login(employeeCode, password) {
+  async login(username, password) {
     const loginData = await apiClient.post(
       "/auth/login",
-      { employee_code: employeeCode, password },
+      { username, password },
       { auth: false },
     );
     // loginData: { user_id, mfa_required, password_expired } -- no
