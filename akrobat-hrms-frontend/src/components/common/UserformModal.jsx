@@ -1708,6 +1708,7 @@ export default function UserFormModal({
 
   const [form, setForm] = useState(() => ({
     full_name: user?.full_name || "",
+    username: user?.username || "",
     email: isSystemGeneratedEmail(user) ? "" : user?.email || "",
     phone: user?.phone || "",
     department_id: user?.department_id || "",
@@ -2050,6 +2051,7 @@ export default function UserFormModal({
       if (isEdit) {
         const payload = {
           full_name: form.full_name.trim(),
+          username: form.username.trim() || undefined,
           // Unlike every other optional field below, this used to send
           // "" instead of omitting the key. On edit, email is optional
           // (EmployeeUpdate.email is Optional[EmailStr]) — but "" isn't
@@ -2089,6 +2091,7 @@ export default function UserFormModal({
         // below).
         const payload = {
           full_name: form.full_name.trim(),
+          username: orUndefined(form.username.trim()),
           email: orUndefined(form.email.trim()),
           phone: form.phone.trim() || undefined,
           department_id: orUndefined(form.department_id),
@@ -2305,6 +2308,16 @@ export default function UserFormModal({
                   value={form.full_name}
                   onChange={(e) => set("full_name", e.target.value)}
                   placeholder="John Doe"
+                />
+              </Field>
+              <Field label="Login Username">
+                <input
+                  className={inputCls}
+                  value={form.username}
+                  onChange={(e) =>
+                    set("username", e.target.value.replace(/\s/g, ""))
+                  }
+                  placeholder="e.g. sakthi (leave blank to use full name)"
                 />
               </Field>
               <Field label="Email Address">
