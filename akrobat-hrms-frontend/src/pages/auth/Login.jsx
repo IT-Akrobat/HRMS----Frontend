@@ -190,7 +190,7 @@ export default function Login() {
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Your name, e.g. Priya Kumar"
+                    placeholder="Your name"
                     autoComplete="username"
                     className={`w-full pl-11 pr-4 py-3 rounded-lg border transition-colors
     ${

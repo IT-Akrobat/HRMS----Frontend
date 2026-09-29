@@ -1307,7 +1307,9 @@
 import {
   AlertTriangle,
   Briefcase,
+  Check,
   ChevronDown,
+  Copy,
   Loader2,
   Shield,
   X,
@@ -1681,6 +1683,49 @@ const NON_MANAGER_ROLES = ["EMPLOYEE", "VIEWER"];
 // ==========================================================================
 // Add / Edit modal
 // ==========================================================================
+
+// Small copy-to-clipboard button used in the "User Created" popup.
+function CopyButton({ value, title = "Copy" }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const text = value || "";
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Fallback for browsers/contexts without the async clipboard API.
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch {
+        /* ignore */
+      }
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={copied ? "Copied!" : title}
+      className="shrink-0 w-9 h-9 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+    >
+      {copied ? (
+        <Check size={16} className="text-green-600" />
+      ) : (
+        <Copy size={16} />
+      )}
+    </button>
+  );
+}
 
 export default function UserFormModal({
   mode,
@@ -2129,16 +2174,28 @@ export default function UserFormModal({
               <span className="text-xs font-medium text-slate-600 mb-1 block">
                 Username
               </span>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
-                {credentials.username}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0 break-all rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                  {credentials.username}
+                </div>
+                <CopyButton
+                  value={credentials.username}
+                  title="Copy username"
+                />
               </div>
             </div>
             <div>
               <span className="text-xs font-medium text-slate-600 mb-1 block">
                 Password
               </span>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
-                {credentials.password}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0 break-all rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                  {credentials.password}
+                </div>
+                <CopyButton
+                  value={credentials.password}
+                  title="Copy password"
+                />
               </div>
             </div>
           </div>
@@ -2301,7 +2358,7 @@ export default function UserFormModal({
                   onChange={(e) =>
                     set("username", e.target.value.replace(/\s/g, ""))
                   }
-                  placeholder="e.g. sakthi (leave blank to use full name)"
+                  placeholder="e.g. John (leave blank to use full name)"
                 />
               </Field>
               <Field label="Email Address">
