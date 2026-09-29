@@ -56,7 +56,11 @@ export function resolveShiftNameForSelection(departmentName, designationName) {
 
   if (desig.includes("STOREMAN")) return WORK_SHOP_SHIFT_NAME;
   if (dept === "INSPECTION") return INSPECTION_SITE_SHIFT_NAME;
-  if (dept === "OPERATION") return OPERATION_SITE_SHIFT_NAME;
+  // Project Managers in Operation work normal office hours (8:30-5:30 or
+  // 9:00-6:00), not the fixed Operation Site timing — fall through to the
+  // office choice below.
+  if (dept === "OPERATION" && !desig.includes("PROJECT MANAGER"))
+    return OPERATION_SITE_SHIFT_NAME;
   // QS, DESIGN, HR, ACCOUNT, PURCHASING & LOGISTICS, SALES, and anything
   // else not called out above are Office — but Office has two valid
   // timings, not one, so there's no single answer here.
@@ -143,4 +147,28 @@ export function formatTime12h(time24) {
   const period = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   return `${h}:${mStr} ${period}`;
+}
+
+/**
+ * Picks the shift_id to auto-fill when a designation is chosen: the
+ * designation's own default shift if it is valid for this department /
+ * designation combo, otherwise the first valid option (e.g. Project
+ * Manager in Operation has an Operation Site default, but should get the
+ * office timings instead). Returns "" if nothing valid is available.
+ */
+export function pickDefaultShiftId(
+  shifts,
+  departmentName,
+  designationName,
+  defaultShiftId,
+) {
+  const valid = filterShiftsForSelection(
+    shifts,
+    departmentName,
+    designationName,
+  );
+  if (defaultShiftId && valid.some((s) => s.id === defaultShiftId)) {
+    return defaultShiftId;
+  }
+  return valid[0]?.id || "";
 }

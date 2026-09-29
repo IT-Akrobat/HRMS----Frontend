@@ -1319,6 +1319,7 @@ import { apiClient } from "../../services/apiClient";
 import {
   filterShiftsForSelection,
   formatTime12h,
+  pickDefaultShiftId,
   resolveSaturdayShift,
 } from "../../utils/shiftMapping";
 import DatePicker from "../layout/DatePicker";
@@ -2045,8 +2046,15 @@ export default function UserFormModal({
       didMountDesig.current = true;
       return;
     }
-    if (selectedDesignation?.shifts?.id) {
-      setForm((f) => ({ ...f, shift_id: selectedDesignation.shifts.id }));
+    if (selectedDesignation) {
+      const dept = departments.find((d) => d.id === form.department_id);
+      const shiftId = pickDefaultShiftId(
+        shifts,
+        dept?.department_name,
+        selectedDesignation.designation_name,
+        selectedDesignation.shifts?.id,
+      );
+      if (shiftId) setForm((f) => ({ ...f, shift_id: shiftId }));
     }
   }, [form.designation_id]);
 

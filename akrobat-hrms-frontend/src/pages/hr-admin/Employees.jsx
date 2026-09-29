@@ -28,7 +28,10 @@ import SearchInput from "../../components/common/SearchInput";
 import SelectDropdown from "../../components/common/SelectDropdown";
 import { FilterDropdown } from "../../components/common/UserformModal";
 import { apiClient } from "../../services/apiClient";
-import { filterShiftsForSelection } from "../../utils/shiftMapping";
+import {
+  filterShiftsForSelection,
+  pickDefaultShiftId,
+} from "../../utils/shiftMapping";
 
 // ---------------------------------------------------------------------
 // Company-wide Employee List for HR Admin.
@@ -265,7 +268,15 @@ function EmployeeFormModal({
       }
       if (key === "designation_id") {
         const picked = designations.find((d) => d.id === value);
-        if (picked?.shifts?.id) next.shift_id = picked.shifts.id;
+        if (picked) {
+          const dept = departments.find((d) => d.id === next.department_id);
+          next.shift_id = pickDefaultShiftId(
+            shifts,
+            dept?.department_name,
+            picked.designation_name,
+            picked.shifts?.id,
+          );
+        }
       }
       return next;
     });
