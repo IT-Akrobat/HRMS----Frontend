@@ -1877,23 +1877,15 @@ export default function UserFormModal({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  // Re-fetch the employee-code preview every time department or
-  // designation changes, so picking a department immediately shows the
-  // code HR can expect (e.g. AKR-HR-0001, then AKR-HR-EXE-0001 once a
-  // designation is also picked).
+  // Employee codes are a short running number now (AKR-0001), not
+  // based on department/designation -- so the preview is fetched once
+  // when the Add form opens.
   useEffect(() => {
     if (isEdit) return;
-    if (!form.department_id && !form.designation_id) {
-      setCodePreview("");
-      return;
-    }
     let cancelled = false;
     setCodeLoading(true);
-    const params = new URLSearchParams();
-    if (form.department_id) params.set("department_id", form.department_id);
-    if (form.designation_id) params.set("designation_id", form.designation_id);
     apiClient
-      .get(`/employees/preview-code?${params.toString()}`)
+      .get("/employees/preview-code")
       .then((res) => {
         if (!cancelled) setCodePreview(res?.data?.employee_id || "");
       })
@@ -1906,7 +1898,7 @@ export default function UserFormModal({
     return () => {
       cancelled = true;
     };
-  }, [form.department_id, form.designation_id, isEdit]);
+  }, [isEdit]);
 
   // Reporting Manager should only offer people who actually manage
   // others -- SUPER ADMIN / HR / MANAGER-type roles -- not regular
@@ -2286,7 +2278,7 @@ export default function UserFormModal({
                   getLabel={(d) => d.designation_name}
                 />
               </Field>
-              {!isEdit && (form.department_id || form.designation_id) && (
+              {!isEdit && (
                 <Field label="Employee Code">
                   <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                     <Briefcase size={14} className="text-slate-400 shrink-0" />
@@ -2295,7 +2287,7 @@ export default function UserFormModal({
                     </span>
                   </div>
                   <span className="text-xs text-slate-400 mt-1 block">
-                    Auto-generated from the department and designation.
+                    Auto-generated. Short running number.
                   </span>
                 </Field>
               )}

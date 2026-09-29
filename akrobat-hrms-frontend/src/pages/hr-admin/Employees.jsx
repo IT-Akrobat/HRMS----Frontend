@@ -25,6 +25,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
 import SearchInput from "../../components/common/SearchInput";
+import SelectDropdown from "../../components/common/SelectDropdown";
 import { FilterDropdown } from "../../components/common/UserformModal";
 import { apiClient } from "../../services/apiClient";
 import { filterShiftsForSelection } from "../../utils/shiftMapping";
@@ -1368,7 +1369,7 @@ function OrgAddModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <form
         onSubmit={submit}
-        className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl"
+        className="bg-white rounded-2xl w-full max-w-md shadow-xl"
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h2 className="text-lg font-bold text-slate-800">
@@ -1389,19 +1390,15 @@ function OrgAddModal({
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Department
               </label>
-              <select
-                required
+              <SelectDropdown
+                placeholder="Select department"
                 value={deptId}
-                onChange={(e) => setDeptId(e.target.value)}
-                className={inputCls}
-              >
-                <option value="">Select department</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.department_name}
-                  </option>
-                ))}
-              </select>
+                onChange={setDeptId}
+                options={departments.map((d) => ({
+                  value: d.id,
+                  label: d.department_name,
+                }))}
+              />
             </div>
           )}
 
@@ -1442,18 +1439,18 @@ function OrgAddModal({
                   Default working hours{" "}
                   <span className="text-slate-400">(optional)</span>
                 </label>
-                <select
+                <SelectDropdown
+                  placeholder="None"
                   value={shiftId}
-                  onChange={(e) => setShiftId(e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="">None</option>
-                  {shifts.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.shift_name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setShiftId}
+                  options={[
+                    { value: "", label: "None" },
+                    ...shifts.map((x) => ({
+                      value: x.id,
+                      label: x.shift_name,
+                    })),
+                  ]}
+                />
               </div>
             )
           )}
@@ -1708,17 +1705,21 @@ export default function EmployeesHrAdmin() {
           <>
             <button
               onClick={() => setOrgModal("dept")}
-              className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-1.5"
+              aria-label="Add department"
+              title="Add department"
+              className="h-9 w-9 sm:w-auto sm:px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center justify-center gap-1.5"
             >
-              <Plus size={15} />
-              Department
+              <Plus size={16} />
+              <span className="hidden sm:inline">Department</span>
             </button>
             <button
               onClick={() => setOrgModal("desig")}
-              className="px-3 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center gap-1.5"
+              aria-label="Add designation"
+              title="Add designation"
+              className="h-9 w-9 sm:w-auto sm:px-3 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center justify-center gap-1.5"
             >
-              <Plus size={15} />
-              Designation
+              <Plus size={16} />
+              <span className="hidden sm:inline">Designation</span>
             </button>
           </>
         }
