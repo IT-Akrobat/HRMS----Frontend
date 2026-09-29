@@ -27,6 +27,7 @@ import PageHeader from "../../components/common/PageHeader";
 import SearchInput from "../../components/common/SearchInput";
 import SelectDropdown from "../../components/common/SelectDropdown";
 import { FilterDropdown } from "../../components/common/UserformModal";
+import { ROLES, normalizeRole } from "../../config/roles";
 import { apiClient } from "../../services/apiClient";
 import {
   filterShiftsForSelection,
@@ -185,6 +186,7 @@ function EmployeeFormModal({
     designations,
     shifts,
     employees,
+    managerCandidates = [],
     roles,
     annualLeaveTiers,
     childcareLeaveTiers,
@@ -314,6 +316,21 @@ function EmployeeFormModal({
   const selectedDesignation = designations.find(
     (d) => d.id === form.designation_id,
   );
+  // Reporting Manager only offers Super Admin / HR / Manager-type
+  // accounts (see managerCandidates in EmployeesHrAdmin below), never
+  // regular employees. If this employee's CURRENT manager is somehow not
+  // in that set (e.g. set before this rule), keep them in the list so the
+  // saved value still displays instead of silently showing "None".
+  const managerOptions = useMemo(() => {
+    const list = managerCandidates.filter((e) => e.id !== employee?.id);
+    const currentId = employee?.manager_id;
+    if (currentId && !list.some((e) => e.id === currentId)) {
+      const current = employees.find((e) => e.id === currentId);
+      if (current) list.push(current);
+    }
+    return list;
+  }, [managerCandidates, employees, employee?.id, employee?.manager_id]);
+
   const filteredShifts = filterShiftsForSelection(
     shifts,
     selectedDepartment?.department_name,
@@ -638,7 +655,7 @@ function EmployeeFormModal({
                   fullWidth
                   allLabel="None"
                   value={form.manager_id}
-                  options={employees.filter((e) => e.id !== employee?.id)}
+                  options={managerOptions}
                   getKey={(e) => e.id}
                   getLabel={(e) => `${e.full_name} (${e.employee_id})`}
                   onChange={(v) => set("manager_id", v)}
@@ -1530,6 +1547,9 @@ function OrgAddModal({
 
 export default function EmployeesHrAdmin() {
   const [employees, setEmployees] = useState([]);
+  // Employees whose role is Super Admin / HR / Manager-type -- the only
+  // people offered in the "Reporting Manager" dropdown.
+  const [managerCandidates, setManagerCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -1586,6 +1606,42 @@ export default function EmployeesHrAdmin() {
       .get("/shifts/")
       .then((res) => setShifts(asList(res)))
       .catch(() => setShifts([]));
+    // Reporting Manager candidates: fetch /employees/?role_id=<id> for
+    // every role that isn't a plain Employee (SUPER ADMIN, HR*, MANAGER,
+    // OPERATIONS/INSPECTION MANAGER, TEAM LEADER) and union the results.
+    // Uses the UNFILTERED role list, since SUPER ADMIN is left out of the
+    // assignable `roles` state below.
+    apiClient
+      .get("/roles/")
+      .then((res) => {
+        const managerRoles = asList(res).filter(
+          (r) => normalizeRole(r.role_name) !== ROLES.EMPLOYEE,
+        );
+        return Promise.all(
+          managerRoles.map((r) =>
+            apiClient
+              .get(`/employees/?role_id=${r.id}`)
+              .then((emps) => asList(emps))
+              .catch(() => []),
+          ),
+        );
+      })
+      .then((lists) => {
+        const seen = new Set();
+        const merged = [];
+        for (const e of lists.flat()) {
+          if (!seen.has(e.id)) {
+            seen.add(e.id);
+            merged.push(e);
+          }
+        }
+        merged.sort((a, b) =>
+          (a.full_name || "").localeCompare(b.full_name || ""),
+        );
+        setManagerCandidates(merged);
+      })
+      .catch(() => setManagerCandidates([]));
+
     apiClient
       .get("/roles/")
       .then((res) =>
@@ -1716,6 +1772,7 @@ export default function EmployeesHrAdmin() {
     designations,
     shifts,
     employees,
+    managerCandidates,
     roles,
     annualLeaveTiers,
     childcareLeaveTiers,
