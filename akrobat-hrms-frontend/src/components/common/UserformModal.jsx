@@ -2020,12 +2020,6 @@ export default function UserFormModal({
     // Email is optional on create -- leave it blank and HR can add it
     // later via Edit User (EmployeeCreate.email is Optional on the
     // backend; the employee logs in with the employee code either way).
-    if (!isEdit && !form.annual_leave_tier_id) {
-      // Every employee must be on one of the Annual Leave tiers
-      // (21/20/14/11/10 days) -- required on EmployeeCreate.
-      setError("Please select an Annual Leave tier for this user.");
-      return;
-    }
     // Gender / Marital Status / Nationality feed the leave eligibility
     // engine (Paternity, Maternity, Childcare, National Service Leave)
     // -- required up front on create so eligibility is correct from
@@ -2102,7 +2096,7 @@ export default function UserFormModal({
           joining_date: orUndefined(form.joining_date),
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
-          annual_leave_tier_id: form.annual_leave_tier_id,
+          annual_leave_tier_id: orUndefined(form.annual_leave_tier_id),
           childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
           working_days_per_week: form.working_days_per_week,
           works_saturday: form.works_saturday,
@@ -2503,7 +2497,7 @@ export default function UserFormModal({
               </p>
             )}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Annual Leave Tier" required={!isEdit}>
+              <Field label="Annual Leave Tier">
                 {tiersLoading ? (
                   <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400">
                     <Loader2 size={14} className="animate-spin shrink-0" />
@@ -2517,7 +2511,7 @@ export default function UserFormModal({
                       isEdit
                         ? "Keep current tier"
                         : annualLeaveTiers.length
-                          ? "Select tier"
+                          ? "Select tier (optional)"
                           : "No tiers available"
                     }
                     value={form.annual_leave_tier_id}

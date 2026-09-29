@@ -189,6 +189,7 @@ function EmployeeFormModal({
 
   const [form, setForm] = useState(() => ({
     full_name: employee?.full_name || "",
+    username: employee?.username || "",
     email: isSystemGeneratedEmail(employee) ? "" : employee?.email || "",
     phone: employee?.phone || "",
     role_id: defaultRoleId || "",
@@ -304,12 +305,6 @@ function EmployeeFormModal({
       setError("Please enter an email address for this employee.");
       return;
     }
-    if (!isEdit && !form.annual_leave_tier_id) {
-      // Every employee must be on one of the Annual Leave tiers
-      // (21/20/14/11/10 days) -- required on EmployeeCreate.
-      setError("Please select an Annual Leave tier for this employee.");
-      return;
-    }
 
     const orUndefined = (v) => (v ? v : undefined);
 
@@ -318,6 +313,7 @@ function EmployeeFormModal({
       if (isEdit) {
         const payload = {
           full_name: form.full_name.trim(),
+          username: form.username.trim() || undefined,
           email: orUndefined(form.email.trim()),
           phone: form.phone.trim() || undefined,
           department_id: orUndefined(form.department_id),
@@ -345,6 +341,7 @@ function EmployeeFormModal({
         // `email` is required on create -- validated above.
         const payload = {
           full_name: form.full_name.trim(),
+          username: form.username.trim() || undefined,
           email: form.email.trim(),
           phone: form.phone.trim() || undefined,
           department_id: orUndefined(form.department_id),
@@ -355,7 +352,7 @@ function EmployeeFormModal({
           joining_date: orUndefined(form.joining_date),
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
-          annual_leave_tier_id: form.annual_leave_tier_id,
+          annual_leave_tier_id: orUndefined(form.annual_leave_tier_id),
           childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
           working_days_per_week: form.working_days_per_week,
         };
@@ -522,6 +519,16 @@ function EmployeeFormModal({
                   placeholder="John Doe"
                 />
               </Field>
+              <Field label="Login Username">
+                <input
+                  className={inputCls}
+                  value={form.username}
+                  onChange={(e) =>
+                    set("username", e.target.value.replace(/\s/g, ""))
+                  }
+                  placeholder="e.g. sakthi (leave blank to use full name)"
+                />
+              </Field>
               <Field label="Email Address" required={!isEdit}>
                 <input
                   type="email"
@@ -659,10 +666,12 @@ function EmployeeFormModal({
               Leave Policy
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Annual Leave Tier" required={!isEdit}>
+              <Field label="Annual Leave Tier">
                 <FilterDropdown
                   fullWidth
-                  allLabel={isEdit ? "Keep current tier" : "Select tier"}
+                  allLabel={
+                    isEdit ? "Keep current tier" : "Select tier (optional)"
+                  }
                   value={form.annual_leave_tier_id}
                   options={annualLeaveTiers}
                   getKey={(t) => t.id}
