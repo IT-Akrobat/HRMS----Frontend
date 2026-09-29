@@ -2025,18 +2025,8 @@ export default function UserFormModal({
     // -- required up front on create so eligibility is correct from
     // day one instead of depending on the employee filling in "My
     // Profile" later.
-    if (!isEdit && !form.gender) {
-      setError("Please select a gender for this user.");
-      return;
-    }
-    if (!isEdit && !form.marital_status) {
-      setError("Please select a marital status for this user.");
-      return;
-    }
-    if (!isEdit && !form.nationality) {
-      setError("Please select a nationality for this user.");
-      return;
-    }
+    // Gender, marital status and nationality are optional on create;
+    // HR can fill them in later via Edit User.
 
     const orUndefined = (v) => (v ? v : undefined);
 
@@ -2352,11 +2342,11 @@ export default function UserFormModal({
               Personal Details
             </h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Gender" required={!isEdit}>
+              <Field label="Gender">
                 <FilterDropdown
                   fullWidth
                   showAllOption={false}
-                  allLabel="Select gender"
+                  allLabel="Select gender (optional)"
                   value={form.gender}
                   onChange={(v) => set("gender", v)}
                   options={["Male", "Female", "Other"]}
@@ -2364,11 +2354,11 @@ export default function UserFormModal({
                   getLabel={(g) => g}
                 />
               </Field>
-              <Field label="Marital Status" required={!isEdit}>
+              <Field label="Marital Status">
                 <FilterDropdown
                   fullWidth
                   showAllOption={false}
-                  allLabel="Select marital status"
+                  allLabel="Select marital status (optional)"
                   value={form.marital_status}
                   onChange={(v) => set("marital_status", v)}
                   options={["Single", "Married"]}
@@ -2380,11 +2370,11 @@ export default function UserFormModal({
                   Single is not eligible for any of them.
                 </span>
               </Field>
-              <Field label="Nationality" required={!isEdit}>
+              <Field label="Nationality">
                 <FilterDropdown
                   fullWidth
                   showAllOption={false}
-                  allLabel="Select nationality"
+                  allLabel="Select nationality (optional)"
                   value={form.nationality}
                   onChange={(v) => set("nationality", v)}
                   options={COUNTRIES}
