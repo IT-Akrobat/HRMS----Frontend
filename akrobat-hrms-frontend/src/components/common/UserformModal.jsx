@@ -1319,7 +1319,9 @@ import { apiClient } from "../../services/apiClient";
 import {
   filterShiftsForSelection,
   formatTime12h,
+  pickDefaultOfficeSaturdayId,
   pickDefaultShiftId,
+  resolveOfficeSaturdayOptions,
   resolveSaturdayShift,
 } from "../../utils/shiftMapping";
 import DatePicker from "../layout/DatePicker";
@@ -1781,6 +1783,8 @@ export default function UserFormModal({
     // _get_employee_shift). Independent flag, doesn't touch the
     // Yes/No toggle above.
     alternate_saturday: user?.alternate_saturday || false,
+    // Office-hours staff only: chosen Saturday timing (9-12 / 8:30-12:30).
+    saturday_shift_id: user?.saturday_shift_id || "",
     // "Chennai Leave Default" checkbox: 12 Sick / 12 Casual for this
     // employee only (see app/leaves/policy_services.py
     // apply_chennai_leave_default()). Never comes back from
@@ -1987,9 +1991,18 @@ export default function UserFormModal({
   // Role name of the role currently picked in the form — Operation Project
   // Manager only gets Office timing when the role is MANAGER (see
   // shiftMapping.resolveShiftNameForSelection).
+  //
+  // In Edit the Role field is read-only and form.role_id is never filled
+  // in, so the role has to come from the user being edited -- otherwise an
+  // Operation Project Manager with the MANAGER role was treated as "no
+  // role" and got the fixed Operation Site timing instead of the
+  // 8:30-5:30 / 9:00-6:00 choice they get on Create.
   const selectedRoleName = useMemo(
-    () => roles.find((r) => r.id === form.role_id)?.role_name,
-    [roles, form.role_id],
+    () =>
+      isEdit
+        ? user?.role_name
+        : roles.find((r) => r.id === form.role_id)?.role_name,
+    [isEdit, user, roles, form.role_id],
   );
 
   const filteredShifts = useMemo(() => {
@@ -2048,6 +2061,30 @@ export default function UserFormModal({
     [shifts, selectedWeekdayShift, isOperationDept],
   );
 
+  // Operation Site staff (fixed weekday timing) get the fixed Operation
+  // Saturday line. Office-hours staff -- including an Operation Project
+  // Manager with the MANAGER role -- choose between two Saturday timings.
+  const isFixedOperationSaturday =
+    isOperationDept && filteredShifts.length <= 1;
+  const hasSaturdayChoice = worksSaturday && filteredShifts.length > 1;
+  const officeSaturdayOptions = useMemo(
+    () => resolveOfficeSaturdayOptions(shifts),
+    [shifts],
+  );
+
+  // Preselect the Saturday timing that pairs with the weekday timing
+  // whenever none (or a stale one) is set.
+  useEffect(() => {
+    if (!hasSaturdayChoice || !officeSaturdayOptions.length) return;
+    if (officeSaturdayOptions.some((s) => s.id === form.saturday_shift_id))
+      return;
+    const id = pickDefaultOfficeSaturdayId(
+      shifts,
+      selectedWeekdayShift?.shift_name,
+    );
+    if (id) setForm((f) => ({ ...f, saturday_shift_id: id }));
+  }, [hasSaturdayChoice, officeSaturdayOptions, form.saturday_shift_id]);
+
   // Keep the form state itself in step with the Operation rule (e.g. HR
   // switches an existing employee's department to Operation).
   useEffect(() => {
@@ -2078,6 +2115,27 @@ export default function UserFormModal({
       return stillValid ? f : { ...f, designation_id: "", shift_id: "" };
     });
   }, [form.department_id, designations]);
+
+  // Edit only: Operation Project Manager (MANAGER role) has a real choice
+  // (8:30-5:30 / 9:00-6:00). If their saved shift is not one of those (e.g.
+  // it is still the old fixed Operation Site shift), preselect the default
+  // so a timing is highlighted. Any other employee is left alone.
+  useEffect(() => {
+    if (!isEdit || filteredShifts.length <= 1) return;
+    const isOpsPM =
+      (
+        departments.find((d) => d.id === form.department_id)?.department_name ||
+        ""
+      )
+        .trim()
+        .toUpperCase() === "OPERATION" &&
+      (selectedDesignation?.designation_name || "")
+        .toUpperCase()
+        .includes("PROJECT MANAGER");
+    if (!isOpsPM) return;
+    if (filteredShifts.some((s) => s.id === form.shift_id)) return;
+    setForm((f) => ({ ...f, shift_id: filteredShifts[0].id }));
+  }, [isEdit, filteredShifts, form.department_id, selectedDesignation]);
 
   // Auto-fill the shift/timing from the designation's own default whenever the
   // designation changes (HR can still override it via the Shift dropdown).
@@ -2185,6 +2243,10 @@ export default function UserFormModal({
           working_days_per_week: form.working_days_per_week,
           works_saturday: isOperationDept ? true : form.works_saturday,
           alternate_saturday: isOperationDept ? false : form.alternate_saturday,
+          // null clears it when the employee is no longer Office-hours.
+          saturday_shift_id: hasSaturdayChoice
+            ? orUndefined(form.saturday_shift_id)
+            : null,
           chennai_leave_default: form.chennai_leave_default || undefined,
           gender: orUndefined(form.gender),
           marital_status: orUndefined(form.marital_status),
@@ -2215,6 +2277,9 @@ export default function UserFormModal({
           working_days_per_week: form.working_days_per_week,
           works_saturday: isOperationDept ? true : form.works_saturday,
           alternate_saturday: isOperationDept ? false : form.alternate_saturday,
+          saturday_shift_id: hasSaturdayChoice
+            ? orUndefined(form.saturday_shift_id)
+            : undefined,
           chennai_leave_default: form.chennai_leave_default,
           gender: form.gender,
           marital_status: form.marital_status,
@@ -2653,10 +2718,31 @@ export default function UserFormModal({
                   <>
                     <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2.5 sm:py-2 text-sm font-medium text-orange-700">
                       Every Saturday
-                      {saturdayShift
-                        ? ` · ${formatTime12h(saturdayShift.start_time)} – ${formatTime12h(saturdayShift.end_time)}`
-                        : " · 8:00 AM – 3:30 PM"}
+                      {isFixedOperationSaturday
+                        ? saturdayShift
+                          ? ` · ${formatTime12h(saturdayShift.start_time)} – ${formatTime12h(saturdayShift.end_time)}`
+                          : " · 8:00 AM – 3:30 PM"
+                        : ""}
                     </div>
+                    {hasSaturdayChoice && (
+                      <div className="mt-2 flex gap-2">
+                        {officeSaturdayOptions.map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => set("saturday_shift_id", s.id)}
+                            className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                              form.saturday_shift_id === s.id
+                                ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                                : "border-slate-200 text-slate-600 hover:border-slate-300"
+                            }`}
+                          >
+                            {formatTime12h(s.start_time)} –{" "}
+                            {formatTime12h(s.end_time)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <span className="text-xs text-slate-400 mt-1 block">
                       Operation department works every Saturday — no alternate
                       Saturday option.
@@ -2688,12 +2774,34 @@ export default function UserFormModal({
                         Yes
                       </button>
                     </div>
-                    {worksSaturday && saturdayShift && (
-                      <span className="text-xs text-slate-400 mt-1 block">
-                        Saturday: {formatTime12h(saturdayShift.start_time)} –{" "}
-                        {formatTime12h(saturdayShift.end_time)}
-                      </span>
+                    {hasSaturdayChoice && !isOperationDept && (
+                      <div className="mt-2 flex gap-2">
+                        {officeSaturdayOptions.map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => set("saturday_shift_id", s.id)}
+                            className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                              form.saturday_shift_id === s.id
+                                ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                                : "border-slate-200 text-slate-600 hover:border-slate-300"
+                            }`}
+                          >
+                            {formatTime12h(s.start_time)} –{" "}
+                            {formatTime12h(s.end_time)}
+                          </button>
+                        ))}
+                      </div>
                     )}
+                    {worksSaturday &&
+                      saturdayShift &&
+                      !hasSaturdayChoice &&
+                      !isOperationDept && (
+                        <span className="text-xs text-slate-400 mt-1 block">
+                          Saturday: {formatTime12h(saturdayShift.start_time)} –{" "}
+                          {formatTime12h(saturdayShift.end_time)}
+                        </span>
+                      )}
                     <span className="text-xs text-slate-400 mt-1 block">
                       Controls this employee's Saturday shift assignment only.
                     </span>

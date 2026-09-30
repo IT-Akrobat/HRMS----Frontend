@@ -155,6 +155,36 @@ export function resolveSaturdayShift(shifts, weekdayShiftName) {
 }
 
 /**
+ * Office-hours staff (8:30-5:30 / 9:00-6:00 weekdays, including an
+ * Operation Project Manager with the MANAGER role) choose one of two
+ * Saturday timings. Stored per employee as employees.saturday_shift_id
+ * (sql/034.sql).
+ */
+export const OFFICE_SATURDAY_SHIFT_NAMES = [
+  "OFFICE - SATURDAY (9:00-12:00)",
+  "OFFICE - SATURDAY (8:30-12:30)",
+];
+
+export function resolveOfficeSaturdayOptions(shifts) {
+  return OFFICE_SATURDAY_SHIFT_NAMES.map((name) =>
+    (shifts || []).find((s) => (s.shift_name || "").trim() === name),
+  ).filter(Boolean);
+}
+
+/** Default Saturday option that pairs with the chosen weekday timing. */
+export function pickDefaultOfficeSaturdayId(shifts, weekdayShiftName) {
+  const options = resolveOfficeSaturdayOptions(shifts);
+  if (!options.length) return "";
+  const wantsLate = (weekdayShiftName || "").includes("9:00");
+  const match = options.find((s) =>
+    wantsLate
+      ? s.shift_name.includes("9:00-12:00")
+      : s.shift_name.includes("8:30-12:30"),
+  );
+  return (match || options[0]).id;
+}
+
+/**
  * '08:30' -> '8:30 AM'. Shift rows store start_time/end_time as 24h
  * 'HH:MM' strings; every read-only hours line in the Create/Edit User
  * form goes through this so HR never has to mentally convert 24h times.
