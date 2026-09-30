@@ -268,7 +268,7 @@ export default function Login() {
               </button>
 
               {/* Desktop only — hidden on mobile per design. */}
-              <p className="hidden lg:block text-center text-sm text-gray-600 pt-2">
+              {/* <p className="hidden lg:block text-center text-sm text-gray-600 pt-2">
                 Don't have an account?{" "}
                 <a
                   href="#"
@@ -276,7 +276,7 @@ export default function Login() {
                 >
                   Contact Administrator
                 </a>
-              </p>
+              </p> */}
             </form>
           </div>
         </div>

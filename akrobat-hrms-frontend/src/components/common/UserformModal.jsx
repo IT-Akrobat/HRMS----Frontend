@@ -2028,11 +2028,37 @@ export default function UserFormModal({
   // payroll's Unpaid Leave deduction denominator and has no defined
   // relationship to Saturday shift hours in the source Leave Info doc, so
   // the two are kept fully separate rather than one implying the other.
-  const worksSaturday = form.works_saturday;
+  //
+  // OPERATION department: everyone works EVERY Saturday (8:00 AM - 3:30 PM,
+  // "OPERATION SITE - SATURDAY"), so the Yes/No toggle and the Alternate
+  // Saturday option don't apply -- the form shows a fixed line instead and
+  // always saves works_saturday = true / alternate_saturday = false.
+  const isOperationDept = (
+    departments.find((d) => d.id === form.department_id)?.department_name || ""
+  )
+    .trim()
+    .toUpperCase()
+    .startsWith("OPERATION");
+  const worksSaturday = isOperationDept || form.works_saturday;
   const saturdayShift = useMemo(
-    () => resolveSaturdayShift(shifts, selectedWeekdayShift?.shift_name),
-    [shifts, selectedWeekdayShift],
+    () =>
+      isOperationDept
+        ? resolveSaturdayShift(shifts, "OPERATION SITE")
+        : resolveSaturdayShift(shifts, selectedWeekdayShift?.shift_name),
+    [shifts, selectedWeekdayShift, isOperationDept],
   );
+
+  // Keep the form state itself in step with the Operation rule (e.g. HR
+  // switches an existing employee's department to Operation).
+  useEffect(() => {
+    if (isOperationDept) {
+      setForm((f) =>
+        f.works_saturday && !f.alternate_saturday
+          ? f
+          : { ...f, works_saturday: true, alternate_saturday: false },
+      );
+    }
+  }, [isOperationDept]);
 
   // If the currently-picked designation no longer belongs to the newly-picked
   // department, clear it (and its shift) rather than leaving a stale mismatch.
@@ -2157,8 +2183,8 @@ export default function UserFormModal({
           annual_leave_tier_id: orUndefined(form.annual_leave_tier_id),
           childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
           working_days_per_week: form.working_days_per_week,
-          works_saturday: form.works_saturday,
-          alternate_saturday: form.alternate_saturday,
+          works_saturday: isOperationDept ? true : form.works_saturday,
+          alternate_saturday: isOperationDept ? false : form.alternate_saturday,
           chennai_leave_default: form.chennai_leave_default || undefined,
           gender: orUndefined(form.gender),
           marital_status: orUndefined(form.marital_status),
@@ -2187,8 +2213,8 @@ export default function UserFormModal({
           annual_leave_tier_id: orUndefined(form.annual_leave_tier_id),
           childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
           working_days_per_week: form.working_days_per_week,
-          works_saturday: form.works_saturday,
-          alternate_saturday: form.alternate_saturday,
+          works_saturday: isOperationDept ? true : form.works_saturday,
+          alternate_saturday: isOperationDept ? false : form.alternate_saturday,
           chennai_leave_default: form.chennai_leave_default,
           gender: form.gender,
           marital_status: form.marital_status,
@@ -2623,51 +2649,68 @@ export default function UserFormModal({
                 )}
               </Field>
               <Field label="Works Saturdays?">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => set("works_saturday", false)}
-                    className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
-                      !worksSaturday
-                        ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
-                        : "border-slate-200 text-slate-600 hover:border-slate-300"
-                    }`}
-                  >
-                    No
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => set("works_saturday", true)}
-                    className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
-                      worksSaturday
-                        ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
-                        : "border-slate-200 text-slate-600 hover:border-slate-300"
-                    }`}
-                  >
-                    Yes
-                  </button>
-                </div>
-                {worksSaturday && saturdayShift && (
-                  <span className="text-xs text-slate-400 mt-1 block">
-                    Saturday: {formatTime12h(saturdayShift.start_time)} –{" "}
-                    {formatTime12h(saturdayShift.end_time)}
-                  </span>
-                )}
-                <span className="text-xs text-slate-400 mt-1 block">
-                  Controls this employee's Saturday shift assignment only.
-                </span>
-                {worksSaturday && (
-                  <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={!!form.alternate_saturday}
-                      onChange={(e) =>
-                        set("alternate_saturday", e.target.checked)
-                      }
-                      className="rounded border-slate-300"
-                    />
-                    Alternate Saturday (1st &amp; 3rd Saturday only)
-                  </label>
+                {isOperationDept ? (
+                  <>
+                    <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2.5 sm:py-2 text-sm font-medium text-orange-700">
+                      Every Saturday
+                      {saturdayShift
+                        ? ` · ${formatTime12h(saturdayShift.start_time)} – ${formatTime12h(saturdayShift.end_time)}`
+                        : " · 8:00 AM – 3:30 PM"}
+                    </div>
+                    <span className="text-xs text-slate-400 mt-1 block">
+                      Operation department works every Saturday — no alternate
+                      Saturday option.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => set("works_saturday", false)}
+                        className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                          !worksSaturday
+                            ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                            : "border-slate-200 text-slate-600 hover:border-slate-300"
+                        }`}
+                      >
+                        No
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => set("works_saturday", true)}
+                        className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                          worksSaturday
+                            ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                            : "border-slate-200 text-slate-600 hover:border-slate-300"
+                        }`}
+                      >
+                        Yes
+                      </button>
+                    </div>
+                    {worksSaturday && saturdayShift && (
+                      <span className="text-xs text-slate-400 mt-1 block">
+                        Saturday: {formatTime12h(saturdayShift.start_time)} –{" "}
+                        {formatTime12h(saturdayShift.end_time)}
+                      </span>
+                    )}
+                    <span className="text-xs text-slate-400 mt-1 block">
+                      Controls this employee's Saturday shift assignment only.
+                    </span>
+                    {worksSaturday && (
+                      <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={!!form.alternate_saturday}
+                          onChange={(e) =>
+                            set("alternate_saturday", e.target.checked)
+                          }
+                          className="rounded border-slate-300"
+                        />
+                        Alternate Saturday (1st &amp; 3rd Saturday only)
+                      </label>
+                    )}
+                  </>
                 )}
               </Field>
               <Field label="Working Days / Week">
