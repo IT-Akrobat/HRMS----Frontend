@@ -42,7 +42,6 @@ import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 import { geocodeQueue, placeKey } from "../../utils/Geocode";
-import { LocationFormModal } from "../shared/OrganizationLocations";
 
 // -----------------------------------------------------------------------
 // A note on scope: the reference mockup (Server Status / Storage Usage /
@@ -394,11 +393,6 @@ export default function HrAdminDashboard() {
       .finally(() => setAddUserLoading(false));
   }
 
-  // "Create Site" quick action opens the exact same LocationFormModal
-  // used on the Organization Locations page (see
-  // pages/shared/OrganizationLocations.jsx) — no reference data to
-  // preload, so this can just toggle straight open.
-  const [addSiteOpen, setAddSiteOpen] = useState(false);
   // "Outdoor Check-in Access" quick action opens in-place too, same
   // pattern as Create User / Create Site above.
   const [outdoorAccessOpen, setOutdoorAccessOpen] = useState(false);
@@ -566,18 +560,6 @@ export default function HrAdminDashboard() {
                 <UserPlus size={16} />
                 <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                   Create User
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setAddSiteOpen(true)}
-                title="Create Site"
-                aria-label="Create Site"
-                className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
-              >
-                <Building2 size={16} />
-                <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  Create Site
                 </span>
               </button>
               <button
@@ -932,7 +914,6 @@ export default function HrAdminDashboard() {
           open so it can't float on top of / be tapped through them. */}
       {typeof document !== "undefined" &&
         !addUserOpen &&
-        !addSiteOpen &&
         !outdoorAccessOpen &&
         createPortal(
           <div className="fixed bottom-6 right-5 z-[999] flex flex-col items-end gap-2.5 lg:hidden">
@@ -955,28 +936,6 @@ export default function HrAdminDashboard() {
               </span>
               <span className="w-11 h-11 rounded-full bg-[#0B1830]/95 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform shrink-0">
                 <MapPin size={17} />
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setQuickMenuOpen(false);
-                setAddSiteOpen(true);
-              }}
-              title="Create Site"
-              aria-label="Create Site"
-              className={`flex items-center gap-2 transition-all duration-150 delay-75 ${
-                quickMenuOpen
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-2 pointer-events-none"
-              }`}
-            >
-              <span className="text-xs font-medium text-white bg-[#0B1830]/95 px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
-                Create Site
-              </span>
-              <span className="w-11 h-11 rounded-full bg-[#0B1830]/95 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform shrink-0">
-                <Building2 size={17} />
               </span>
             </button>
 
@@ -1356,26 +1315,6 @@ export default function HrAdminDashboard() {
               .then((res) => setDeptDistribution(res.departments || []))
               .catch(() => {});
             setAddUserRefData(null);
-          }}
-        />
-      )}
-
-      {/* ---------- Create Site modal (opened from the "Create Site"
-          quick action above) — same form as Organization Locations. ---------- */}
-      {addSiteOpen && (
-        <LocationFormModal
-          mode="add"
-          onClose={() => setAddSiteOpen(false)}
-          onSaved={() => {
-            setAddSiteOpen(false);
-            // Same staleness issue as Create User above: refresh the
-            // "Locations" stat and the locations list immediately instead
-            // of waiting for a manual page refresh.
-            loadStats();
-            apiClient
-              .get("/locations/")
-              .then((res) => setLocations(res.data || []))
-              .catch(() => {});
           }}
         />
       )}
