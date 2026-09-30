@@ -753,7 +753,7 @@ export default function SuperAdminDashboard() {
           subtitle="Overview of your system and activity"
           actions={
             <div className="flex items-center gap-3">
-              <button
+              {/* <button
                 type="button"
                 onClick={openAddUser}
                 title="Create User"
@@ -776,7 +776,7 @@ export default function SuperAdminDashboard() {
                 <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                   Create Site
                 </span>
-              </button>
+              </button> */}
               <QuoteOfDayCard compact />
             </div>
           }
