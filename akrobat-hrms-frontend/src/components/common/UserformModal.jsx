@@ -2858,7 +2858,7 @@ export default function UserFormModal({
                           }
                           className="rounded border-slate-300"
                         />
-                        Alternate Saturday (1st &amp; 3rd Saturday only)
+                        Alternate Saturday (2nd &amp; 4th Saturday only)
                       </label>
                     )}
                   </>
