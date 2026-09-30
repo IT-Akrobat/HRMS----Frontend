@@ -10,6 +10,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import logo from "../../assets/images/akrobat-logo.png";
 import { NAVIGATION_CONFIG } from "../../config/navigationConfig";
 import { useAuth } from "../../context/AuthContext";
+import { isFieldEmployee } from "../../utils/employeeType";
 
 function isChildActive(children, pathname) {
   // EXACT match only - NO startsWith
@@ -24,9 +25,19 @@ export default function Sidebar({
   mobileOpen = false,
   onCloseMobile = () => {},
 }) {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const location = useLocation();
-  const items = NAVIGATION_CONFIG[role] ?? [];
+  // Items flagged `fieldOnly` (e.g. "Sites Worked") are shown only to
+  // Inspection / Operation department staff.
+  const showFieldOnly = isFieldEmployee(user);
+  const items = (NAVIGATION_CONFIG[role] ?? []).map((item) =>
+    item.children
+      ? {
+          ...item,
+          children: item.children.filter((c) => !c.fieldOnly || showFieldOnly),
+        }
+      : item,
+  );
 
   const [openGroups, setOpenGroups] = useState(() => {
     const initial = {};
