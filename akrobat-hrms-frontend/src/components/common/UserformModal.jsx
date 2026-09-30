@@ -1319,8 +1319,12 @@ import { apiClient } from "../../services/apiClient";
 import {
   filterShiftsForSelection,
   formatTime12h,
+  INSPECTION_SHIFT_NAMES,
+  OFFICE_SHIFT_NAMES,
+  pickDefaultInspectionSaturdayId,
   pickDefaultOfficeSaturdayId,
   pickDefaultShiftId,
+  resolveInspectionSaturdayOptions,
   resolveOfficeSaturdayOptions,
   resolveSaturdayShift,
 } from "../../utils/shiftMapping";
@@ -2046,12 +2050,19 @@ export default function UserFormModal({
   // "OPERATION SITE - SATURDAY"), so the Yes/No toggle and the Alternate
   // Saturday option don't apply -- the form shows a fixed line instead and
   // always saves works_saturday = true / alternate_saturday = false.
-  const isOperationDept = (
-    departments.find((d) => d.id === form.department_id)?.department_name || ""
-  )
-    .trim()
-    .toUpperCase()
-    .startsWith("OPERATION");
+  // Operation PROJECT MANAGER is the exception: they keep the Works
+  // Saturdays Yes/No + Alternate Saturday (1st & 3rd) options.
+  const isOperationDept =
+    (
+      departments.find((d) => d.id === form.department_id)?.department_name ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .startsWith("OPERATION") &&
+    !(selectedDesignation?.designation_name || "")
+      .toUpperCase()
+      .includes("PROJECT MANAGER");
   const worksSaturday = isOperationDept || form.works_saturday;
   const saturdayShift = useMemo(
     () =>
@@ -2066,10 +2077,21 @@ export default function UserFormModal({
   // Manager with the MANAGER role -- choose between two Saturday timings.
   const isFixedOperationSaturday =
     isOperationDept && filteredShifts.length <= 1;
-  const hasSaturdayChoice = worksSaturday && filteredShifts.length > 1;
+  const isInspectionChoice =
+    filteredShifts.length > 1 &&
+    filteredShifts.every((s) => INSPECTION_SHIFT_NAMES.includes(s.shift_name));
+  const isOfficeHours =
+    filteredShifts.length > 1 &&
+    filteredShifts.every((s) => OFFICE_SHIFT_NAMES.includes(s.shift_name));
+  // Office-hours AND Inspection staff pick their own Saturday timing.
+  const hasSaturdayChoice =
+    worksSaturday && (isOfficeHours || isInspectionChoice);
   const officeSaturdayOptions = useMemo(
-    () => resolveOfficeSaturdayOptions(shifts),
-    [shifts],
+    () =>
+      isInspectionChoice
+        ? resolveInspectionSaturdayOptions(shifts)
+        : resolveOfficeSaturdayOptions(shifts),
+    [shifts, isInspectionChoice],
   );
 
   // Preselect the Saturday timing that pairs with the weekday timing
@@ -2078,12 +2100,18 @@ export default function UserFormModal({
     if (!hasSaturdayChoice || !officeSaturdayOptions.length) return;
     if (officeSaturdayOptions.some((s) => s.id === form.saturday_shift_id))
       return;
-    const id = pickDefaultOfficeSaturdayId(
-      shifts,
-      selectedWeekdayShift?.shift_name,
-    );
+    const pickDefault = isInspectionChoice
+      ? pickDefaultInspectionSaturdayId
+      : pickDefaultOfficeSaturdayId;
+    const id = pickDefault(shifts, selectedWeekdayShift?.shift_name);
     if (id) setForm((f) => ({ ...f, saturday_shift_id: id }));
-  }, [hasSaturdayChoice, officeSaturdayOptions, form.saturday_shift_id]);
+  }, [
+    hasSaturdayChoice,
+    officeSaturdayOptions,
+    form.saturday_shift_id,
+    isInspectionChoice,
+    selectedWeekdayShift,
+  ]);
 
   // Keep the form state itself in step with the Operation rule (e.g. HR
   // switches an existing employee's department to Operation).
@@ -2619,6 +2647,21 @@ export default function UserFormModal({
                       ? `${formatTime12h(filteredShifts[0].start_time)} – ${formatTime12h(filteredShifts[0].end_time)} (fixed)`
                       : "No matching shift configured"}
                   </div>
+                ) : isInspectionChoice ? (
+                  // Inspection — choice of 8:00-4:30 / 8:30-5:30 as a
+                  // dropdown.
+                  <FilterDropdown
+                    fullWidth
+                    showAllOption={false}
+                    allLabel="Select timing"
+                    value={form.shift_id}
+                    onChange={(v) => set("shift_id", v)}
+                    options={filteredShifts}
+                    getKey={(s) => s.id}
+                    getLabel={(s) =>
+                      `${formatTime12h(s.start_time)} – ${formatTime12h(s.end_time)}`
+                    }
+                  />
                 ) : (
                   // Office — the one area with a real choice.
                   <div className="flex gap-2">

@@ -38,6 +38,14 @@ export const OFFICE_SHIFT_NAME = "OFFICE - WEEKDAY (8:30-5:30)";
 export const OFFICE_SHIFT_NAME_LATE = "OFFICE - WEEKDAY (9:00-6:00)";
 export const OFFICE_SHIFT_NAMES = [OFFICE_SHIFT_NAME, OFFICE_SHIFT_NAME_LATE];
 export const INSPECTION_SITE_SHIFT_NAME = "INSPECTION SITE - WEEKDAY";
+// Inspection team picks one of three weekday timings (sql/035.sql, plus the
+// original 9:00-6:00 row, which the Attendance List still uses for some
+// inspectors).
+export const INSPECTION_SHIFT_NAMES = [
+  "INSPECTION SITE - WEEKDAY (8:00-4:30)",
+  "INSPECTION SITE - WEEKDAY (8:30-5:30)",
+  INSPECTION_SITE_SHIFT_NAME,
+];
 export const OPERATION_SITE_SHIFT_NAME = "OPERATION SITE - WEEKDAY";
 export const WORK_SHOP_SHIFT_NAME = "WORK SHOP - WEEKDAY";
 
@@ -89,6 +97,15 @@ export function resolveShiftNamesForSelection(
   roleName,
 ) {
   if (!departmentName) return null;
+
+  // Inspection (except Storeman, who is on Work Shop hours) has a real
+  // choice between 8:00-4:30 and 8:30-5:30.
+  if (
+    departmentName.trim().toUpperCase() === "INSPECTION" &&
+    !(designationName || "").toUpperCase().includes("STOREMAN")
+  ) {
+    return INSPECTION_SHIFT_NAMES;
+  }
 
   const single = resolveShiftNameForSelection(
     departmentName,
@@ -156,19 +173,36 @@ export function resolveSaturdayShift(shifts, weekdayShiftName) {
 
 /**
  * Office-hours staff (8:30-5:30 / 9:00-6:00 weekdays, including an
- * Operation Project Manager with the MANAGER role) choose one of two
- * Saturday timings. Stored per employee as employees.saturday_shift_id
- * (sql/034.sql).
+ * Operation Project Manager with the MANAGER role) and Inspection staff
+ * choose their own Saturday timing. Stored per employee as
+ * employees.saturday_shift_id (sql/034.sql, sql/036.sql).
  */
 export const OFFICE_SATURDAY_SHIFT_NAMES = [
   "OFFICE - SATURDAY (9:00-12:00)",
   "OFFICE - SATURDAY (8:30-12:30)",
+  "OFFICE - SATURDAY (8:30-12:00)",
 ];
 
+export const INSPECTION_SATURDAY_SHIFT_NAMES = [
+  "INSPECTION SITE - SATURDAY (8:00-3:30)",
+  "INSPECTION SITE - SATURDAY (8:30-12:30)",
+  "INSPECTION SITE - SATURDAY", // original row, 9:00-1:00
+];
+
+function pickShiftsByName(shifts, names) {
+  return names
+    .map((name) =>
+      (shifts || []).find((s) => (s.shift_name || "").trim() === name),
+    )
+    .filter(Boolean);
+}
+
 export function resolveOfficeSaturdayOptions(shifts) {
-  return OFFICE_SATURDAY_SHIFT_NAMES.map((name) =>
-    (shifts || []).find((s) => (s.shift_name || "").trim() === name),
-  ).filter(Boolean);
+  return pickShiftsByName(shifts, OFFICE_SATURDAY_SHIFT_NAMES);
+}
+
+export function resolveInspectionSaturdayOptions(shifts) {
+  return pickShiftsByName(shifts, INSPECTION_SATURDAY_SHIFT_NAMES);
 }
 
 /** Default Saturday option that pairs with the chosen weekday timing. */
@@ -181,6 +215,27 @@ export function pickDefaultOfficeSaturdayId(shifts, weekdayShiftName) {
       ? s.shift_name.includes("9:00-12:00")
       : s.shift_name.includes("8:30-12:30"),
   );
+  return (match || options[0]).id;
+}
+
+/**
+ * Inspection pairing (from the Attendance List):
+ *   weekday 8:00-4:30 -> Sat 8:00-3:30
+ *   weekday 8:30-5:30 -> Sat 8:30-12:30
+ *   weekday 9:00-6:00 -> Sat 9:00-1:00
+ */
+export function pickDefaultInspectionSaturdayId(shifts, weekdayShiftName) {
+  const options = resolveInspectionSaturdayOptions(shifts);
+  if (!options.length) return "";
+  const w = weekdayShiftName || "";
+  const wanted = w.includes("(8:00-4:30)")
+    ? "(8:00-3:30)"
+    : w.includes("(8:30-5:30)")
+      ? "(8:30-12:30)"
+      : null;
+  const match = wanted
+    ? options.find((s) => s.shift_name.includes(wanted))
+    : options.find((s) => s.shift_name === "INSPECTION SITE - SATURDAY");
   return (match || options[0]).id;
 }
 
