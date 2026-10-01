@@ -14,9 +14,13 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Modal from "../../components/common/Modal";
-import PageHeader from "../../components/common/PageHeader";
+import DatePicker from "../../components/layout/DatePicker";
 import { apiClient } from "../../services/apiClient";
-import { parseServerDate } from "../../utils/date";
+import {
+  parseLocalISODate,
+  parseServerDate,
+  toLocalISODate,
+} from "../../utils/date";
 import {
   geocodeQueue,
   isEnglishText,
@@ -280,6 +284,9 @@ export default function SecurityAuditLogs() {
   // Only one of module / actionFilter is ever active at a time.
   const [actionFilter, setActionFilter] = useState("");
   const [search, setSearch] = useState("");
+  // "YYYY-MM-DD" (the viewer's local day) or "" for no date filter. Works
+  // together with the Check In / Check Out / module chips.
+  const [dateFilter, setDateFilter] = useState("");
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
 
@@ -306,6 +313,13 @@ export default function SecurityAuditLogs() {
       page: String(page),
       limit: String(PAGE_SIZE),
     });
+
+    // Local-day -> UTC range, so "Oct 1" means Oct 1 where the viewer is.
+    if (dateFilter) {
+      const [y, m, d] = dateFilter.split("-").map(Number);
+      params.set("start", new Date(y, m - 1, d).toISOString());
+      params.set("end", new Date(y, m - 1, d + 1).toISOString());
+    }
 
     const path = actionFilter
       ? `/audit-logs/action/${encodeURIComponent(actionFilter)}?${params.toString()}`
@@ -368,7 +382,7 @@ export default function SecurityAuditLogs() {
       });
   }
 
-  useEffect(load, [page, module, actionFilter]);
+  useEffect(load, [page, module, actionFilter, dateFilter]);
 
   const filtered = useMemo(() => {
     if (!records) return null;
@@ -433,10 +447,52 @@ export default function SecurityAuditLogs() {
 
   return (
     <div>
-      <PageHeader
-        title="Audit Logs"
-        subtitle="Full trail of who did what, across every module — company-wide."
-      />
+      {/* Title + date filter. On phones the filter drops below the title
+          and spans the full width; the calendar itself opens as a bottom
+          sheet (see DatePicker `sheetOnMobile`) so it can never overlap the page. */}
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">
+            Audit Logs
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Full trail of who did what, across every module — company-wide.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+          <DatePicker
+            bordered
+            clearable
+            overlay
+            sheetOnMobile
+            value={dateFilter}
+            max={toLocalISODate()}
+            placeholder="Filter by date"
+            onChange={(iso) => {
+              setDateFilter(iso);
+              setPage(1);
+            }}
+            className="flex-1 sm:flex-none sm:w-48"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setDateFilter(
+                dateFilter === toLocalISODate() ? "" : toLocalISODate(),
+              );
+              setPage(1);
+            }}
+            className={`shrink-0 h-9 px-4 rounded-lg text-sm font-medium border transition-colors ${
+              dateFilter === toLocalISODate()
+                ? "bg-orange-500 border-orange-500 text-white"
+                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            Today
+          </button>
+        </div>
+      </div>
 
       {error && (
         <div className="mb-4 text-sm text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-4 py-2.5">
@@ -469,8 +525,8 @@ export default function SecurityAuditLogs() {
 
       <div className="bg-white rounded-xl border border-slate-200">
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-2 overflow-x-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-3 sm:py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-0.5 order-2 sm:order-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex items-center gap-1.5 text-xs text-slate-400 shrink-0 pr-1">
               <Filter size={13} /> Module
             </div>
@@ -549,19 +605,49 @@ export default function SecurityAuditLogs() {
             ))}
           </div>
 
-          <div className="relative w-full sm:w-64 shrink-0">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search this page..."
-              className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500/30"
-            />
+          <div className="w-full sm:w-auto shrink-0 order-1 sm:order-none">
+            <div className="relative w-full sm:w-64">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search this page..."
+                className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500/30"
+              />
+            </div>
           </div>
         </div>
+
+        {/* Active date filter summary */}
+        {dateFilter && (
+          <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-2 bg-orange-50/70 border-b border-orange-100 text-xs text-orange-700">
+            <span className="truncate">
+              Showing events on{" "}
+              <span className="font-semibold">
+                {parseLocalISODate(dateFilter)?.toLocaleDateString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+              {records !== null && <> · {total} total</>}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setDateFilter("");
+                setPage(1);
+              }}
+              className="shrink-0 font-semibold hover:underline"
+            >
+              Clear
+            </button>
+          </div>
+        )}
 
         {/* Table */}
         {filtered === null ? (
@@ -697,44 +783,28 @@ export default function SecurityAuditLogs() {
                 const meta = actionMeta(log.action);
                 const ActionIcon = meta.icon;
                 const { message } = parseDescription(log.description);
-                const { lat, lon } = extractCoords(log);
-                const storedAddress = extractStoredAddress(log);
-                const place =
-                  resolveStoredAddress(storedAddress, translatedAddresses) ||
-                  (lat != null && lon != null
-                    ? placeCache[placeKey(lat, lon)]
-                    : null);
-                const locationText =
-                  place ||
-                  (lat != null && lon != null
-                    ? `${lat.toFixed(4)}, ${lon.toFixed(4)}`
-                    : "—");
                 const isOpenVisit = openSiteVisitIds.has(log.id);
 
                 return (
                   <div
                     key={log.id}
                     onClick={() => setSelected(log)}
-                    className="p-4 active:bg-slate-50"
+                    className="px-4 py-3.5 active:bg-slate-50"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Avatar
-                          person={log.employees}
-                          className="w-9 h-9 rounded-full text-xs"
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-700 truncate">
-                            {log.employees?.full_name || "System"}
-                          </p>
-                          <p className="text-xs text-slate-400 truncate">
-                            {log.employees?.employee_id || "—"}
-                          </p>
-                        </div>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Avatar
+                        person={log.employees}
+                        className="w-9 h-9 rounded-full text-xs"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-700 truncate">
+                          {log.employees?.full_name || "System"}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate">
+                          {log.employees?.employee_id || "—"} ·{" "}
+                          {formatDateTime(log.created_at)}
+                        </p>
                       </div>
-                      <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0 pt-0.5">
-                        {formatDateTime(log.created_at)}
-                      </span>
                     </div>
 
                     <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
@@ -759,11 +829,6 @@ export default function SecurityAuditLogs() {
                         {message}
                       </p>
                     )}
-
-                    <div className="flex items-center justify-between gap-3 mt-2.5 text-xs text-slate-400">
-                      <span className="truncate">{locationText}</span>
-                      <span className="shrink-0">{log.ip_address || "—"}</span>
-                    </div>
                   </div>
                 );
               })}

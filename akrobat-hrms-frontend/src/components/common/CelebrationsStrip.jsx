@@ -84,7 +84,7 @@ export function OnLeaveTodayCard() {
       ) : employees.length === 0 ? (
         <p className="text-sm text-slate-400">No one is on leave today.</p>
       ) : (
-        <ul className="divide-y divide-slate-100 overflow-y-auto max-h-64">
+        <ul className="divide-y divide-slate-100 overflow-y-auto overscroll-y-auto min-h-0 flex-1 max-h-64 touch-pan-y">
           {employees.map((p, i) => (
             <li
               key={p.employee_id ?? `on-leave-${i}`}
@@ -179,7 +179,7 @@ export default function BirthdaysCard() {
           No birthdays or anniversaries in the next 30 days.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100 overflow-y-auto max-h-64">
+        <ul className="divide-y divide-slate-100 overflow-y-auto overscroll-y-auto min-h-0 flex-1 max-h-64 touch-pan-y">
           {birthdays.map((p) => (
             <CelebrationRow
               key={`bday-${p.employee_id}`}

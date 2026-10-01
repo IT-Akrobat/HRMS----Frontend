@@ -1,5 +1,13 @@
-import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Calendar,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  X,
+} from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useModalBackClose } from "../common/usemodalbackclose";
 
 // ---------------------------------------------------------------------
 // Controlled, dual-mode date picker.
@@ -105,8 +113,40 @@ export default function DatePicker({
   // then use a "YYYY-MM" string, matching a native <input type="month">,
   // so it's a drop-in replacement for that element.
   monthOnly = false,
+  // On phones (< 640px) open the calendar as a bottom sheet (portal on
+  // <body>, dimmed backdrop, back button closes it) instead of a floating
+  // popover. A popover on a narrow screen is what ended up overlapping
+  // the filter chips / search box underneath it (Audit Logs). Off by
+  // default so every existing caller keeps its current behavior.
+  sheetOnMobile = false,
+  // Compact (label-less) mode only: draw the trigger as a bordered,
+  // input-style box (h-9) instead of the bare icon + text link.
+  bordered = false,
+  // Adds a Clear / Today footer to the day calendar and, with `bordered`,
+  // a small X on the trigger to clear the date.
+  clearable = false,
 }) {
   const [open, setOpen] = useState(false);
+
+  // Only tracked when the bottom-sheet behavior is requested.
+  const [isMobile, setIsMobile] = useState(
+    () =>
+      sheetOnMobile &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 639px)").matches,
+  );
+  useEffect(() => {
+    if (!sheetOnMobile) return;
+    const mq = window.matchMedia("(max-width: 639px)");
+    const handler = (e) => setIsMobile(e.matches);
+    setIsMobile(mq.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [sheetOnMobile]);
+  const useSheet = sheetOnMobile && isMobile;
+
+  // Phone back button closes the sheet instead of leaving the page.
+  useModalBackClose(open && useSheet, () => setOpen(false));
   const today = new Date();
 
   // Normalized once per render into a Set of "YYYY-MM-DD" strings for an
@@ -143,11 +183,21 @@ export default function DatePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthOnly, value]);
 
+  // ---- Day-mode month + year chooser (tap the "October 2026" title) ----
+  const [dayView, setDayView] = useState("days"); // "days" | "months"
+  const [yearPageStart, setYearPageStart] = useState(
+    () => today.getFullYear() - 8,
+  );
+
   useEffect(() => {
-    if (!open) setYearListOpen(false);
+    if (!open) {
+      setYearListOpen(false);
+      setDayView("days");
+    }
   }, [open]);
 
   const containerRef = useRef(null);
+  const sheetRef = useRef(null);
 
   // Where the overlay-mode popover renders (fixed to the viewport, right
   // below the trigger) — computed fresh each time it opens so it always
@@ -181,9 +231,12 @@ export default function DatePicker({
 
   useEffect(() => {
     function handleOutside(event) {
+      // The bottom sheet lives in a portal, so it is outside
+      // containerRef in the DOM — treat it as "inside" too.
       if (
         containerRef.current &&
-        !containerRef.current.contains(event.target)
+        !containerRef.current.contains(event.target) &&
+        !(sheetRef.current && sheetRef.current.contains(event.target))
       ) {
         setOpen(false);
       }
@@ -200,14 +253,26 @@ export default function DatePicker({
   // scrolls out of view. Capture phase so this also fires for scrolls
   // inside a nested scrollable container (e.g. a card list), not just
   // window scroll.
+  // (Skipped for the bottom sheet — it isn't anchored to the trigger, and
+  // its own content shouldn't close it.)
   useEffect(() => {
-    if (!open) return;
+    if (!open || useSheet) return;
     function handleScroll() {
       setOpen(false);
     }
     window.addEventListener("scroll", handleScroll, true);
     return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [open]);
+  }, [open, useSheet]);
+
+  // Lock page scroll behind the bottom sheet.
+  useEffect(() => {
+    if (!open || !useSheet) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open, useSheet]);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -286,16 +351,27 @@ export default function DatePicker({
         >
           <ChevronLeft size={16} />
         </button>
-        <h3 className="text-sm font-semibold text-slate-700">
+        <button
+          type="button"
+          onClick={() => {
+            setPickerYear(year);
+            setYearListOpen(false);
+            setDayView("months");
+          }}
+          className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700 px-2 py-1 rounded-md hover:bg-orange-50"
+          aria-label="Choose month and year"
+        >
           {currentMonth.toLocaleDateString("en-US", {
             month: "long",
             year: "numeric",
           })}
-        </h3>
+          <ChevronDown size={14} className="text-slate-400" />
+        </button>
         <button
           type="button"
           onClick={() => setCurrentMonth(new Date(year, month + 1, 1))}
-          className="p-1 rounded-md hover:bg-orange-50 text-slate-600"
+          disabled={!!maxDate && new Date(year, month + 1, 1) > maxDate}
+          className="p-1 rounded-md hover:bg-orange-50 text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent"
         >
           <ChevronRight size={16} />
         </button>
@@ -328,7 +404,9 @@ export default function DatePicker({
               onClick={() => selectDate(day)}
               disabled={disabled}
               title={isApproved ? "Already approved leave" : undefined}
-              className={`h-7 w-7 text-[11px] relative transition-colors ${
+              className={`${
+                useSheet ? "h-10 w-10 text-sm mx-auto" : "h-7 w-7 text-[11px]"
+              } relative transition-colors ${
                 isApproved ? "rounded-full" : "rounded-md"
               } ${
                 isSelected
@@ -457,11 +535,212 @@ export default function DatePicker({
     </>
   );
 
-  const popoverBody = monthOnly ? monthYearBody : calendarBody;
+  // ---- Month + year chooser shown from the day calendar's title ----
+  const dayMonthYearBody = (
+    <>
+      <div className="flex items-center justify-between mb-3">
+        <button
+          type="button"
+          onClick={() =>
+            yearListOpen
+              ? setYearPageStart((y) => y - 12)
+              : setPickerYear((y) => y - 1)
+          }
+          className="p-1 rounded-md hover:bg-orange-50 text-slate-600"
+          aria-label={yearListOpen ? "Earlier years" : "Previous year"}
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!yearListOpen) setYearPageStart(pickerYear - 8);
+            setYearListOpen((o) => !o);
+          }}
+          className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700 px-2.5 py-1 rounded-md hover:bg-orange-50"
+        >
+          {yearListOpen
+            ? `${yearPageStart} – ${yearPageStart + 11}`
+            : pickerYear}
+          <ChevronDown
+            size={14}
+            className={`text-slate-400 transition-transform ${
+              yearListOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            yearListOpen
+              ? setYearPageStart((y) => y + 12)
+              : setPickerYear((y) => y + 1)
+          }
+          disabled={
+            !!maxDate &&
+            (yearListOpen
+              ? yearPageStart + 12 > maxDate.getFullYear()
+              : pickerYear >= maxDate.getFullYear())
+          }
+          className="p-1 rounded-md hover:bg-orange-50 text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent"
+          aria-label={yearListOpen ? "Later years" : "Next year"}
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
+      {yearListOpen ? (
+        <div className="grid grid-cols-4 gap-1.5 mb-1">
+          {Array.from({ length: 12 }, (_, i) => yearPageStart + i).map((yr) => {
+            const yrDisabled =
+              (!!maxDate && yr > maxDate.getFullYear()) ||
+              (!!minDate && yr < minDate.getFullYear());
+            return (
+              <button
+                type="button"
+                key={yr}
+                disabled={yrDisabled}
+                onClick={() => {
+                  setPickerYear(yr);
+                  setYearListOpen(false);
+                }}
+                className={`h-9 rounded-md text-xs font-medium transition-colors ${
+                  yr === pickerYear
+                    ? "bg-blue-900 text-white font-bold"
+                    : yrDisabled
+                      ? "text-slate-300 cursor-not-allowed"
+                      : yr === today.getFullYear()
+                        ? "text-orange-500 font-bold hover:bg-orange-50"
+                        : "text-slate-600 hover:bg-orange-50"
+                }`}
+              >
+                {yr}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="grid grid-cols-4 gap-1.5 mb-1">
+          {MONTH_NAMES.map((m, i) => {
+            const mStart = new Date(pickerYear, i, 1);
+            const mEnd = new Date(pickerYear, i + 1, 0);
+            const mDisabled =
+              (!!maxDate && mStart > maxDate) || (!!minDate && mEnd < minDate);
+            const isShown = year === pickerYear && month === i;
+            const isCurrent =
+              today.getFullYear() === pickerYear && today.getMonth() === i;
+            return (
+              <button
+                type="button"
+                key={m}
+                disabled={mDisabled}
+                onClick={() => {
+                  setCurrentMonth(new Date(pickerYear, i, 1));
+                  setDayView("days");
+                }}
+                className={`h-9 rounded-md text-xs font-medium transition-colors ${
+                  isShown
+                    ? "bg-blue-900 text-white font-bold"
+                    : mDisabled
+                      ? "text-slate-300 cursor-not-allowed"
+                      : isCurrent
+                        ? "text-orange-500 font-bold hover:bg-orange-50"
+                        : "text-slate-600 hover:bg-orange-50"
+                }`}
+              >
+                {m}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+
+  function clearDate() {
+    onChange?.("");
+    onSelect?.(null);
+    setOpen(false);
+  }
+
+  function pickToday() {
+    const now = new Date();
+    if (
+      isDisabled(new Date(now.getFullYear(), now.getMonth(), now.getDate()))
+    ) {
+      return;
+    }
+    onSelect?.(now);
+    onChange?.(toIso(now));
+    setOpen(false);
+  }
+
+  const dayFooter =
+    clearable && !monthOnly ? (
+      <div className="flex items-center justify-between pt-2 mt-3 border-t border-slate-100 text-xs font-semibold">
+        <button
+          type="button"
+          onClick={clearDate}
+          disabled={!selectedDate}
+          className="text-blue-700 hover:underline disabled:opacity-40 disabled:no-underline"
+        >
+          Clear
+        </button>
+        <button
+          type="button"
+          onClick={pickToday}
+          className="text-blue-700 hover:underline"
+        >
+          Today
+        </button>
+      </div>
+    ) : null;
+
+  const popoverBody = monthOnly ? (
+    monthYearBody
+  ) : (
+    <>
+      {dayView === "months" ? dayMonthYearBody : calendarBody}
+      {dayFooter}
+    </>
+  );
 
   const calendarPopover =
     open &&
-    (overlay && overlayPos ? (
+    (useSheet ? (
+      createPortal(
+        <div className="fixed inset-0 z-[100] flex items-end">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            ref={sheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Select date"
+            className="relative w-full bg-white rounded-t-2xl shadow-xl border-t border-slate-200 px-5 pt-2.5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+          >
+            <div className="w-10 h-1 rounded-full bg-slate-200 mx-auto mb-2" />
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-semibold text-slate-800">
+                {label || "Select date"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg p-1.5 -mr-1.5"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {popoverBody}
+          </div>
+        </div>,
+        document.body,
+      )
+    ) : overlay && overlayPos ? (
       <div
         className="fixed w-64 max-w-[calc(100vw-1rem)] bg-white rounded-xl border border-slate-200 shadow-lg p-4 z-50"
         style={{ top: overlayPos.top, left: overlayPos.left }}
@@ -527,6 +806,48 @@ export default function DatePicker({
           </span>
           <Calendar size={14} className="text-slate-400 shrink-0" />
         </button>
+        {calendarPopover}
+      </div>
+    );
+  }
+
+  // ---------------- Compact bordered (input-style) trigger ----------------
+  if (bordered) {
+    const showClear = clearable && !!selectedDate;
+    return (
+      <div ref={containerRef} className={`relative ${className}`}>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          className={`w-full h-9 flex items-center gap-2 pl-3 ${
+            showClear ? "pr-9" : "pr-3"
+          } border rounded-lg bg-white text-sm text-left transition-colors ${
+            selectedDate
+              ? "border-orange-400 text-slate-700"
+              : "border-slate-200 text-slate-500 hover:border-slate-300"
+          } ${open ? "ring-2 ring-orange-200" : ""}`}
+        >
+          <Calendar
+            size={15}
+            className={`shrink-0 ${
+              selectedDate ? "text-orange-500" : "text-slate-400"
+            }`}
+          />
+          <span className="truncate">{displayLabel}</span>
+        </button>
+        {showClear && (
+          <button
+            type="button"
+            title="Clear date"
+            aria-label="Clear date"
+            onClick={clearDate}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+          >
+            <X size={13} />
+          </button>
+        )}
         {calendarPopover}
       </div>
     );

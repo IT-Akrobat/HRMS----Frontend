@@ -358,6 +358,14 @@ export const NAVIGATION_CONFIG = {
         // { label: 'Leave Balance', path: '/employee/leave/balance' },
       ],
     },
+    {
+      label: "Team",
+      icon: Users,
+      children: [
+        { label: "All Employees", path: "/employee/people/all" },
+        { label: "My Department", path: "/employee/people/department" },
+      ],
+    },
     // {
     //   label: "My Documents",
     //   icon: FileText,

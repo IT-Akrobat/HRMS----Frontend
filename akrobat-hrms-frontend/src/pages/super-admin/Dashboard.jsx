@@ -735,7 +735,7 @@ export default function SuperAdminDashboard() {
   };
 
   return (
-    <div className="overflow-x-hidden">
+    <div className="overflow-x-clip">
       {/* Hides the scrollbar visually on the horizontal stat-card row and
           the recent-activity panel, while keeping them scrollable. */}
       <style>{`
@@ -952,7 +952,7 @@ export default function SuperAdminDashboard() {
                 Today
               </h2>
             </div>
-            <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar -mx-4 px-4">
+            <div className="flex gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory no-scrollbar -mx-4 px-4">
               <div className="snap-start shrink-0 w-[86%] h-48">
                 <OnLeaveTodayCard />
               </div>

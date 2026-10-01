@@ -14,6 +14,10 @@ const AttendanceHistory = lazy(
   () => import("../pages/employee/AttendanceHistory.jsx"),
 );
 const Dashboard = lazy(() => import("../pages/employee/Dashboard.jsx"));
+const EmployeeDirectory = lazy(
+  () => import("../pages/employee/EmployeeDirectory.jsx"),
+);
+const MyDepartment = lazy(() => import("../pages/employee/MyDepartment.jsx"));
 // Documents / Documents Download were removed (see navigationConfig.js,
 // where the "My Documents" nav group is commented out) -- pages no
 // longer exist under ../pages/employee/, so the routes are dropped too.
@@ -36,6 +40,9 @@ export const employeeRoutes = [
     element: <Navigate to="/employee/profile/personal" replace />,
   },
   { path: "profile/sites", element: <ProfileSites /> },
+  // People: company-wide directory + cards for my own department
+  { path: "people/all", element: <EmployeeDirectory /> },
+  { path: "people/department", element: <MyDepartment /> },
   { path: "attendance", element: <Attendance /> },
   { path: "attendance/history", element: <AttendanceHistory /> },
   { path: "leave/history", element: <LeaveHistory /> },
