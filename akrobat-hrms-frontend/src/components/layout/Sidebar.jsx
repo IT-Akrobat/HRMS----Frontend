@@ -5,7 +5,7 @@ import {
   ChevronsRight,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import logo from "../../assets/images/akrobat-logo.png";
 import { NAVIGATION_CONFIG } from "../../config/navigationConfig";
@@ -30,13 +30,22 @@ export default function Sidebar({
   // Items flagged `fieldOnly` (e.g. "Sites Worked") are shown only to
   // Inspection / Operation department staff.
   const showFieldOnly = isFieldEmployee(user);
-  const items = (NAVIGATION_CONFIG[role] ?? []).map((item) =>
-    item.children
-      ? {
-          ...item,
-          children: item.children.filter((c) => !c.fieldOnly || showFieldOnly),
-        }
-      : item,
+  // Memoised so `items` keeps a stable identity between renders. Previously
+  // it was rebuilt on every render, which re-triggered the effect below each
+  // time a group was clicked and snapped the menu back to the active group.
+  const items = useMemo(
+    () =>
+      (NAVIGATION_CONFIG[role] ?? []).map((item) =>
+        item.children
+          ? {
+              ...item,
+              children: item.children.filter(
+                (c) => !c.fieldOnly || showFieldOnly,
+              ),
+            }
+          : item,
+      ),
+    [role, showFieldOnly],
   );
 
   const [openGroups, setOpenGroups] = useState(() => {
@@ -54,22 +63,30 @@ export default function Sidebar({
     return initial;
   });
 
+  // Auto-open the group that owns the current route -- only when the route
+  // changes. Manual clicks on a group header must NOT re-run this, otherwise
+  // the active group fights with the one the user just opened (the glitch).
   useEffect(() => {
-    items.forEach((item) => {
-      if (item.children && isChildActive(item.children, location.pathname)) {
-        setOpenGroups((prev) => {
-          const newState = {};
-          items.forEach((i) => {
-            if (i.children) {
-              newState[i.label] = false;
-            }
-          });
-          newState[item.label] = true;
-          return newState;
-        });
-      }
+    const activeItem = items.find(
+      (item) =>
+        item.children && isChildActive(item.children, location.pathname),
+    );
+    if (!activeItem) return;
+    setOpenGroups((prev) => {
+      // Already the only open group -> keep same state object (no re-render)
+      const alreadyOk = items.every(
+        (i) =>
+          !i.children || !!prev[i.label] === (i.label === activeItem.label),
+      );
+      if (alreadyOk) return prev;
+      const next = {};
+      items.forEach((i) => {
+        if (i.children) next[i.label] = i.label === activeItem.label;
+      });
+      return next;
     });
-  }, [location.pathname, items]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   const toggleGroup = (label) => {
     setOpenGroups((prev) => {
