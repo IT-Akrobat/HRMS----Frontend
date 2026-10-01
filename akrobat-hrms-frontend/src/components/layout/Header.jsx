@@ -3,12 +3,10 @@ import {
   Bell,
   CalendarClock,
   CheckCheck,
-  ChevronDown,
   Clock,
   LogOut,
   Megaphone,
   Menu,
-  User as UserIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -447,32 +445,11 @@ function NotificationBell() {
 export default function Header({ onMenuClick }) {
   const { user, role, logout } = useAuth();
 
-  const navigate = useNavigate();
-
-  const [menuOpen, setMenuOpen] = useState(false);
-  // Wraps the avatar button + dropdown below, same pattern as
-  // NotificationBell's `ref` above — lets the click-outside handler tell
-  // "clicked the trigger/menu" apart from "clicked anywhere else on the
-  // page" so the menu actually closes on an outside click instead of
-  // staying open until the button is clicked again.
-  const menuRef = useRef(null);
-
   // The employee's actual stored photo, same field every other screen
   // (dashboard cards, team lists, etc) reads from — kept in sync via
   // AuthContext.updateUser() whenever the photo is changed on the
   // My Profile page, so this updates immediately without a re-login.
   const profilePhoto = user?.profile?.profile_photo || null;
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    function handleClickOutside(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [menuOpen]);
 
   return (
     <header className="header h-16 flex items-center justify-between px-4 sm:px-6 bg-white border-b border-slate-200 sticky top-0 z-20">
@@ -504,58 +481,36 @@ export default function Header({ onMenuClick }) {
       <div className="flex items-center gap-2 ml-auto">
         <NotificationBell />
 
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center gap-2"
-          >
-            {/* Avatar */}
-            <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center font-semibold text-sm overflow-hidden">
-              {profilePhoto ? (
-                <img
-                  src={profilePhoto}
-                  alt={user?.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                (user?.name?.[0] ?? "U")
-              )}
-            </div>
+        {/* Avatar + name (display only — My Profile lives under Settings) */}
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center font-semibold text-sm overflow-hidden">
+            {profilePhoto ? (
+              <img
+                src={profilePhoto}
+                alt={user?.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              (user?.name?.[0] ?? "U")
+            )}
+          </div>
 
-            <div className="hidden md:block text-left">
-              <p className="text-sm font-medium text-slate-800">{user?.name}</p>
-
-              <p className="text-xs text-slate-400">{ROLE_LABELS[role]}</p>
-            </div>
-
-            <ChevronDown size={16} className="hidden sm:block text-slate-400" />
-          </button>
-
-          {menuOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg border border-slate-100 py-1 z-50">
-              {/* My Profile */}
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  navigate(`${ROLE_BASE_PATH[role] || ""}/profile/personal`);
-                }}
-                className="w-full text-left px-4 py-2 flex items-center gap-2 text-sm text-slate-600 hover:bg-slate-50"
-              >
-                <UserIcon size={15} />
-                My Profile
-              </button>
-
-              {/* Logout */}
-              <button
-                onClick={logout}
-                className="w-full text-left px-4 py-2 flex items-center gap-2 text-sm text-orange-500 hover:bg-orange-50"
-              >
-                <LogOut size={15} />
-                Logout
-              </button>
-            </div>
-          )}
+          <div className="hidden md:block text-left">
+            <p className="text-sm font-medium text-slate-800">{user?.name}</p>
+            <p className="text-xs text-slate-400">{ROLE_LABELS[role]}</p>
+          </div>
         </div>
+
+        {/* Logout — icon only */}
+        <button
+          type="button"
+          onClick={logout}
+          title="Logout"
+          aria-label="Logout"
+          className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-orange-500 hover:bg-orange-50 transition-colors"
+        >
+          <LogOut size={18} />
+        </button>
       </div>
     </header>
   );

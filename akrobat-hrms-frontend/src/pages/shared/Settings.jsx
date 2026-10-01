@@ -75,11 +75,79 @@ const NOTIF_DEFAULTS = {
   holiday_reminders: true,
 };
 
+// Labels used by the "Unsaved changes" summary shown above Save.
+// (email_notifications is intentionally absent — it isn't shown here.)
+const NOTIF_LABELS = {
+  leave_updates: "Leave request updates",
+  announcements: "Announcements",
+  celebrations: "Birthdays & work anniversaries",
+  attendance_reminders: "Attendance reminders",
+  checkout_reminders: "Checkout reminders",
+  holiday_reminders: "Holiday reminders",
+};
+
+const PREF_LABELS = {
+  date_format: "Date format",
+  time_format: "Time format",
+};
+
+const PREF_VALUE_LABELS = {
+  "12h": "12-hour (AM/PM)",
+  "24h": "24-hour",
+};
+
 const PREF_DEFAULTS = {
   date_format: "DD/MM/YYYY",
   time_format: "24h",
   theme: "light",
 };
+
+// True when every key in `a` has the same value in `b` — used to tell
+// whether a settings form has been changed since it was last loaded/saved.
+function sameValues(a, b) {
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k])
+  );
+}
+
+// "Unsaved changes" box — lists exactly what was changed (old → new) so
+// the person can see what Save will apply. Rendered only while there are
+// pending changes.
+function PendingChanges({ items, onDiscard }) {
+  if (!items.length) return null;
+  return (
+    <div className="mt-5 rounded-lg border border-orange-100 bg-orange-50/60 px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-slate-800">
+          Unsaved changes ({items.length})
+        </p>
+        <button
+          type="button"
+          onClick={onDiscard}
+          className="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline"
+        >
+          Discard
+        </button>
+      </div>
+      <ul className="mt-2 space-y-1.5">
+        {items.map((c) => (
+          <li
+            key={c.label}
+            className="flex items-center justify-between gap-3 text-sm"
+          >
+            <span className="text-slate-600">{c.label}</span>
+            <span className="flex items-center gap-1.5 text-xs shrink-0">
+              <span className="text-slate-400 line-through">{c.from}</span>
+              <span className="text-slate-300">→</span>
+              <span className="font-semibold text-orange-600">{c.to}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function initials(name) {
   if (!name) return "?";
@@ -240,6 +308,9 @@ export default function Settings() {
   // app/holidays/services.py::get_holiday_reminder_status() check
   // before they'll ever send a reminder.
   const [notifs, setNotifs] = useState(NOTIF_DEFAULTS);
+  // Last values loaded from / saved to the server — "Save preferences"
+  // stays disabled until `notifs` differs from this.
+  const [savedNotifs, setSavedNotifs] = useState(NOTIF_DEFAULTS);
   const [notifLoading, setNotifLoading] = useState(true);
   const [notifSaving, setNotifSaving] = useState(false);
   const [notifMsg, setNotifMsg] = useState({ type: "", text: "" });
@@ -248,6 +319,7 @@ export default function Settings() {
   // Language/date-format/theme still have nowhere server-side to live —
   // unchanged, local-only for now.
   const [prefs, setPrefs] = useState(PREF_DEFAULTS);
+  const [savedPrefs, setSavedPrefs] = useState(PREF_DEFAULTS);
   const [prefMsg, setPrefMsg] = useState("");
 
   // ---------------- Holidays (Excel upload) ----------------
@@ -303,8 +375,11 @@ export default function Settings() {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
-      if (saved.preferences)
-        setPrefs({ ...PREF_DEFAULTS, ...saved.preferences });
+      if (saved.preferences) {
+        const loaded = { ...PREF_DEFAULTS, ...saved.preferences };
+        setPrefs(loaded);
+        setSavedPrefs(loaded);
+      }
     } catch {
       // ignore malformed local data
     }
@@ -319,7 +394,7 @@ export default function Settings() {
       .then((res) => {
         if (cancelled) return;
         const row = res?.data || {};
-        setNotifs({
+        const loaded = {
           email_notifications:
             row.email_notifications ?? NOTIF_DEFAULTS.email_notifications,
           leave_updates: row.leave_updates ?? NOTIF_DEFAULTS.leave_updates,
@@ -331,12 +406,17 @@ export default function Settings() {
             row.checkout_reminders ?? NOTIF_DEFAULTS.checkout_reminders,
           holiday_reminders:
             row.holiday_reminders ?? NOTIF_DEFAULTS.holiday_reminders,
-        });
+        };
+        setNotifs(loaded);
+        setSavedNotifs(loaded);
       })
       .catch(() => {
         // Endpoint unreachable — fall back to defaults rather than
         // leaving the tab stuck on a spinner; Save will retry the PUT.
-        if (!cancelled) setNotifs(NOTIF_DEFAULTS);
+        if (!cancelled) {
+          setNotifs(NOTIF_DEFAULTS);
+          setSavedNotifs(NOTIF_DEFAULTS);
+        }
       })
       .finally(() => {
         if (!cancelled) setNotifLoading(false);
@@ -360,17 +440,19 @@ export default function Settings() {
     try {
       const res = await apiClient.put("/notification-preferences/me", notifs);
       const row = res?.data;
-      if (row) {
-        setNotifs({
-          email_notifications: row.email_notifications,
-          leave_updates: row.leave_updates,
-          announcements: row.announcements,
-          celebrations: row.celebrations,
-          attendance_reminders: row.attendance_reminders,
-          checkout_reminders: row.checkout_reminders,
-          holiday_reminders: row.holiday_reminders,
-        });
-      }
+      const next = row
+        ? {
+            email_notifications: row.email_notifications,
+            leave_updates: row.leave_updates,
+            announcements: row.announcements,
+            celebrations: row.celebrations,
+            attendance_reminders: row.attendance_reminders,
+            checkout_reminders: row.checkout_reminders,
+            holiday_reminders: row.holiday_reminders,
+          }
+        : notifs;
+      setNotifs(next);
+      setSavedNotifs(next);
       setNotifMsg({
         type: "success",
         text: "Notification preferences saved.",
@@ -386,8 +468,28 @@ export default function Settings() {
     }
   }
 
+  const notifsDirty = !sameValues(notifs, savedNotifs);
+  const prefsDirty = !sameValues(prefs, savedPrefs);
+
+  const notifChanges = Object.keys(NOTIF_LABELS)
+    .filter((k) => notifs[k] !== savedNotifs[k])
+    .map((k) => ({
+      label: NOTIF_LABELS[k],
+      from: savedNotifs[k] ? "On" : "Off",
+      to: notifs[k] ? "On" : "Off",
+    }));
+
+  const prefChanges = Object.keys(PREF_LABELS)
+    .filter((k) => prefs[k] !== savedPrefs[k])
+    .map((k) => ({
+      label: PREF_LABELS[k],
+      from: PREF_VALUE_LABELS[savedPrefs[k]] || savedPrefs[k],
+      to: PREF_VALUE_LABELS[prefs[k]] || prefs[k],
+    }));
+
   function savePreferences() {
     persist({ preferences: prefs });
+    setSavedPrefs(prefs);
     setPrefMsg("Preferences saved.");
     setTimeout(() => setPrefMsg(""), 2500);
   }
@@ -593,20 +695,12 @@ export default function Settings() {
               )}
               {notifLoading ? (
                 <div className="space-y-4 animate-pulse">
-                  {Array.from({ length: 7 }).map((_, i) => (
+                  {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="h-12 bg-slate-100 rounded-lg" />
                   ))}
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  <ToggleSwitch
-                    label="Email notifications"
-                    description="Receive a copy of important updates by email."
-                    checked={notifs.email_notifications}
-                    onChange={(v) =>
-                      setNotifs((n) => ({ ...n, email_notifications: v }))
-                    }
-                  />
                   <ToggleSwitch
                     label="Leave request updates"
                     description="When your leave is approved, rejected, or commented on."
@@ -657,11 +751,17 @@ export default function Settings() {
                   />
                 </div>
               )}
+              {!notifLoading && (
+                <PendingChanges
+                  items={notifChanges}
+                  onDiscard={() => setNotifs(savedNotifs)}
+                />
+              )}
               <div className="mt-5 pt-5 border-t border-slate-100 flex justify-end">
                 <button
                   onClick={saveNotifications}
-                  disabled={notifLoading || notifSaving}
-                  className="bg-brand-orange text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-60 transition"
+                  disabled={notifLoading || notifSaving || !notifsDirty}
+                  className="bg-brand-orange text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50 transition"
                 >
                   {notifSaving ? "Saving…" : "Save preferences"}
                 </button>
@@ -676,23 +776,6 @@ export default function Settings() {
             >
               {prefMsg && <Banner type="success" message={prefMsg} />}
               <div className="space-y-5 max-w-md">
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1.5">
-                    Language
-                  </label>
-                  <select
-                    disabled
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-500 bg-slate-50 cursor-not-allowed"
-                    value="en"
-                    onChange={() => {}}
-                  >
-                    <option value="en">English</option>
-                  </select>
-                  <p className="text-xs text-slate-400 mt-1">
-                    More languages coming soon.
-                  </p>
-                </div>
-
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1.5">
                     Date format
@@ -765,10 +848,15 @@ export default function Settings() {
                   </div>
                 </div>
               </div>
+              <PendingChanges
+                items={prefChanges}
+                onDiscard={() => setPrefs(savedPrefs)}
+              />
               <div className="mt-6 pt-5 border-t border-slate-100 flex justify-end">
                 <button
                   onClick={savePreferences}
-                  className="bg-brand-orange text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:opacity-90 transition"
+                  disabled={!prefsDirty}
+                  className="bg-brand-orange text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50 transition"
                 >
                   Save preferences
                 </button>
