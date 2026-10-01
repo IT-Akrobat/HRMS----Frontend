@@ -1,14 +1,23 @@
 import {
+  Bell,
+  Building2,
   Cake,
   CalendarDays,
   ClipboardList,
   Clock,
+  FileText,
+  History,
+  MapPin,
   Megaphone,
-  Palmtree,
+  MoreHorizontal,
   PlaneTakeoff,
+  Settings,
   User,
+  Users,
+  Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
@@ -26,14 +35,57 @@ import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { isFieldEmployee } from "../../utils/employeeType";
 
-// Mobile-only dashboard shortcuts (see MobileQuickActions) — icons match
-// what these same destinations use in config/navigationConfig.js:
-// "My Attendance" -> Attendance group (Clock), "Sites Worked" -> My
-// Profile group (User), "Apply Leave" -> Leave group (Palmtree).
-const EMPLOYEE_QUICK_ACTIONS = [
-  { to: "/employee/attendance", label: "My Attendance", icon: Clock },
-  { to: "/employee/profile/sites", label: "Sites Worked", icon: User },
-  { to: "/employee/leave/apply", label: "Apply Leave", icon: Palmtree },
+// Mobile-only "Quick Actions" row — four big tiles right under the
+// Check-in card. The first three go straight to a page; "More" opens a
+// bottom sheet with everything else an employee can reach from the
+// sidebar (so nothing is lost on mobile, where the sidebar is hidden).
+//   Leave     -> Apply Leave
+//   Timesheet -> My Attendance (daily in/out log)
+//   Request   -> Leave History (every request I've raised + its status)
+const QUICK_ACTION_TILES = [
+  {
+    to: "/employee/leave/apply",
+    label: "Leave",
+    icon: FileText,
+    style: "from-violet-50 to-white border-violet-100 text-violet-500",
+  },
+  {
+    to: "/employee/attendance",
+    label: "Attendance",
+    icon: Clock,
+    style: "from-sky-50 to-white border-sky-100 text-sky-500",
+  },
+  {
+    to: "/employee/leave/history",
+    label: "Request",
+    icon: ClipboardList,
+    style: "from-emerald-50 to-white border-emerald-100 text-emerald-600",
+  },
+];
+
+// Contents of the "More" bottom sheet. `fieldOnly` mirrors the sidebar:
+// Sites Worked is only for Inspection / Operation staff.
+const MORE_LINKS = [
+  {
+    to: "/employee/attendance/history",
+    label: "Attendance History",
+    icon: History,
+  },
+  {
+    to: "/employee/profile/sites",
+    label: "Sites Worked",
+    icon: MapPin,
+    fieldOnly: true,
+  },
+  { to: "/employee/people/all", label: "All Employees", icon: Users },
+  {
+    to: "/employee/people/department",
+    label: "My Department",
+    icon: Building2,
+  },
+  { to: "/employee/profile/personal", label: "My Profile", icon: User },
+  { to: "/employee/notifications", label: "Notifications", icon: Bell },
+  { to: "/employee/settings", label: "Settings", icon: Settings },
 ];
 
 const LEAVE_STATUS_STYLES = {
@@ -209,7 +261,6 @@ export default function EmployeeDashboard() {
       key: "announcements",
       label: "Announcements",
       icon: Megaphone,
-      wide: true,
       accent: "from-orange-50 to-white border-orange-100 text-orange-500",
       preview:
         activeAnnouncements.length === 0
@@ -246,6 +297,7 @@ export default function EmployeeDashboard() {
     holidays: "Upcoming Holidays",
     onleave: "On Leave Today",
     recentleave: "Applied Leave Requests",
+    more: "More",
   };
 
   return (
@@ -301,7 +353,6 @@ export default function EmployeeDashboard() {
           <div className="mt-3">
             <QuoteOfDayCard compact />
           </div>
-          {/* <MobileQuickActions actions={EMPLOYEE_QUICK_ACTIONS} /> */}
         </div>
 
         {/* ---------- Check-in / Site Visit / Meeting ----------
@@ -364,8 +415,41 @@ export default function EmployeeDashboard() {
           )}
         </div>
 
+        {/* ---------- Quick Actions ---------- */}
+        <div className="flex items-center gap-2 mb-2 px-0.5">
+          <Zap size={16} className="text-orange-500 fill-orange-500" />
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
+            Quick Actions
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2.5 mb-6">
+          {QUICK_ACTION_TILES.map(({ to, label, icon: Icon, style }) => (
+            <Link
+              key={to}
+              to={to}
+              className={`rounded-2xl border bg-gradient-to-br py-4 px-1 flex flex-col items-center gap-2 active:scale-[0.96] transition-transform ${style}`}
+            >
+              <Icon size={24} strokeWidth={1.75} />
+              <span className="text-[13px] font-medium text-slate-700 truncate max-w-full">
+                {label}
+              </span>
+            </Link>
+          ))}
+          <button
+            type="button"
+            onClick={() => setOpenSheet("more")}
+            className="rounded-2xl border bg-gradient-to-br from-slate-50 to-white border-slate-200 py-4 px-1 flex flex-col items-center gap-2 active:scale-[0.96] transition-transform"
+          >
+            <span className="w-6 h-6 rounded-full bg-slate-400 text-white flex items-center justify-center">
+              <MoreHorizontal size={15} />
+            </span>
+            <span className="text-[13px] font-medium text-slate-700">More</span>
+          </button>
+        </div>
+
         {/* ---------- Around the Office: tappable bento grid ----------
-            A wide Announcements tile up top, three square tiles below.
+            Four equal square tiles, two per row (2x2).
             Tapping any tile slides up a bottom sheet with the full card
             — nothing is stacked full-height in the page flow. */}
         <div className="flex items-center gap-2 mb-2 px-0.5">
@@ -468,6 +552,28 @@ export default function EmployeeDashboard() {
             {openSheet === "onleave" && (
               <div className="h-72">
                 <OnLeaveTodayCard />
+              </div>
+            )}
+
+            {openSheet === "more" && (
+              <div className="grid grid-cols-3 gap-2.5 pb-2">
+                {MORE_LINKS.filter((l) => !l.fieldOnly || isFieldStaff).map(
+                  ({ to, label, icon: Icon }) => (
+                    <Link
+                      key={to}
+                      to={to}
+                      onClick={() => setOpenSheet(null)}
+                      className="rounded-2xl border border-slate-200 bg-slate-50/60 py-3.5 px-1.5 flex flex-col items-center gap-2 text-center active:scale-[0.96] transition-transform"
+                    >
+                      <span className="w-10 h-10 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center">
+                        <Icon size={18} />
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-600 leading-tight">
+                        {label}
+                      </span>
+                    </Link>
+                  ),
+                )}
               </div>
             )}
 

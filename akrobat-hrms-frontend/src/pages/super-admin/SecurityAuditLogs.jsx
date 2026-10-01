@@ -448,8 +448,8 @@ export default function SecurityAuditLogs() {
   return (
     <div>
       {/* Title + date filter. On phones the filter drops below the title
-          and spans the full width; the calendar itself opens as a bottom
-          sheet (see DatePicker `sheetOnMobile`) so it can never overlap the page. */}
+          and spans the full width; the calendar opens as a popover right
+          under the field (same shared DatePicker as the other pages). */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800">
@@ -465,7 +465,6 @@ export default function SecurityAuditLogs() {
             bordered
             clearable
             overlay
-            sheetOnMobile
             value={dateFilter}
             max={toLocalISODate()}
             placeholder="Filter by date"

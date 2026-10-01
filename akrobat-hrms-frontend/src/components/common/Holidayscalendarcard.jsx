@@ -2,7 +2,7 @@ import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
-import { toLocalISODate } from "../../utils/date";
+import { parseLocalISODate, toLocalISODate } from "../../utils/date";
 
 // Akrobat is HQ'd in Singapore with staff in India (see
 // sql/012_holiday_country_and_employee_dob.sql for the seeded 2026
@@ -43,37 +43,68 @@ function detectCountryCode(user) {
   return null;
 }
 
-// A light emoji per common holiday name, purely decorative — falls
-// back to the calendar icon for anything not in the list, so this
-// never breaks for a holiday name we haven't seen.
+// A light emoji per common holiday name, purely decorative. Order matters:
+// the first match wins, so specific names ("Chinese New Year", "Tamil New
+// Year") must come BEFORE the generic ones ("New Year").
+//
+// There is deliberately NO generic "📅" fallback: on Android that emoji
+// renders as Google's "July 17" calendar, so every unrecognised holiday
+// ended up with the same misleading "17 July" picture. Unknown names get
+// the themed CalendarDays icon instead (see HolidayIcon below).
 const EMOJI_BY_KEYWORD = [
-  [/new year/i, "🎉"],
   [/chinese new year/i, "🧧"],
-  [/hari raya puasa|eid al-fitr/i, "🌙"],
-  [/hari raya haji|eid al-adha/i, "🕌"],
+  [/tamil new year|puthandu|vishu|ugadi|gudi padwa/i, "🌸"],
+  [/new year/i, "🎉"],
+  [/pongal|sankranti|lohri|bihu/i, "🌾"],
+  [/hari raya puasa|eid al-fitr|eid-ul-fitr|ramzan|ramadan/i, "🌙"],
+  [/hari raya haji|eid al-adha|bakrid|bakri id/i, "🕌"],
+  [/muharram/i, "🌙"],
   [/good friday/i, "✝️"],
-  [/labour day|labor day/i, "🛠️"],
-  [/vesak/i, "🪷"],
+  [/easter/i, "🐣"],
+  [/labour day|labor day|may day/i, "🛠️"],
+  [/ayutha|ayudha|ayudh/i, "🛠️"],
+  [/vesak|buddha/i, "🪷"],
   [/national day/i, "🎊"],
   [/deepavali|diwali/i, "🪔"],
   [/christmas/i, "🎄"],
-  [/republic day/i, "🇮🇳"],
-  [/independence day/i, "🇮🇳"],
-  [/holi/i, "🎨"],
-  [/ram navami/i, "🙏"],
+  [/republic day|independence day/i, "🇮🇳"],
+  [/\bholi\b/i, "🎨"],
+  [/ram navami|rama navami/i, "🙏"],
   [/raksha bandhan/i, "🧵"],
-  [/ganesh chaturthi/i, "🐘"],
-  [/gandhi jayanti/i, "🕊️"],
-  [/dussehra/i, "🏹"],
+  [/ganesh chaturthi|vinayaka/i, "🐘"],
+  [/gandhi jayanti|gandhi jayanthi/i, "🕊️"],
+  [/vijaya ?dasami|vijaya ?dashami|dussehra|dasara|navratri|saraswati/i, "🏹"],
+  [/janmashtami|krishna jayanth/i, "🦚"],
+  [/maha ?shivaratri/i, "🔱"],
+  [/onam/i, "🌼"],
+  [/thai poosam|thaipusam/i, "🔱"],
+  [/mahavir|guru nanak|gurpurab/i, "🙏"],
 ];
 
 function emojiFor(name) {
   const match = EMOJI_BY_KEYWORD.find(([re]) => re.test(name || ""));
-  return match ? match[1] : "📅";
+  return match ? match[1] : null;
 }
 
+// Fixed-size slot so every row's text lines up, whether the holiday got
+// an emoji or the CalendarDays fallback.
+function HolidayIcon({ name }) {
+  const emoji = emojiFor(name);
+  return (
+    <span className="w-9 h-9 shrink-0 rounded-full bg-orange-50 flex items-center justify-center text-lg leading-none">
+      {emoji ? emoji : <CalendarDays size={17} className="text-orange-500" />}
+    </span>
+  );
+}
+
+// holiday_date arrives as a bare "YYYY-MM-DD". `new Date("YYYY-MM-DD")`
+// parses that as UTC midnight, which then renders as the PREVIOUS day for
+// anyone whose timezone is behind UTC (see utils/date.js) -- so parse it
+// as a local date instead, and the date/weekday shown always match the
+// calendar day stored.
 function formatDate(iso) {
-  const d = new Date(iso);
+  const d = parseLocalISODate(iso);
+  if (!d) return iso || "";
   return d.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
@@ -82,7 +113,24 @@ function formatDate(iso) {
 }
 
 function formatWeekday(iso) {
-  return new Date(iso).toLocaleDateString("en-GB", { weekday: "long" });
+  const d = parseLocalISODate(iso);
+  return d ? d.toLocaleDateString("en-GB", { weekday: "long" }) : "";
+}
+
+// A holiday that really falls on a Sunday is observed on the Monday
+// (holiday_date = observed day, raw_holiday_date = the real calendar
+// date). Without a hint, the card shows a Monday date that doesn't match
+// the festival's actual date and looks wrong -- so say so.
+function actualDateNote(h) {
+  if (!h.raw_holiday_date || h.raw_holiday_date === h.holiday_date) return "";
+  const raw = parseLocalISODate(h.raw_holiday_date);
+  if (!raw) return "";
+  const short = raw.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  return `Observed — falls on ${short}`;
 }
 
 export default function HolidaysCalendarCard() {
@@ -91,6 +139,8 @@ export default function HolidaysCalendarCard() {
 
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Only exists to force a re-render so `today` below is recalculated.
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     if (!countryCode) {
@@ -103,23 +153,41 @@ export default function HolidaysCalendarCard() {
     }
 
     let cancelled = false;
-    setLoading(true);
 
-    apiClient
-      .get(`/holidays/?country=${countryCode}`)
-      .then((res) => {
-        if (cancelled) return;
-        setHolidays(res.data || []);
-      })
-      .catch(() => {
-        if (!cancelled) setHolidays([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    function fetchHolidays(showSpinner) {
+      if (showSpinner) setLoading(true);
+      apiClient
+        .get(`/holidays/?country=${countryCode}`)
+        .then((res) => {
+          if (cancelled) return;
+          setHolidays(res.data || []);
+        })
+        .catch(() => {
+          // Keep whatever is already on screen on a background refresh;
+          // only the first load falls back to an empty list.
+          if (!cancelled && showSpinner) setHolidays([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }
+
+    fetchHolidays(true);
+
+    // The dashboard can stay open for days: when the tab becomes visible
+    // again, re-fetch (picks up newly uploaded holidays) and bump `tick`
+    // so "today" is recomputed (drops a holiday that has now passed).
+    function handleVisible() {
+      if (document.visibilityState === "visible") {
+        fetchHolidays(false);
+        setTick((t) => t + 1);
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisible);
 
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", handleVisible);
     };
   }, [countryCode]);
 
@@ -153,12 +221,10 @@ export default function HolidaysCalendarCard() {
       ) : list.length === 0 ? (
         <p className="text-sm text-slate-400">No upcoming holidays.</p>
       ) : (
-        <ul className="divide-y divide-slate-100 overflow-y-auto max-h-64">
+        <ul className="divide-y divide-slate-100 overflow-y-auto max-h-64 flex-1 min-h-0">
           {list.map((h) => (
             <li key={h.id} className="flex items-center gap-3 py-2.5">
-              <span className="text-xl shrink-0">
-                {emojiFor(h.holiday_name)}
-              </span>
+              <HolidayIcon name={h.holiday_name} />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-slate-800 truncate">
                   {h.holiday_name}
@@ -166,6 +232,11 @@ export default function HolidaysCalendarCard() {
                 <p className="text-xs text-slate-400">
                   {formatDate(h.holiday_date)} · {formatWeekday(h.holiday_date)}
                 </p>
+                {actualDateNote(h) && (
+                  <p className="text-[11px] text-slate-400/80 mt-0.5">
+                    {actualDateNote(h)}
+                  </p>
+                )}
               </div>
             </li>
           ))}

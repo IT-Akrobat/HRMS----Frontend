@@ -18,6 +18,7 @@ import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
+import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
@@ -709,6 +710,11 @@ export default function ManagerDashboard() {
           <div className="h-60 sm:h-72">
             <BirthdaysCard />
           </div>
+
+          {/* ---------- Upcoming Holidays ---------- */}
+          <div className="h-60 sm:h-72">
+            <HolidaysCalendarCard />
+          </div>
         </div>
       </div>
       {/* ================= END desktop/tablet body ================= */}
@@ -996,7 +1002,7 @@ export default function ManagerDashboard() {
         </div>
 
         {/* ---------- Team Pulse: swipeable card carousel ----------
-            On Leave Today / Announcements / Upcoming Birthdays, one
+            On Leave Today / Announcements / Upcoming Birthdays / Upcoming Holidays, one
             full-width card per swipe. Who's on leave is also reachable
             from the "On Leave" tab above — this is the quick-glance copy. */}
         <div className="flex items-center gap-2 mb-2 px-0.5">
@@ -1079,6 +1085,12 @@ export default function ManagerDashboard() {
           <div className="snap-start shrink-0 w-[86%]">
             <div className="h-64">
               <BirthdaysCard />
+            </div>
+          </div>
+
+          <div className="snap-start shrink-0 w-[86%]">
+            <div className="h-64">
+              <HolidaysCalendarCard />
             </div>
           </div>
         </div>

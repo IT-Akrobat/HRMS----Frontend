@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Building2,
   Cake,
+  CalendarDays,
   CalendarRange,
   ChevronDown,
   FileBarChart,
@@ -31,6 +32,7 @@ import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
+import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import OutdoorCheckinAccessModal from "../../components/common/Outdoorcheckinaccessmodal";
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
@@ -409,13 +411,15 @@ export default function HrAdminDashboard() {
   // deliberately different pattern from both the desktop grid on this
   // page AND the bento-grid/bottom-sheet pattern on the Employee
   // dashboard: a segmented Overview / Activity / Team switcher, with
-  // Team content shown as inline accordion cards (one open at a time)
+  // Team content shown as inline accordion cards (each toggles on its own)
   // instead of a bottom sheet. Same data/components as desktop
   // throughout — only the mobile presentation differs. (The stat-card
   // carousel that used to sit above this was removed on mobile.)
   // ---------------------------------------------------------------------
   const [mobileTab, setMobileTab] = useState("overview");
-  const [mobileTeamOpen, setMobileTeamOpen] = useState("onleave");
+  // Team accordion cards open/close independently — tapping a card
+  // toggles just that one; opening one no longer closes the others.
+  const [mobileTeamOpen, setMobileTeamOpen] = useState(["onleave"]);
 
   // Pulled out of the mount effect so it can also be called right after a
   // check-in/out/break action (via CheckInOutCard's onActivityChange) —
@@ -860,8 +864,15 @@ export default function HrAdminDashboard() {
                 accent: "text-pink-500 bg-pink-50",
                 render: () => <BirthdaysCard />,
               },
+              {
+                key: "holidays",
+                label: "Upcoming Holidays",
+                icon: CalendarDays,
+                accent: "text-orange-500 bg-orange-50",
+                render: () => <HolidaysCalendarCard />,
+              },
             ].map(({ key, label, icon: Icon, accent, badge, render }) => {
-              const isOpen = mobileTeamOpen === key;
+              const isOpen = mobileTeamOpen.includes(key);
               return (
                 <div
                   key={key}
@@ -869,7 +880,13 @@ export default function HrAdminDashboard() {
                 >
                   <button
                     type="button"
-                    onClick={() => setMobileTeamOpen(isOpen ? null : key)}
+                    onClick={() =>
+                      setMobileTeamOpen((prev) =>
+                        prev.includes(key)
+                          ? prev.filter((k) => k !== key)
+                          : [...prev, key],
+                      )
+                    }
                     className="w-full flex items-center gap-2.5 p-3.5"
                   >
                     <div
@@ -1248,6 +1265,11 @@ export default function HrAdminDashboard() {
           {/* ---------- Upcoming Birthdays ---------- */}
           <div className="h-60 sm:h-72">
             <BirthdaysCard />
+          </div>
+
+          {/* ---------- Upcoming Holidays ---------- */}
+          <div className="h-60 sm:h-72">
+            <HolidaysCalendarCard />
           </div>
 
           {/* ---------- Top Performance ---------- */}

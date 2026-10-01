@@ -802,11 +802,6 @@ export default function CheckInOutCard({
               second: "2-digit",
             })}
           </span>
-          {checkedIn && !checkedOut && (
-            <span className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-              <CheckCircle2 size={13} /> Checked in
-            </span>
-          )}
         </div>
       </div>
 
