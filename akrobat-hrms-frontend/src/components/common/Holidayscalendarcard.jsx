@@ -23,7 +23,9 @@ import { parseLocalISODate, toLocalISODate } from "../../utils/date";
 // check rather than an exact match, so "Indian", "INDIA" and
 // "India " all resolve the same way. If neither field mentions a
 // supported country, we show a "not available" note rather than
-// guessing or falling back to a merged list.
+// guessing or falling back to a merged list -- it falls back to
+// DEFAULT_COUNTRY_CODE below instead, so the card is never empty just
+// because the profile fields were left blank.
 //
 // Backend filters by `country` (GET /holidays/?country=SG|IN), see
 // app/holidays/routes.py. Only Singapore and India have seeded
@@ -33,6 +35,11 @@ const COUNTRY_HINTS = [
   { code: "SG", pattern: /singapore|singaporean/i },
 ];
 
+// Used when neither Nationality nor Work Location mentions a supported
+// country (e.g. both left blank) -- so the card still shows a calendar
+// instead of "not available". Change this to "SG" to default to Singapore.
+const DEFAULT_COUNTRY_CODE = "IN";
+
 function detectCountryCode(user) {
   const nationality = user?.profile?.nationality || "";
   const workLocation = user?.profile?.work_location || "";
@@ -40,7 +47,7 @@ function detectCountryCode(user) {
     const hit = COUNTRY_HINTS.find(({ pattern }) => pattern.test(text));
     if (hit) return hit.code;
   }
-  return null;
+  return DEFAULT_COUNTRY_CODE;
 }
 
 // A light emoji per common holiday name, purely decorative. Order matters:
