@@ -444,6 +444,7 @@ function NotificationBell() {
 
 export default function Header({ onMenuClick }) {
   const { user, role, logout } = useAuth();
+  const navigate = useNavigate();
 
   // The employee's actual stored photo, same field every other screen
   // (dashboard cards, team lists, etc) reads from — kept in sync via
@@ -481,8 +482,17 @@ export default function Header({ onMenuClick }) {
       <div className="flex items-center gap-2 ml-auto">
         <NotificationBell />
 
-        {/* Avatar + name (display only — My Profile lives under Settings) */}
-        <div className="flex items-center gap-2">
+        {/* Avatar + name — tap to open My Profile (/<role>/profile/personal,
+            registered for every role in routes/commonRoutes.jsx) */}
+        <button
+          type="button"
+          onClick={() =>
+            navigate(`${ROLE_BASE_PATH[role] || ""}/profile/personal`)
+          }
+          title="My Profile"
+          aria-label="Open My Profile"
+          className="flex items-center gap-2 rounded-lg p-0.5 pr-1 hover:bg-slate-50 transition-colors"
+        >
           <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center font-semibold text-sm overflow-hidden">
             {profilePhoto ? (
               <img
@@ -499,7 +509,7 @@ export default function Header({ onMenuClick }) {
             <p className="text-sm font-medium text-slate-800">{user?.name}</p>
             <p className="text-xs text-slate-400">{ROLE_LABELS[role]}</p>
           </div>
-        </div>
+        </button>
 
         {/* Logout — icon only */}
         <button

@@ -460,6 +460,22 @@ export default function MyProfile() {
     updateUser({ profile: { profile_photo: savedPhoto } });
   }
 
+  // Clears the photo: PUT /employees/me with profile_photo: null (the
+  // backend only applies fields that were actually sent, and null is a
+  // valid value for it), then resets every place the photo is held --
+  // this page, and the shared auth user the Header reads from. Everyone
+  // falls back to the initials avatar.
+  async function removePhoto() {
+    await apiClient.put("/employees/me", { profile_photo: null });
+
+    setPhotoOverride(null);
+    setProfile((prev) => ({
+      ...prev,
+      profile: { ...prev.profile, profile_photo: null },
+    }));
+    updateUser({ profile: { profile_photo: null } });
+  }
+
   // ---------------- Emergency contacts popup ----------------
   function openAddContact() {
     setEditingContactId(null);
@@ -1156,6 +1172,7 @@ export default function MyProfile() {
           .slice(0, 2)
           .join("")}
         onSave={savePhoto}
+        onRemove={removePhoto}
       />
 
       {/* ---------------- Edit Profile popup ---------------- */}
@@ -1485,12 +1502,21 @@ export default function MyProfile() {
 // upload one from disk. Both paths land in the same preview step so the
 // person can retake/re-choose before it's actually saved.
 // ============================================================================
-function ProfilePhotoModal({ open, onClose, currentPhoto, initials, onSave }) {
+function ProfilePhotoModal({
+  open,
+  onClose,
+  currentPhoto,
+  initials,
+  onSave,
+  onRemove,
+}) {
   const [mode, setMode] = useState("choose"); // choose | camera | preview
   const [captured, setCaptured] = useState(null); // data URL, pre-resize
   const [cameraError, setCameraError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -1507,6 +1533,7 @@ function ProfilePhotoModal({ open, onClose, currentPhoto, initials, onSave }) {
     setCaptured(null);
     setCameraError("");
     setSaveError("");
+    setConfirmingRemove(false);
     onClose();
   }
 
@@ -1574,6 +1601,20 @@ function ProfilePhotoModal({ open, onClose, currentPhoto, initials, onSave }) {
     setMode("choose");
   }
 
+  async function confirmRemove() {
+    setRemoving(true);
+    setSaveError("");
+    try {
+      await onRemove();
+      resetAndClose();
+    } catch (err) {
+      setSaveError(err.message || "Could not remove the photo.");
+      setConfirmingRemove(false);
+    } finally {
+      setRemoving(false);
+    }
+  }
+
   async function confirmSave() {
     if (!captured) return;
     setSaving(true);
@@ -1596,7 +1637,7 @@ function ProfilePhotoModal({ open, onClose, currentPhoto, initials, onSave }) {
       open={open}
       onClose={() => !saving && resetAndClose()}
       title="Update Profile Photo"
-      subtitle="Take a new photo with your camera, or upload one from your device."
+      subtitle="Take a new photo with your camera, upload one from your device, or remove the current photo."
       width="max-w-md"
       footer={
         mode === "preview" ? (
@@ -1683,6 +1724,43 @@ function ProfilePhotoModal({ open, onClose, currentPhoto, initials, onSave }) {
             className="hidden"
             onChange={handleFilePick}
           />
+
+          {/* Only shown when there is a photo to remove. */}
+          {currentPhoto && onRemove && (
+            <div className="mt-4">
+              {confirmingRemove ? (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-3 text-center">
+                  <p className="text-sm text-slate-700 mb-3">
+                    Remove your profile photo?
+                  </p>
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => setConfirmingRemove(false)}
+                      disabled={removing}
+                      className="text-sm font-medium text-slate-600 border border-slate-200 bg-white rounded-lg px-3 py-1.5 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmRemove}
+                      disabled={removing}
+                      className="flex items-center gap-1.5 text-sm font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-60 rounded-lg px-3 py-1.5"
+                    >
+                      <Trash2 size={14} />
+                      {removing ? "Removing..." : "Yes, Remove"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmingRemove(true)}
+                  className="w-full flex items-center justify-center gap-1.5 text-sm font-medium text-red-500 border border-red-100 hover:bg-red-50 rounded-xl px-4 py-2.5 transition-colors"
+                >
+                  <Trash2 size={15} /> Remove Photo
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
