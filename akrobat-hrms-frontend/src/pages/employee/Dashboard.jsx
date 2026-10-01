@@ -39,9 +39,9 @@ import { isFieldEmployee } from "../../utils/employeeType";
 // Check-in card. The first three go straight to a page; "More" opens a
 // bottom sheet with everything else an employee can reach from the
 // sidebar (so nothing is lost on mobile, where the sidebar is hidden).
-//   Leave     -> Apply Leave
-//   Timesheet -> My Attendance (daily in/out log)
-//   Request   -> Leave History (every request I've raised + its status)
+//   Leave      -> Apply Leave
+//   Attendance -> My Attendance (daily in/out log)
+//   Request    -> Leave History (every request I've raised + its status)
 const QUICK_ACTION_TILES = [
   {
     to: "/employee/leave/apply",
@@ -56,10 +56,11 @@ const QUICK_ACTION_TILES = [
     style: "from-sky-50 to-white border-sky-100 text-sky-500",
   },
   {
+    // Same orange as the Announcements tile.
     to: "/employee/leave/history",
     label: "Request",
     icon: ClipboardList,
-    style: "from-emerald-50 to-white border-emerald-100 text-emerald-600",
+    style: "from-orange-50 to-white border-orange-100 text-orange-500",
   },
 ];
 
@@ -418,7 +419,7 @@ export default function EmployeeDashboard() {
         {/* ---------- Quick Actions ---------- */}
         <div className="flex items-center gap-2 mb-2 px-0.5">
           <Zap size={16} className="text-orange-500 fill-orange-500" />
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
             Quick Actions
           </h2>
         </div>
@@ -431,7 +432,7 @@ export default function EmployeeDashboard() {
               className={`rounded-2xl border bg-gradient-to-br py-4 px-1 flex flex-col items-center gap-2 active:scale-[0.96] transition-transform ${style}`}
             >
               <Icon size={24} strokeWidth={1.75} />
-              <span className="text-[13px] font-medium text-slate-700 truncate max-w-full">
+              <span className="text-xs font-semibold text-slate-700 truncate max-w-full">
                 {label}
               </span>
             </Link>
@@ -444,7 +445,7 @@ export default function EmployeeDashboard() {
             <span className="w-6 h-6 rounded-full bg-slate-400 text-white flex items-center justify-center">
               <MoreHorizontal size={15} />
             </span>
-            <span className="text-[13px] font-medium text-slate-700">More</span>
+            <span className="text-xs font-semibold text-slate-700">More</span>
           </button>
         </div>
 
@@ -461,14 +462,12 @@ export default function EmployeeDashboard() {
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           {officeTiles.map(
-            ({ key, label, icon: Icon, wide, accent, preview, badge }) => (
+            ({ key, label, icon: Icon, accent, preview, badge }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setOpenSheet(key)}
-                className={`${
-                  wide ? "col-span-2" : ""
-                } text-left rounded-2xl border bg-gradient-to-br p-4 active:scale-[0.97] transition-transform ${accent}`}
+                className={`text-left rounded-2xl border bg-gradient-to-br p-4 active:scale-[0.97] transition-transform ${accent}`}
               >
                 <div className="flex items-center justify-between mb-2.5">
                   <Icon size={18} />
