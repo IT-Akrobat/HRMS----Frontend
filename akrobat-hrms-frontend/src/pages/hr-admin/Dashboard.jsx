@@ -35,7 +35,7 @@ import CheckInOutCard from "../../components/common/CheckInOutCard";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import OutdoorCheckinAccessModal from "../../components/common/Outdoorcheckinaccessmodal";
 import PageHeader from "../../components/common/PageHeader";
-import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
+// import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import UserFormModal from "../../components/common/UserformModal";
@@ -579,7 +579,7 @@ export default function HrAdminDashboard() {
                 </span>
               </button>
 
-              <QuoteOfDayCard compact />
+              {/* <QuoteOfDayCard compact /> */}
             </div>
           }
         />
@@ -599,7 +599,7 @@ export default function HrAdminDashboard() {
         <p className="text-sm text-slate-500 mb-3">
           {/* Overview of your system and activity */}
         </p>
-        <QuoteOfDayCard compact />
+        {/* <QuoteOfDayCard compact /> */}
 
         {/* Straight-nav quick actions (Employee List / Live Site
             Tracking / Audit Logs / Reports / Leave Balance) — the

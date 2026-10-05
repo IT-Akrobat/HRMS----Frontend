@@ -1,53 +1,87 @@
 import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
 import { parseLocalISODate, toLocalISODate } from "../../utils/date";
 
 // Akrobat is HQ'd in Singapore with staff in India (see
-// sql/012_holiday_country_and_employee_dob.sql for the seeded 2026
-// calendars -- only SG and IN currently have rows).
+// sql/029.sql for the seeded calendars -- SG and IN currently have rows).
 //
-// Each employee sees ONLY their own country's holidays, worked out
-// from their profile rather than a merged "everyone's holidays" list
-// (an India-based employee shouldn't have to scroll past Singapore's
-// Hari Raya to find Diwali, and vice versa). Two profile fields can
-// signal country, checked in order:
-//   1. Nationality (employees.nationality) -- the intentional, HR-set
-//      country picker (see UserformModal's COUNTRIES list).
-//   2. Work Location (employees.work_location) -- free text, so this
-//      is only a fallback for older records where Nationality was
-//      still a free-text field (pre this change) and may hold values
-//      like "Indian" rather than "India", or be blank entirely.
-// Matching is a case-insensitive "does this text mention the country"
-// check rather than an exact match, so "Indian", "INDIA" and
-// "India " all resolve the same way. If neither field mentions a
-// supported country, we show a "not available" note rather than
-// guessing or falling back to a merged list -- it falls back to
-// DEFAULT_COUNTRY_CODE below instead, so the card is never empty just
-// because the profile fields were left blank.
+// EVERY employee sees EVERY holiday, regardless of nationality or work
+// location: Singapore staff see India's holidays and vice versa, merged
+// into one date-ordered list. A holiday that exists in only ONE country's
+// calendar gets a small SG / IN tag; a holiday shared by both (merged into
+// a single entry) gets no tag.
 //
-// Backend filters by `country` (GET /holidays/?country=SG|IN), see
-// app/holidays/routes.py. Only Singapore and India have seeded
-// calendars right now.
-const COUNTRY_HINTS = [
-  { code: "IN", pattern: /india|indian/i },
-  { code: "SG", pattern: /singapore|singaporean/i },
-];
+// Because both calendars are merged, the same holiday often exists twice
+// (e.g. SG "Christmas Day" and IN "Christmas" on 25 Dec). Rows that share
+// a date and the same holiday name are collapsed into ONE entry -- see
+// dedupeHolidays() below.
+//
+// Backend: GET /holidays/ with no `country` param returns all rows
+// (see app/holidays/routes.py).
 
-// Used when neither Nationality nor Work Location mentions a supported
-// country (e.g. both left blank) -- so the card still shows a calendar
-// instead of "not available". Change this to "SG" to default to Singapore.
-const DEFAULT_COUNTRY_CODE = "IN";
+// Rows may carry the country as a code ("SG") or spelled out
+// ("Singapore", "INDIA") when they came from an Excel upload.
+function countryCode(raw) {
+  const text = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (!text) return null;
+  if (/^(sg|sgp|singapore|singaporean)$/.test(text)) return "SG";
+  if (/^(in|ind|india|indian)$/.test(text)) return "IN";
+  return text.toUpperCase().slice(0, 3);
+}
 
-function detectCountryCode(user) {
-  const nationality = user?.profile?.nationality || "";
-  const workLocation = user?.profile?.work_location || "";
-  for (const text of [nationality, workLocation]) {
-    const hit = COUNTRY_HINTS.find(({ pattern }) => pattern.test(text));
-    if (hit) return hit.code;
-  }
-  return DEFAULT_COUNTRY_CODE;
+// Words that don't change which holiday it is, so "Christmas" and
+// "Christmas Day" compare equal. "diwali" is folded into "deepavali"
+// (same festival, different spelling per country).
+const NAME_NOISE = new Set(["day", "public", "holiday", "the", "of"]);
+
+function nameTokens(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t && !NAME_NOISE.has(t))
+    .map((t) => (t === "diwali" ? "deepavali" : t));
+}
+
+// Same holiday if one name's words are all contained in the other's
+// ("good friday" vs "good friday").
+function sameHolidayName(a, b) {
+  const ta = nameTokens(a);
+  const tb = nameTokens(b);
+  if (ta.length === 0 || tb.length === 0) return false;
+  const [small, big] = ta.length <= tb.length ? [ta, tb] : [tb, ta];
+  return small.every((t) => big.includes(t));
+}
+
+// Keeps one row per (date, holiday). When two rows match, the one with the
+// longer/more descriptive name wins ("Christmas Day" over "Christmas").
+function dedupeHolidays(rows) {
+  const kept = [];
+  rows.forEach((h) => {
+    const code = countryCode(h.country);
+    const idx = kept.findIndex(
+      (k) =>
+        k.holiday_date === h.holiday_date &&
+        sameHolidayName(k.holiday_name, h.holiday_name),
+    );
+    if (idx === -1) {
+      kept.push({ ...h, _countries: new Set(code ? [code] : []) });
+      return;
+    }
+    if (code) kept[idx]._countries.add(code);
+    if ((h.holiday_name || "").length > (kept[idx].holiday_name || "").length) {
+      kept[idx] = { ...h, _countries: kept[idx]._countries };
+    }
+  });
+  return kept;
+}
+
+// Tag only when the holiday belongs to exactly one country.
+function singleCountryTag(h) {
+  return h._countries && h._countries.size === 1 ? [...h._countries][0] : null;
 }
 
 // A light emoji per common holiday name, purely decorative. Order matters:
@@ -141,30 +175,18 @@ function actualDateNote(h) {
 }
 
 export default function HolidaysCalendarCard() {
-  const { user } = useAuth();
-  const countryCode = detectCountryCode(user);
-
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
   // Only exists to force a re-render so `today` below is recalculated.
   const [, setTick] = useState(0);
 
   useEffect(() => {
-    if (!countryCode) {
-      // No seeded calendar for this nationality -- nothing to fetch,
-      // and definitely don't fall back to showing every country's
-      // holidays just to have something on screen.
-      setHolidays([]);
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
 
     function fetchHolidays(showSpinner) {
       if (showSpinner) setLoading(true);
       apiClient
-        .get(`/holidays/?country=${countryCode}`)
+        .get("/holidays/")
         .then((res) => {
           if (cancelled) return;
           setHolidays(res.data || []);
@@ -196,12 +218,14 @@ export default function HolidaysCalendarCard() {
       cancelled = true;
       document.removeEventListener("visibilitychange", handleVisible);
     };
-  }, [countryCode]);
+  }, []);
 
   const today = toLocalISODate();
-  const list = holidays
-    .filter((h) => h.holiday_date >= today)
-    .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date));
+  const list = dedupeHolidays(
+    holidays
+      .filter((h) => h.holiday_date >= today)
+      .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)),
+  );
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 h-full flex flex-col">
@@ -221,10 +245,6 @@ export default function HolidaysCalendarCard() {
             />
           ))}
         </div>
-      ) : !countryCode ? (
-        <p className="text-sm text-slate-400">
-          Holiday calendar not available for your country yet.
-        </p>
       ) : list.length === 0 ? (
         <p className="text-sm text-slate-400">No upcoming holidays.</p>
       ) : (
@@ -233,8 +253,13 @@ export default function HolidaysCalendarCard() {
             <li key={h.id} className="flex items-center gap-3 py-2.5">
               <HolidayIcon name={h.holiday_name} />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-slate-800 truncate">
-                  {h.holiday_name}
+                <p className="text-sm font-medium text-slate-800 truncate flex items-center gap-1.5">
+                  <span className="truncate">{h.holiday_name}</span>
+                  {singleCountryTag(h) && (
+                    <span className="shrink-0 text-[10px] font-semibold leading-none px-1.5 py-1 rounded bg-slate-100 text-slate-500">
+                      {singleCountryTag(h)}
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-slate-400">
                   {formatDate(h.holiday_date)} · {formatWeekday(h.holiday_date)}

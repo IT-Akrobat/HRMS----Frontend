@@ -28,8 +28,9 @@ import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 
+import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import PageHeader from "../../components/common/PageHeader";
-import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
+// import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import UserFormModal from "../../components/common/UserformModal";
@@ -777,7 +778,7 @@ export default function SuperAdminDashboard() {
                   Create Site
                 </span>
               </button>
-              <QuoteOfDayCard compact />
+              {/* <QuoteOfDayCard compact /> */}
             </div>
           }
         />
@@ -839,7 +840,7 @@ export default function SuperAdminDashboard() {
             </div>
           </div>
         </div>
-        <QuoteOfDayCard compact />
+        {/* <QuoteOfDayCard compact /> */}
       </div>
 
       {/* =================================================================
@@ -958,6 +959,9 @@ export default function SuperAdminDashboard() {
               </div>
               <div className="snap-start shrink-0 w-[86%] h-48">
                 <BirthdaysCard />
+              </div>
+              <div className="snap-start shrink-0 w-[86%] h-48">
+                <HolidaysCalendarCard />
               </div>
             </div>
           </div>
@@ -1751,6 +1755,11 @@ export default function SuperAdminDashboard() {
           {/* ---------- Upcoming Birthdays ---------- */}
           <div className="h-60 sm:h-72">
             <BirthdaysCard />
+          </div>
+
+          {/* ---------- Upcoming Holidays ---------- */}
+          <div className="h-60 sm:h-72">
+            <HolidaysCalendarCard />
           </div>
 
           {/* ---------- Top Performance ---------- */}

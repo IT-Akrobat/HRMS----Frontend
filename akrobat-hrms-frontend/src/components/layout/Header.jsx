@@ -133,7 +133,7 @@ function timeAgo(dateStr) {
   });
 }
 
-function NotificationBell() {
+function NotificationBell({ overHero = false }) {
   const { role } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -349,7 +349,11 @@ function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+        className={`relative w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
+          overHero
+            ? "text-slate-500 hover:bg-slate-100 max-lg:text-white max-lg:hover:bg-white/10"
+            : "text-slate-500 hover:bg-slate-100"
+        }`}
         aria-label="Notifications"
       >
         <Bell size={18} />
@@ -442,7 +446,11 @@ function NotificationBell() {
   );
 }
 
-export default function Header({ onMenuClick }) {
+// overHero = the page draws a full-bleed gradient behind this bar on mobile
+// (see DashboardLayout / Employee Dashboard). Below lg the bar goes
+// transparent with white icons and scrolls away with the hero; lg and up
+// is untouched.
+export default function Header({ onMenuClick, overHero = false }) {
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -453,13 +461,23 @@ export default function Header({ onMenuClick }) {
   const profilePhoto = user?.profile?.profile_photo || null;
 
   return (
-    <header className="header h-16 flex items-center justify-between px-4 sm:px-6 bg-white border-b border-slate-200 sticky top-0 z-20">
+    <header
+      className={`header h-16 flex items-center justify-between px-4 sm:px-6 bg-white border-b border-slate-200 sticky top-0 z-20 ${
+        overHero
+          ? "max-lg:bg-transparent max-lg:border-transparent max-lg:relative max-lg:z-10"
+          : ""
+      }`}
+    >
       {/* Mobile menu toggle + Search */}
       <div className="flex items-center gap-2 flex-1 max-w-md">
         <button
           type="button"
           onClick={onMenuClick}
-          className="lg:hidden shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+          className={`lg:hidden shrink-0 w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
+            overHero
+              ? "text-white hover:bg-white/10"
+              : "text-slate-600 hover:bg-slate-100"
+          }`}
           aria-label="Open menu"
         >
           <Menu size={20} />
@@ -480,7 +498,7 @@ export default function Header({ onMenuClick }) {
 
       {/* Notifications + Profile */}
       <div className="flex items-center gap-2 ml-auto">
-        <NotificationBell />
+        <NotificationBell overHero={overHero} />
 
         {/* Avatar + name — tap to open My Profile (/<role>/profile/personal,
             registered for every role in routes/commonRoutes.jsx) */}
@@ -493,7 +511,11 @@ export default function Header({ onMenuClick }) {
           aria-label="Open My Profile"
           className="flex items-center gap-2 rounded-lg p-0.5 pr-1 hover:bg-slate-50 transition-colors"
         >
-          <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center font-semibold text-sm overflow-hidden">
+          <div
+            className={`w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center font-semibold text-sm overflow-hidden ${
+              overHero ? "max-lg:bg-white/20 max-lg:text-white" : ""
+            }`}
+          >
             {profilePhoto ? (
               <img
                 src={profilePhoto}
@@ -517,7 +539,11 @@ export default function Header({ onMenuClick }) {
           onClick={logout}
           title="Logout"
           aria-label="Logout"
-          className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-orange-500 hover:bg-orange-50 transition-colors"
+          className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
+            overHero
+              ? "text-slate-500 hover:text-orange-500 hover:bg-orange-50 max-lg:text-white max-lg:hover:bg-white/10 max-lg:hover:text-white"
+              : "text-slate-500 hover:text-orange-500 hover:bg-orange-50"
+          }`}
         >
           <LogOut size={18} />
         </button>

@@ -322,13 +322,17 @@ export default function EmployeeDashboard() {
           data/components as desktop; only the interaction changes.
       ================================================================= */}
       <div className="lg:hidden">
-        {/* ---------- Plain greeting (no card/banner) ---------- */}
-        <div className="mb-4">
+        {/* ---------- Greeting on the full-bleed header gradient ----------
+            The gradient itself is drawn by DashboardLayout (it has to sit
+            behind the top bar too). Text here is white on top of it. */}
+        <div className="mb-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-medium text-orange-500">{todayLong}</p>
-              <h1 className="text-2xl font-extrabold text-slate-800 mt-0.5 truncate">
-                Hi, {firstName} 👋
+              <p className="text-xs font-semibold text-orange-300">
+                {todayLong}
+              </p>
+              <h1 className="text-2xl font-bold text-white mt-0.5 truncate">
+                Hi, {firstName.toUpperCase()}
               </h1>
             </div>
             <button
@@ -346,14 +350,14 @@ export default function EmployeeDashboard() {
               }}
               title="Applied Leave Requests"
               aria-label="Applied Leave Requests"
-              className="w-8 h-8 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+              className="w-8 h-8 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors shrink-0"
             >
               <ClipboardList size={15} />
             </button>
           </div>
-          <div className="mt-3">
-            <QuoteOfDayCard compact />
-          </div>
+          {/* Spacer so the attendance card below overlaps the gradient's
+              lower edge, like the reference design. */}
+          <div className="h-10" />
         </div>
 
         {/* ---------- Check-in / Site Visit / Meeting ----------
@@ -385,7 +389,7 @@ export default function EmployeeDashboard() {
           )}
 
           {(mobileTabs.length === 0 || mobileTab === "checkin") && (
-            <div className="rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
+            <div className="rounded-2xl shadow-xl shadow-slate-900/20 [&>div]:rounded-2xl [&>div]:border-0">
               <CheckInOutCard ultraCompact onActivityChange={loadTodayStatus} />
             </div>
           )}
@@ -415,6 +419,12 @@ export default function EmployeeDashboard() {
             </div>
           )}
         </div>
+
+        {/* Quote of the day — moved below the attendance card now that the
+            greeting sits on the gradient header. */}
+        {/* <div className="mb-6">
+          <QuoteOfDayCard compact />
+        </div> */}
 
         {/* ---------- Quick Actions ---------- */}
         <div className="flex items-center gap-2 mb-2 px-0.5">

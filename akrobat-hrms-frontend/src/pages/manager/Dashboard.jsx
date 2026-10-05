@@ -20,7 +20,7 @@ import BirthdaysCard, {
 import CheckInOutCard from "../../components/common/CheckInOutCard";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import PageHeader from "../../components/common/PageHeader";
-import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
+// import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
 
 import { useAuth } from "../../context/AuthContext";
@@ -296,7 +296,7 @@ export default function ManagerDashboard() {
                 label="New Site"
                 icon={MapPin}
               />
-              <QuoteOfDayCard compact />
+              {/* <QuoteOfDayCard compact /> */}
             </div>
           }
         />
@@ -320,7 +320,7 @@ export default function ManagerDashboard() {
           Here's how your team is doing today
         </p>
 
-        <QuoteOfDayCard compact />
+        {/* <QuoteOfDayCard compact /> */}
         {/* <MobileQuickActions actions={MANAGER_QUICK_ACTIONS} /> */}
       </div>
 

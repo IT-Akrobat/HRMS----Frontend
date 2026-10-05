@@ -1,6 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import BirthdayWish from "../common/Birthdaywish";
 import Header from "./Header";
@@ -15,6 +15,10 @@ export default function DashboardLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
+  // Employee dashboard on mobile paints a gradient behind the whole header
+  // (top bar included). Only this route; every other page is unchanged.
+  const { pathname } = useLocation();
+  const overHero = pathname.replace(/\/$/, "") === "/employee/dashboard";
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -24,9 +28,22 @@ export default function DashboardLayout() {
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
       />
-      <div className="flex-1 min-w-0 flex flex-col">
-        <Header onMenuClick={() => setMobileSidebarOpen(true)} />
-        <main className="flex-1 p-3">
+      <div className="flex-1 min-w-0 flex flex-col relative">
+        {overHero && (
+          <div
+            aria-hidden="true"
+            className="lg:hidden absolute inset-x-0 top-0 z-0 h-[230px] overflow-hidden bg-gradient-to-b from-[#0e1a45] via-[#1e2552] via-40% to-[#7a5558]"
+          >
+            <span className="absolute -top-10 right-8 w-24 h-24 rounded-full bg-white/10" />
+            <span className="absolute -bottom-3 left-4 w-20 h-20 rounded-t-xl bg-white/[0.07]" />
+            <span className="absolute -bottom-3 right-4 w-24 h-28 rounded-t-2xl bg-white/[0.07]" />
+          </div>
+        )}
+        <Header
+          overHero={overHero}
+          onMenuClick={() => setMobileSidebarOpen(true)}
+        />
+        <main className="flex-1 p-3 relative z-10">
           {/* Real, working password expiry (see Access Control >
               Password policy > Password expiry, enforced backend-side
               in app/auth/services.py::login_user against
