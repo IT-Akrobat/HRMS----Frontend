@@ -1734,6 +1734,10 @@ function CopyButton({ value, title = "Copy" }) {
   );
 }
 
+// Where the employee works from. Stored as employees.working_location
+// (separate from the free-text "Work Location" city/office field).
+const WORKING_LOCATIONS = ["Office", "Site", "Office and Site"];
+
 export default function UserFormModal({
   mode,
   user,
@@ -1771,6 +1775,7 @@ export default function UserFormModal({
     joining_date: user?.joining_date || "",
     employment_status: user?.employment_status || "Active",
     work_location: user?.work_location || "",
+    working_location: user?.working_location || "",
     // Leave policy engine fields (see app/leaves/policy_services.py).
     // Annual Leave tier is required for every user/employee; Childcare
     // Leave tier only matters for those who pass the CHILDCARE LEAVE
@@ -2262,6 +2267,7 @@ export default function UserFormModal({
           joining_date: orUndefined(form.joining_date),
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
+          working_location: orUndefined(form.working_location),
           // Only sent if something was actually picked -- omitting
           // these leaves the user's existing tier assignment untouched
           // rather than clearing it (see app/employees/services.py
@@ -2300,6 +2306,7 @@ export default function UserFormModal({
           joining_date: orUndefined(form.joining_date),
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
+          working_location: orUndefined(form.working_location),
           annual_leave_tier_id: orUndefined(form.annual_leave_tier_id),
           childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
           working_days_per_week: form.working_days_per_week,
@@ -2700,6 +2707,18 @@ export default function UserFormModal({
                   value={form.work_location}
                   onChange={(e) => set("work_location", e.target.value)}
                   placeholder="Singapore Office"
+                />
+              </Field>
+              <Field label="Working Location">
+                <FilterDropdown
+                  fullWidth
+                  showAllOption={false}
+                  allLabel="Select working location"
+                  value={form.working_location}
+                  onChange={(v) => set("working_location", v)}
+                  options={WORKING_LOCATIONS}
+                  getKey={(o) => o}
+                  getLabel={(o) => o}
                 />
               </Field>
             </div>

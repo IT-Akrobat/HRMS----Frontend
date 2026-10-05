@@ -362,6 +362,11 @@ function UserViewModal({ user, users, onClose, onEdit }) {
                     value={user.work_location}
                   />
                   <DetailRow
+                    icon={MapPin}
+                    label="Working Location"
+                    value={user.working_location}
+                  />
+                  <DetailRow
                     icon={Calendar}
                     label="Joining Date"
                     value={formatDate(user.joining_date)}

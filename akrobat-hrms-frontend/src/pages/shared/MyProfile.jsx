@@ -901,6 +901,10 @@ export default function MyProfile() {
                     />
                     <Field label="Work Location" value={p.work_location} />
                     <Field
+                      label="Working Location"
+                      value={p.working_location}
+                    />
+                    <Field
                       label="Assigned Site(s)"
                       value={
                         sitesLoading

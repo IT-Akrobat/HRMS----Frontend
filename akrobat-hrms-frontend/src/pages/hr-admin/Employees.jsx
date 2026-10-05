@@ -172,6 +172,10 @@ function isSystemGeneratedEmail(employee) {
 // Add / Edit modal
 // ==========================================================================
 
+// Where the employee works from. Stored as employees.working_location
+// (separate from the free-text "Work Location" city/office field).
+const WORKING_LOCATIONS = ["Office", "Site", "Office and Site"];
+
 function EmployeeFormModal({
   mode,
   employee,
@@ -205,6 +209,7 @@ function EmployeeFormModal({
     joining_date: employee?.joining_date || "",
     employment_status: employee?.employment_status || "Active",
     work_location: employee?.work_location || "",
+    working_location: employee?.working_location || "",
     // Leave policy engine fields (see app/leaves/policy_services.py).
     // Annual Leave tier is required for every employee; Childcare Leave
     // tier only matters for employees who pass the CHILDCARE LEAVE
@@ -374,6 +379,7 @@ function EmployeeFormModal({
           joining_date: orUndefined(form.joining_date),
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
+          working_location: orUndefined(form.working_location),
           // Only sent if HR actually picked something -- omitting these
           // leaves the employee's existing tier assignment untouched
           // rather than clearing it (see app/employees/services.py
@@ -403,6 +409,7 @@ function EmployeeFormModal({
           joining_date: orUndefined(form.joining_date),
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
+          working_location: orUndefined(form.working_location),
           annual_leave_tier_id: orUndefined(form.annual_leave_tier_id),
           childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
           working_days_per_week: form.working_days_per_week,
@@ -694,6 +701,18 @@ function EmployeeFormModal({
                   placeholder="Singapore Office"
                 />
               </Field>
+              <Field label="Working Location">
+                <FilterDropdown
+                  fullWidth
+                  showAllOption={false}
+                  allLabel="Select working location"
+                  value={form.working_location}
+                  onChange={(v) => set("working_location", v)}
+                  options={WORKING_LOCATIONS}
+                  getKey={(o) => o}
+                  getLabel={(o) => o}
+                />
+              </Field>
               <Field label="Employment Status">
                 <FilterDropdown
                   fullWidth
@@ -958,6 +977,11 @@ function EmployeeViewModal({ employee, employees, onClose, onEdit }) {
                 icon={MapPin}
                 label="Work Location"
                 value={employee.work_location}
+              />
+              <DetailRow
+                icon={MapPin}
+                label="Working Location"
+                value={employee.working_location}
               />
               <DetailRow
                 icon={Calendar}
