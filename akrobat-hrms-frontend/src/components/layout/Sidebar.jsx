@@ -11,6 +11,7 @@ import logo from "../../assets/images/akrobat-logo.png";
 import { NAVIGATION_CONFIG } from "../../config/navigationConfig";
 import { useAuth } from "../../context/AuthContext";
 import { isFieldEmployee } from "../../utils/employeeType";
+import { isSiteEmployee } from "../../utils/workingLocation";
 
 function isChildActive(children, pathname) {
   // EXACT match only - NO startsWith
@@ -30,22 +31,27 @@ export default function Sidebar({
   // Items flagged `fieldOnly` (e.g. "Sites Worked") are shown only to
   // Inspection / Operation department staff.
   const showFieldOnly = isFieldEmployee(user);
+  // Items flagged `hideForSite` (the Attendance tab) are hidden for
+  // employees whose Working Location is exactly "Site".
+  const siteEmployee = isSiteEmployee(user);
   // Memoised so `items` keeps a stable identity between renders. Previously
   // it was rebuilt on every render, which re-triggered the effect below each
   // time a group was clicked and snapped the menu back to the active group.
   const items = useMemo(
     () =>
-      (NAVIGATION_CONFIG[role] ?? []).map((item) =>
-        item.children
-          ? {
-              ...item,
-              children: item.children.filter(
-                (c) => !c.fieldOnly || showFieldOnly,
-              ),
-            }
-          : item,
-      ),
-    [role, showFieldOnly],
+      (NAVIGATION_CONFIG[role] ?? [])
+        .filter((item) => !(item.hideForSite && siteEmployee))
+        .map((item) =>
+          item.children
+            ? {
+                ...item,
+                children: item.children.filter(
+                  (c) => !c.fieldOnly || showFieldOnly,
+                ),
+              }
+            : item,
+        ),
+    [role, showFieldOnly, siteEmployee],
   );
 
   const [openGroups, setOpenGroups] = useState(() => {

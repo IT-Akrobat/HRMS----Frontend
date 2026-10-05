@@ -344,6 +344,9 @@ export const NAVIGATION_CONFIG = {
     {
       label: "Attendance",
       icon: Clock,
+      // Employees whose Working Location is "Site" don't get this tab --
+      // Sidebar.jsx hides it (see isSiteEmployee).
+      hideForSite: true,
       children: [
         { label: "My Attendance", path: "/employee/attendance" },
         { label: "Attendance History", path: "/employee/attendance/history" },
@@ -444,7 +447,8 @@ export const NAVIGATION_CONFIG = {
   ],
 
   [ROLES.HR_ADMIN]: [
-    { label: "Dashboard", icon: LayoutDashboard, path: "/hr-admin/dashboard" },
+    { label: "My Space", icon: LayoutDashboard, path: "/hr-admin/dashboard" },
+    { label: "Company", icon: Building2, path: "/hr-admin/company" },
     {
       label: "Employees",
       icon: Users,
