@@ -911,3 +911,29 @@ select option:hover {
 .animate-birthday-fuse-spark {
   animation: birthday-fuse-spark 0.6s ease-in-out infinite;
 }
+
+/* =====================================================
+   MODALS ALWAYS SIT ABOVE THE HEADER + SIDEBAR
+   The sticky page header (z-20) and the sidebar were painting over the
+   top of popups (title cut off, header/sidebar not dimmed by the
+   backdrop). Whenever a full-screen modal overlay (fixed inset-0 with
+   z-50 / z-[100]) is mounted anywhere on the page, drop the header and
+   sidebar below it. Applies to every modal, no per-modal changes needed.
+   The mobile sidebar backdrop is z-30, so the mobile drawer is not
+   affected.
+===================================================== */
+
+body:has(
+    .fixed.inset-0:is([class*="z-50"], [class*="z-[100]"]):not(
+        .pointer-events-none
+      )
+  )
+  .header,
+body:has(
+    .fixed.inset-0:is([class*="z-50"], [class*="z-[100]"]):not(
+        .pointer-events-none
+      )
+  )
+  aside {
+  z-index: 0;
+}

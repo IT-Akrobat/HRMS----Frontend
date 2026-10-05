@@ -30,7 +30,7 @@ import BirthdaysCard, {
 
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import PageHeader from "../../components/common/PageHeader";
-// import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
+import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import UserFormModal from "../../components/common/UserformModal";
@@ -778,7 +778,7 @@ export default function SuperAdminDashboard() {
                   Create Site
                 </span>
               </button>
-              {/* <QuoteOfDayCard compact /> */}
+              <QuoteOfDayCard compact />
             </div>
           }
         />

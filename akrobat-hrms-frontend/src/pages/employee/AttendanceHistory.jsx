@@ -30,8 +30,10 @@ import { Link } from "react-router-dom";
 import * as XLSX from "xlsx-js-style";
 import PageHeader from "../../components/common/PageHeader";
 import DatePicker from "../../components/layout/DatePicker";
+import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate, toLocalISODate } from "../../utils/date";
+import { isSiteEmployee } from "../../utils/workingLocation";
 
 // ---------------------------------------------------------------------
 // Backend contract (see BACKEND_NOTES.md / attendance_history.sql that
@@ -138,6 +140,11 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Only returns an office when the point is actually INSIDE that office's
+// geofence (loc.radius, default 300m). Previously this returned the
+// closest office no matter how far away, so every employee working at an
+// outside site (e.g. Operations) showed "Rani Hall" -- the nearest office.
+const DEFAULT_OFFICE_RADIUS_M = 300;
 function nearestLocationName(lat, lon, locations) {
   if (lat == null || lon == null || !locations || locations.length === 0) {
     return null;
@@ -146,9 +153,40 @@ function nearestLocationName(lat, lon, locations) {
   for (const loc of locations) {
     if (loc.latitude == null || loc.longitude == null) continue;
     const d = distanceMeters(lat, lon, loc.latitude, loc.longitude);
+    const radius =
+      Number(loc.radius) > 0 ? Number(loc.radius) : DEFAULT_OFFICE_RADIUS_M;
+    if (d > radius) continue;
     if (!best || d < best.distance) best = { loc, distance: d };
   }
   return best ? best.loc.location_name : null;
+}
+
+// Office name if inside an office geofence, otherwise the address saved at
+// check-in/out time, otherwise null.
+function resolvePointLabel(lat, lon, address, locations) {
+  return nearestLocationName(lat, lon, locations) || address || null;
+}
+
+// Location shown for an attendance row:
+//   - not checked out yet  -> where the employee CHECKED IN
+//   - checked out          -> where the employee CHECKED OUT
+// (falls back to the check-in spot if no check-out coordinates were saved)
+function attendanceLocationName(r, locations) {
+  if (r?.check_out_time) {
+    const out = resolvePointLabel(
+      r.check_out_latitude,
+      r.check_out_longitude,
+      r.check_out_address,
+      locations,
+    );
+    if (out) return out;
+  }
+  return resolvePointLabel(
+    r?.check_in_latitude,
+    r?.check_in_longitude,
+    r?.check_in_address,
+    locations,
+  );
 }
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -167,7 +205,14 @@ const STATUS_OPTIONS = [
 // the popover, the option rows, the selected-state highlight — follows
 // the app's own rounded/orange design instead of the browser's default
 // <select> popup styling (which can't be restyled via CSS).
-function StatusDropdown({ value, onChange, options }) {
+function StatusDropdown({
+  value,
+  onChange,
+  options,
+  getLabel = (o) => o,
+  openUp = false,
+  compact = false,
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -184,11 +229,15 @@ function StatusDropdown({ value, onChange, options }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center justify-between gap-6 w-full sm:w-36 text-sm text-slate-700 border rounded-xl pl-3.5 pr-3 py-2.5 bg-slate-50/60 hover:border-slate-300 transition-colors ${
+        className={`flex items-center justify-between text-slate-700 border bg-slate-50/60 hover:border-slate-300 transition-colors ${
+          compact
+            ? "gap-2 text-xs rounded-lg pl-3 pr-2.5 py-1.5"
+            : "gap-6 w-full sm:w-36 text-sm rounded-xl pl-3.5 pr-3 py-2.5"
+        } ${
           open ? "ring-2 ring-orange-200 border-orange-400" : "border-slate-200"
         }`}
       >
-        <span>{value}</span>
+        <span>{getLabel(value)}</span>
         <ChevronDown
           size={14}
           className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
@@ -196,7 +245,11 @@ function StatusDropdown({ value, onChange, options }) {
       </button>
 
       {open && (
-        <div className="absolute z-30 top-full mt-2 left-0 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5">
+        <div
+          className={`absolute z-30 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 ${
+            openUp ? "bottom-full mb-2 right-0" : "top-full mt-2 left-0"
+          } ${compact ? "w-36" : "w-44"}`}
+        >
           {options.map((opt) => {
             const active = opt === value;
             return (
@@ -213,7 +266,7 @@ function StatusDropdown({ value, onChange, options }) {
                     : "text-slate-600 hover:bg-orange-50"
                 }`}
               >
-                {opt}
+                {getLabel(opt)}
                 {active && <Check size={14} />}
               </button>
             );
@@ -304,6 +357,9 @@ function ExportMenu({ disabled, onExportExcel, onExportPdf, compact = false }) {
 }
 
 export default function AttendanceHistory() {
+  const { user } = useAuth();
+  // Site employees do not see working hours / break / total working hours.
+  const hideHours = isSiteEmployee(user);
   const [rows, setRows] = useState([]);
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -388,12 +444,7 @@ export default function AttendanceHistory() {
       .filter((r) => {
         if (!search.trim()) return true;
         const q = search.trim().toLowerCase();
-        const loc =
-          nearestLocationName(
-            r.check_in_latitude,
-            r.check_in_longitude,
-            locations,
-          ) || "";
+        const loc = attendanceLocationName(r, locations) || "";
         return (
           r.date?.toLowerCase().includes(q) ||
           r.status?.toLowerCase().includes(q) ||
@@ -439,8 +490,8 @@ export default function AttendanceHistory() {
     "Date",
     "Check In",
     "Check Out",
-    "Working Hours",
-    "Break",
+    // Working Hours / Break columns hidden for "Site" employees.
+    ...(hideHours ? [] : ["Working Hours", "Break"]),
     "Status",
   ];
 
@@ -460,8 +511,9 @@ export default function AttendanceHistory() {
       r.date,
       formatTime(r.check_in_time),
       formatTime(r.check_out_time),
-      formatDuration(r.working_minutes),
-      formatDuration(r.break_minutes),
+      ...(hideHours
+        ? []
+        : [formatDuration(r.working_minutes), formatDuration(r.break_minutes)]),
       r.status || "—",
     ]);
 
@@ -471,8 +523,7 @@ export default function AttendanceHistory() {
       { wch: 12 },
       { wch: 10 },
       { wch: 10 },
-      { wch: 14 },
-      { wch: 10 },
+      ...(hideHours ? [] : [{ wch: 14 }, { wch: 10 }]),
       { wch: 12 },
     ];
     const workbook = XLSX.utils.book_new();
@@ -774,11 +825,7 @@ export default function AttendanceHistory() {
             const db = formatDateBlock(r.date);
             const st = statusStyle(r.status);
             const StIcon = st.icon;
-            const loc = nearestLocationName(
-              r.check_in_latitude,
-              r.check_in_longitude,
-              locations,
-            );
+            const loc = attendanceLocationName(r, locations);
             return (
               <button
                 key={r.id ?? r.date}
@@ -825,16 +872,19 @@ export default function AttendanceHistory() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 text-xs text-slate-500 mb-2">
-                  <span className="flex items-center gap-1">
-                    <Clock size={12} className="text-slate-400" />
-                    {formatDuration(r.working_minutes)}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Coffee size={12} className="text-slate-400" />
-                    {formatDuration(r.break_minutes)}
-                  </span>
-                </div>
+                {/* Hidden for employees whose Working Location is "Site". */}
+                {!hideHours && (
+                  <div className="flex items-center gap-3 text-xs text-slate-500 mb-2">
+                    <span className="flex items-center gap-1">
+                      <Clock size={12} className="text-slate-400" />
+                      {formatDuration(r.working_minutes)}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Coffee size={12} className="text-slate-400" />
+                      {formatDuration(r.break_minutes)}
+                    </span>
+                  </div>
+                )}
 
                 {loc && (
                   <p className="text-[11px] text-slate-400 flex items-center gap-1">
@@ -879,8 +929,13 @@ export default function AttendanceHistory() {
                 <th className="px-5 py-3 font-medium">Date</th>
                 <th className="px-5 py-3 font-medium">Check In</th>
                 <th className="px-5 py-3 font-medium">Check Out</th>
-                <th className="px-5 py-3 font-medium">Working Hours</th>
-                <th className="px-5 py-3 font-medium">Break</th>
+                {/* Hidden for employees whose Working Location is "Site". */}
+                {!hideHours && (
+                  <>
+                    <th className="px-5 py-3 font-medium">Working Hours</th>
+                    <th className="px-5 py-3 font-medium">Break</th>
+                  </>
+                )}
                 <th className="px-5 py-3 font-medium">Status</th>
                 <th className="px-5 py-3 font-medium">Location</th>
                 <th className="px-5 py-3 font-medium text-right">Action</th>
@@ -890,7 +945,7 @@ export default function AttendanceHistory() {
               {loading &&
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-slate-50">
-                    <td colSpan={8} className="px-5 py-4">
+                    <td colSpan={hideHours ? 6 : 8} className="px-5 py-4">
                       <div className="h-4 bg-slate-100 rounded animate-pulse" />
                     </td>
                   </tr>
@@ -899,7 +954,7 @@ export default function AttendanceHistory() {
               {!loading && pageRows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={hideHours ? 6 : 8}
                     className="px-5 py-10 text-center text-slate-400"
                   >
                     {!dateFrom && !dateTo
@@ -914,11 +969,7 @@ export default function AttendanceHistory() {
                   const db = formatDateBlock(r.date);
                   const st = statusStyle(r.status);
                   const StIcon = st.icon;
-                  const loc = nearestLocationName(
-                    r.check_in_latitude,
-                    r.check_in_longitude,
-                    locations,
-                  );
+                  const loc = attendanceLocationName(r, locations);
                   return (
                     <tr
                       key={r.id ?? r.date}
@@ -950,12 +1001,16 @@ export default function AttendanceHistory() {
                       <td className="px-5 py-3.5 text-slate-600">
                         {formatTime(r.check_out_time)}
                       </td>
-                      <td className="px-5 py-3.5 text-slate-600">
-                        {formatDuration(r.working_minutes)}
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-600">
-                        {formatDuration(r.break_minutes)}
-                      </td>
+                      {!hideHours && (
+                        <>
+                          <td className="px-5 py-3.5 text-slate-600">
+                            {formatDuration(r.working_minutes)}
+                          </td>
+                          <td className="px-5 py-3.5 text-slate-600">
+                            {formatDuration(r.break_minutes)}
+                          </td>
+                        </>
+                      )}
                       <td className="px-5 py-3.5">
                         <span
                           className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${st.bg} ${st.text}`}
@@ -999,20 +1054,17 @@ export default function AttendanceHistory() {
                 )} of ${filtered.length} records`}
           </div>
           <div className="flex items-center gap-3">
-            <select
+            <StatusDropdown
+              compact
+              openUp
               value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
+              onChange={(n) => {
+                setPageSize(n);
                 setPage(1);
               }}
-              className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 outline-none text-slate-600"
-            >
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n} per page
-                </option>
-              ))}
-            </select>
+              options={PAGE_SIZE_OPTIONS}
+              getLabel={(n) => `${n} per page`}
+            />
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setPage(1)}
@@ -1086,25 +1138,30 @@ export default function AttendanceHistory() {
                   {formatTime(selected.check_out_time)}
                 </div>
               </div>
-              <div className="bg-orange-50 rounded-lg p-3">
-                <div className="text-xs text-orange-500 mb-1 flex items-center gap-1">
-                  <Clock size={11} /> Working Hours
-                </div>
-                <div className="font-semibold text-slate-700">
-                  {formatDuration(selected.working_minutes)}
-                </div>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-3">
-                <div className="text-xs text-slate-500 mb-1 flex items-center gap-1">
-                  <Coffee size={11} /> Break
-                </div>
-                <div className="font-semibold text-slate-700">
-                  {formatDuration(selected.break_minutes)}
-                </div>
-              </div>
+              {/* Hidden for employees whose Working Location is "Site". */}
+              {!hideHours && (
+                <>
+                  <div className="bg-orange-50 rounded-lg p-3">
+                    <div className="text-xs text-orange-500 mb-1 flex items-center gap-1">
+                      <Clock size={11} /> Working Hours
+                    </div>
+                    <div className="font-semibold text-slate-700">
+                      {formatDuration(selected.working_minutes)}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg p-3">
+                    <div className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+                      <Coffee size={11} /> Break
+                    </div>
+                    <div className="font-semibold text-slate-700">
+                      {formatDuration(selected.break_minutes)}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
-            {selected.breaks?.length > 0 && (
+            {!hideHours && selected.breaks?.length > 0 && (
               <div className="mb-4">
                 <div className="text-xs text-slate-400 mb-2">
                   Break Timeline
@@ -1125,13 +1182,31 @@ export default function AttendanceHistory() {
             )}
 
             {(selected.check_in_latitude || selected.check_out_latitude) && (
-              <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                <MapPin size={12} className="text-slate-400" />
-                {nearestLocationName(
-                  selected.check_in_latitude,
-                  selected.check_in_longitude,
-                  locations,
-                ) || "Location recorded, no matching office"}
+              <div className="space-y-1.5">
+                {selected.check_in_latitude && (
+                  <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <MapPin size={12} className="text-slate-400" />
+                    <span className="text-slate-400">Check-in:</span>
+                    {resolvePointLabel(
+                      selected.check_in_latitude,
+                      selected.check_in_longitude,
+                      selected.check_in_address,
+                      locations,
+                    ) || "Location recorded, no matching office"}
+                  </div>
+                )}
+                {selected.check_out_time && selected.check_out_latitude && (
+                  <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <MapPin size={12} className="text-slate-400" />
+                    <span className="text-slate-400">Check-out:</span>
+                    {resolvePointLabel(
+                      selected.check_out_latitude,
+                      selected.check_out_longitude,
+                      selected.check_out_address,
+                      locations,
+                    ) || "Location recorded, no matching office"}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1225,14 +1300,17 @@ export default function AttendanceHistory() {
               </span>
             </div>
 
-            <div className="flex items-center justify-between py-3">
-              <span className="text-sm text-slate-500">
-                Total Working Hours
-              </span>
-              <span className="text-sm font-semibold text-slate-800">
-                {formatDuration(stats.workingMinutes)}
-              </span>
-            </div>
+            {/* Hidden for employees whose Working Location is "Site". */}
+            {!hideHours && (
+              <div className="flex items-center justify-between py-3">
+                <span className="text-sm text-slate-500">
+                  Total Working Hours
+                </span>
+                <span className="text-sm font-semibold text-slate-800">
+                  {formatDuration(stats.workingMinutes)}
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center justify-between py-3">
               <span className="text-sm text-slate-500">Total Days</span>
