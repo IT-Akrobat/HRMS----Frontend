@@ -1,7 +1,6 @@
 import {
   AlertTriangle,
   Bell,
-  Building2,
   CalendarDays,
   CheckCircle2,
   Eye,
@@ -11,7 +10,6 @@ import {
   Loader2,
   Lock,
   Mail,
-  Phone,
   ShieldCheck,
   Upload,
   User,
@@ -593,28 +591,6 @@ export default function Settings() {
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shrink-0">
-                    <Phone size={16} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-slate-400">Phone</p>
-                    <p className="text-sm font-medium text-slate-800 truncate">
-                      {profile.phone || "—"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shrink-0">
-                    <Building2 size={16} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-slate-400">Department</p>
-                    <p className="text-sm font-medium text-slate-800 truncate">
-                      {department || "—"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shrink-0">
                     <ShieldCheck size={16} />
                   </div>
                   <div className="min-w-0">
@@ -631,7 +607,7 @@ export default function Settings() {
                   to={profileLink}
                   className="text-sm font-medium text-brand-orange hover:underline"
                 >
-                  Edit personal details in My Profile →
+                  View My Profile →
                 </Link>
               </div>
             </SectionCard>

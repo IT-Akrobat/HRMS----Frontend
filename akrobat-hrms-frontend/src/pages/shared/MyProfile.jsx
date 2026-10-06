@@ -5,9 +5,7 @@ import {
   Building2,
   Camera,
   Check,
-  Download,
   Droplet,
-  Edit3,
   FileText,
   Heart,
   Loader2,
@@ -27,7 +25,6 @@ import {
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx-js-style";
 import Modal from "../../components/common/Modal";
-import PageHeader from "../../components/common/PageHeader";
 import SelectDropdown from "../../components/common/SelectDropdown";
 import { COUNTRIES } from "../../components/common/UserformModal";
 import DatePicker from "../../components/layout/DatePicker";
@@ -650,10 +647,9 @@ export default function MyProfile() {
   if (loading) {
     return (
       <div>
-        <PageHeader
-          title="My Profile"
-          subtitle="View and manage your personal and professional information."
-        />
+        <h1 className="text-2xl font-bold text-slate-800 mb-6 max-lg:text-white max-lg:mb-4">
+          My Profile
+        </h1>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 h-64 bg-slate-100 rounded-xl animate-pulse" />
           <div className="h-64 bg-slate-100 rounded-xl animate-pulse" />
@@ -689,43 +685,49 @@ export default function MyProfile() {
 
   return (
     <div>
-      <PageHeader
-        title="My Profile"
-        subtitle="View and manage your personal and professional information."
-        actions={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={downloadMyFullReport}
-              disabled={downloadingReport}
-              title="Download Full Report"
-              className="group relative flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {downloadingReport ? (
-                <Loader2 size={15} className="animate-spin" />
-              ) : (
-                <Download size={15} />
-              )}
-              <span className="hidden sm:inline">Download Full Report</span>
-              {/* Mobile only: label is hidden above, and instead appears as a
-                  tooltip on hover so the button stays icon-only by default. */}
-              <span className="sm:hidden pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                Download Full Report
-              </span>
-            </button>
-            <button
-              onClick={openEditModal}
-              title="Edit Profile"
-              className="group relative flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 hover:bg-slate-50"
-            >
-              <Edit3 size={15} />
-              <span className="hidden sm:inline">Edit Profile</span>
-              <span className="sm:hidden pointer-events-none absolute top-full mt-2 right-0 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                Edit Profile
-              </span>
-            </button>
-          </div>
-        }
-      />
+      <div className="flex items-start justify-between mb-6 max-lg:mb-4 max-lg:items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 max-lg:text-white">
+            My Profile
+          </h1>
+          {/* Subtitle hidden on mobile so the title row stays on one
+              line next to the download / edit icons. */}
+          <p className="text-sm text-slate-500 mt-1 max-lg:hidden">
+            View and manage your personal and professional information.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* <button
+            onClick={downloadMyFullReport}
+            disabled={downloadingReport}
+            title="Download Full Report"
+            className="group relative flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 hover:bg-slate-50 max-lg:text-white max-lg:bg-white/20 max-lg:border-transparent max-lg:hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {downloadingReport ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Download size={15} />
+            )}
+            <span className="hidden sm:inline">Download Full Report</span>
+            {/* Mobile only: label is hidden above, and instead appears as a
+                    tooltip on hover so the button stays icon-only by default. */}
+          {/* <span className="sm:hidden pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
+              Download Full Report
+            </span>
+          </button> */}
+          {/* <button
+            onClick={openEditModal}
+            title="Edit Profile"
+            className="group relative flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 hover:bg-slate-50 max-lg:text-white max-lg:bg-orange-500 max-lg:border-transparent max-lg:hover:bg-orange-600"
+          >
+            <Edit3 size={15} />
+            <span className="hidden sm:inline">Edit Profile</span>
+            <span className="sm:hidden pointer-events-none absolute top-full mt-2 right-0 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
+              Edit Profile
+            </span>
+          </button> */}
+        </div>
+      </div>
 
       {downloadError && (
         <div className="mb-4 text-sm text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2 flex items-center justify-between">
@@ -751,18 +753,16 @@ export default function MyProfile() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-lg:gap-3">
         {/* ---------------- Main column ---------------- */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 max-lg:space-y-3">
           {/* Header card */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 max-lg:p-0 max-lg:overflow-hidden">
             {/* Mobile-only cover banner — purely decorative, hidden at lg+
                 so the desktop header card is completely untouched. */}
-            <div className="lg:hidden h-16 bg-gradient-to-r from-orange-100 to-orange-300" />
-
-            <div className="flex items-center gap-4 max-lg:flex-col max-lg:text-center max-lg:gap-3 max-lg:-mt-10 max-lg:px-5">
+            <div className="flex items-center gap-4 max-lg:gap-3.5 max-lg:px-4 max-lg:pt-4">
               <div className="relative">
-                <div className="w-16 h-16 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xl font-semibold overflow-hidden max-lg:w-24 max-lg:h-24 max-lg:text-2xl max-lg:ring-4 max-lg:ring-white max-lg:shadow-md">
+                <div className="w-16 h-16 rounded-full max-lg:rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-xl font-semibold overflow-hidden max-lg:w-[72px] max-lg:h-[72px] max-lg:text-2xl max-lg:shadow-sm">
                   {photoSrc ? (
                     <img
                       src={photoSrc}
@@ -780,59 +780,78 @@ export default function MyProfile() {
                 <button
                   onClick={() => setPhotoModalOpen(true)}
                   title="Change profile photo"
-                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-slate-700 max-lg:w-8 max-lg:h-8 max-lg:ring-2 max-lg:ring-white"
+                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-slate-700 max-lg:w-6 max-lg:h-6 max-lg:ring-2 max-lg:ring-white"
                 >
                   <Camera size={12} />
                 </button>
               </div>
-              <div className="flex-1 max-lg:flex-none max-lg:w-full">
-                <div className="flex items-center gap-2 max-lg:justify-center max-lg:flex-wrap">
-                  <h2 className="text-lg font-semibold text-slate-800 max-lg:text-xl">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 max-lg:flex-wrap">
+                  <h2 className="text-lg font-semibold text-slate-800 max-lg:text-[15px] max-lg:font-bold max-lg:uppercase max-lg:leading-snug">
                     {name}
                   </h2>
-                  <span className="text-xs font-medium bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                  <span className="text-xs font-medium bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full max-lg:bg-emerald-50 max-lg:text-emerald-600 max-lg:inline-flex max-lg:items-center max-lg:gap-1">
+                    <span className="hidden max-lg:inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
                     {p.employment_status || "Active"}
                   </span>
                 </div>
-                <p className="text-sm text-slate-500 max-lg:mt-1">
+                <p className="text-sm text-slate-500 max-lg:hidden">
                   {employeeId}
+                </p>
+                {/* Mobile: designation · department · employee id */}
+                <p className="hidden max-lg:block mt-1 text-[11px] uppercase tracking-wide text-slate-500 leading-snug">
+                  {[designationName, department, employeeId]
+                    .filter((v) => v && v !== "—")
+                    .join(" · ")}
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5 border-t border-slate-100 text-sm max-lg:mt-5 max-lg:pt-4 max-lg:px-5 max-lg:pb-5 max-lg:gap-2.5">
-              <div className="max-lg:bg-slate-50 max-lg:rounded-lg max-lg:p-2.5">
-                <p className="text-slate-400 text-xs mb-1 flex items-center gap-1">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5 border-t border-slate-100 text-sm max-lg:mt-4 max-lg:p-0 max-lg:gap-px max-lg:bg-slate-100">
+              <div className="max-lg:hidden">
+                <p className="text-slate-400 text-xs mb-1 flex items-center gap-1 max-lg:uppercase max-lg:text-[10px] max-lg:tracking-wide max-lg:[&>svg]:hidden">
                   <Building2 size={12} /> Department
                 </p>
                 <p className="text-slate-700 font-medium">{department}</p>
               </div>
-              <div className="max-lg:bg-slate-50 max-lg:rounded-lg max-lg:p-2.5">
-                <p className="text-slate-400 text-xs mb-1 flex items-center gap-1">
+              <div className="max-lg:bg-slate-50 max-lg:px-4 max-lg:py-3">
+                <p className="text-slate-400 text-xs mb-1 flex items-center gap-1 max-lg:uppercase max-lg:text-[10px] max-lg:tracking-wide max-lg:[&>svg]:hidden">
                   <Mail size={12} /> Email
                 </p>
                 <p className="text-slate-700 font-medium truncate">
                   {displayEmail || "Not set"}
                 </p>
               </div>
-              <div className="max-lg:bg-slate-50 max-lg:rounded-lg max-lg:p-2.5">
-                <p className="text-slate-400 text-xs mb-1 flex items-center gap-1">
+              <div className="max-lg:bg-slate-50 max-lg:px-4 max-lg:py-3">
+                <p className="text-slate-400 text-xs mb-1 flex items-center gap-1 max-lg:uppercase max-lg:text-[10px] max-lg:tracking-wide max-lg:[&>svg]:hidden">
                   <Phone size={12} /> Phone
                 </p>
                 <p className="text-slate-700 font-medium">{p.phone || "—"}</p>
               </div>
-              <div className="max-lg:bg-slate-50 max-lg:rounded-lg max-lg:p-2.5">
-                <p className="text-slate-400 text-xs mb-1">Joined On</p>
+              <div className="max-lg:bg-slate-50 max-lg:px-4 max-lg:py-3">
+                <p className="text-slate-400 text-xs mb-1 max-lg:uppercase max-lg:text-[10px] max-lg:tracking-wide">
+                  Joined On
+                </p>
                 <p className="text-slate-700 font-medium">
                   {formatDate(p.joining_date)}
+                </p>
+              </div>
+              {/* Mobile-only 4th cell (Department moves into the
+                  subtitle line above). */}
+              <div className="lg:hidden bg-slate-50 px-4 py-3">
+                <p className="text-slate-400 mb-1 uppercase text-[10px] tracking-wide">
+                  Reports To
+                </p>
+                <p className="text-slate-700 font-medium truncate">
+                  {p.manager?.full_name || "—"}
                 </p>
               </div>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="bg-white rounded-xl border border-slate-200">
-            <div className="flex border-b border-slate-100 overflow-x-auto">
+          <div className="bg-white rounded-xl border border-slate-200 max-lg:p-4">
+            <div className="flex border-b border-slate-100 overflow-x-auto max-lg:w-fit max-lg:gap-1 max-lg:p-1 max-lg:bg-slate-100 max-lg:rounded-xl max-lg:border-b-0 max-lg:mb-4 max-lg:overflow-visible">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
                 const shortLabel = tab.label.split(" ")[0];
@@ -840,13 +859,17 @@ export default function MyProfile() {
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors max-lg:flex-1 max-lg:flex-col max-lg:gap-1 max-lg:px-2 max-lg:py-2.5 max-lg:text-xs ${
+                    className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors max-lg:px-4 max-lg:py-1.5 max-lg:text-xs max-lg:rounded-lg max-lg:border-0 ${
+                      tab.key === "bank" || tab.key === "emergency"
+                        ? "max-lg:hidden "
+                        : ""
+                    }${
                       activeTab === tab.key
-                        ? "border-orange-500 text-orange-600"
-                        : "border-transparent text-slate-500 hover:text-slate-700"
+                        ? "border-orange-500 text-orange-600 max-lg:bg-orange-500 max-lg:text-white"
+                        : "border-transparent text-slate-500 hover:text-slate-700 max-lg:bg-transparent max-lg:text-slate-600"
                     }`}
                   >
-                    <Icon size={14} />
+                    <Icon size={14} className="max-lg:hidden" />
                     <span className="max-lg:hidden">{tab.label}</span>
                     <span className="hidden max-lg:inline">{shortLabel}</span>
                   </button>
@@ -854,13 +877,17 @@ export default function MyProfile() {
               })}
             </div>
 
-            <div className="p-5 max-lg:p-4">
+            <div className="p-5 max-lg:p-0">
               {activeTab === "personal" && (
                 <div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-lg:grid-cols-2 max-lg:gap-x-3 max-lg:gap-y-4">
                     <Field label="Full Name" value={name} />
                     <Field label="Employee ID" value={employeeId} />
-                    <Field label="Email Address" value={displayEmail} />
+                    <Field
+                      label="Email Address"
+                      value={displayEmail}
+                      className="max-lg:col-span-2"
+                    />
                     <Field label="Phone Number" value={p.phone} />
                     <Field
                       label="Date of Birth"
@@ -874,12 +901,16 @@ export default function MyProfile() {
                     <Field label="Nationality" value={extra.nationality} />
                     <Field label="Blood Group" value={extra.blood_group} />
                     <Field label="Religion" value={extra.religion} />
-                    <Field label="Address" value={extra.address} />
+                    <Field
+                      label="Address"
+                      value={extra.address}
+                      className="max-lg:col-span-2"
+                    />
                   </div>
 
                   <button
                     onClick={openEditModal}
-                    className="mt-5 flex items-center gap-1.5 text-sm font-medium text-orange-600 hover:text-orange-700"
+                    className="mt-5 flex items-center gap-1.5 text-sm font-medium text-orange-600 hover:text-orange-700 max-lg:hidden"
                   >
                     <Pencil size={14} /> Edit these details
                   </button>
@@ -888,7 +919,7 @@ export default function MyProfile() {
 
               {activeTab === "job" && (
                 <div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-lg:grid-cols-2 max-lg:gap-x-3 max-lg:gap-y-4">
                     <Field label="Designation" value={designationName} />
                     <Field label="Department" value={department} />
                     <Field
@@ -928,10 +959,10 @@ export default function MyProfile() {
                     />
                   </div>
 
-                  <p className="text-xs text-slate-400 mt-5">
+                  {/* <p className="text-xs text-slate-400 mt-5">
                     Department, designation and reporting line are set by HR —
                     reach out to them for corrections.
-                  </p>
+                  </p> */}
                 </div>
               )}
 
@@ -1017,8 +1048,8 @@ export default function MyProfile() {
         </div>
 
         {/* ---------------- Sidebar ---------------- */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="space-y-6 max-lg:space-y-3">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 max-lg:hidden">
             <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
               <User size={16} className="text-orange-500" /> Personal
               Information
@@ -1038,25 +1069,40 @@ export default function MyProfile() {
             </dl>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 max-lg:p-4">
+            <div className="flex items-center justify-between mb-4 max-lg:mb-2">
               <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                 <Heart size={16} className="text-orange-500" /> Emergency
                 Contacts
               </h3>
               <button
                 onClick={() => setActiveTab("emergency")}
-                className="text-xs text-orange-600 font-medium"
+                className="text-xs text-orange-600 font-medium max-lg:hidden"
               >
                 View All
               </button>
+              <button
+                onClick={openAddContact}
+                title="Add emergency contact"
+                className="lg:hidden w-7 h-7 flex items-center justify-center rounded-full border border-orange-200 text-orange-500 hover:bg-orange-50"
+              >
+                <Plus size={15} />
+              </button>
             </div>
             {contacts.length === 0 ? (
-              <p className="text-sm text-slate-400">None added yet.</p>
+              <p className="text-sm text-slate-400 max-lg:text-center max-lg:py-1">
+                <span className="lg:hidden">
+                  No emergency contacts added yet.
+                </span>
+                <span className="max-lg:hidden">None added yet.</span>
+              </p>
             ) : (
               <ul className="space-y-3">
-                {contacts.slice(0, 2).map((c) => (
-                  <li key={c.id} className="flex items-center gap-2">
+                {contacts.map((c, idx) => (
+                  <li
+                    key={c.id}
+                    className={`flex items-center gap-2 ${idx >= 2 ? "lg:hidden" : ""}`}
+                  >
                     <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-semibold">
                       {c.name[0]}
                     </div>
@@ -1064,26 +1110,50 @@ export default function MyProfile() {
                       <p className="font-medium text-slate-700">{c.name}</p>
                       <p className="text-xs text-slate-400">{c.phone}</p>
                     </div>
+                    <div className="ml-auto flex items-center gap-3 lg:hidden">
+                      <button
+                        onClick={() => openEditContact(c)}
+                        className="text-slate-400 hover:text-orange-600"
+                        title="Edit contact"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleRemoveContact(c.id)}
+                        className="text-slate-400 hover:text-orange-500"
+                        title="Remove contact"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
+            <p className="lg:hidden mt-2 text-[11px] text-slate-400">
+              Stored on this device only — not synced with HR yet.
+            </p>
           </div>
 
           {/* Documents Summary card — hidden for Super Admin (see
               isSuperAdmin above); everyone else still sees it. */}
           {!isSuperAdmin && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-5 max-lg:p-4">
+              <div
+                className={`flex items-center justify-between mb-4 ${documents.length === 0 ? "max-lg:mb-0" : "max-lg:mb-3"}`}
+              >
                 <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                   <FileText size={16} className="text-orange-500" /> Documents
-                  Summary
+                  <span className="max-lg:hidden">Summary</span>
+                  <span className="lg:hidden text-xs font-normal text-slate-400">
+                    · {docSummary.total}
+                  </span>
                 </h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={openUploadModal}
                     title="Upload a document"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-orange-500 text-white hover:bg-orange-600"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-orange-500 text-white hover:bg-orange-600 max-lg:rounded-full"
                   >
                     <Plus size={15} />
                   </button>
@@ -1106,7 +1176,7 @@ export default function MyProfile() {
                 <div className="h-16 bg-slate-100 rounded animate-pulse" />
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-3 text-center mb-4">
+                  <div className="grid grid-cols-2 gap-3 text-center mb-4 max-lg:hidden">
                     <div>
                       <div className="text-xl font-bold text-slate-700">
                         {docSummary.total}
@@ -1814,11 +1884,15 @@ function ProfilePhotoModal({
   );
 }
 
-function Field({ label, value }) {
+function Field({ label, value, className = "" }) {
   return (
-    <div>
-      <p className="text-xs text-slate-400 mb-1">{label}</p>
-      <p className="text-sm font-medium text-slate-700">{value || "—"}</p>
+    <div
+      className={`max-lg:border-l-[3px] max-lg:border-orange-100 max-lg:pl-3 min-w-0 ${className}`}
+    >
+      <p className="text-xs text-slate-400 mb-1 max-lg:text-[11px]">{label}</p>
+      <p className="text-sm font-medium text-slate-700 break-words max-lg:text-[13px] max-lg:font-semibold max-lg:text-slate-800">
+        {value || "—"}
+      </p>
     </div>
   );
 }

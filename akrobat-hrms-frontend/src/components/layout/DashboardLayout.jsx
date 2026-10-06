@@ -18,7 +18,10 @@ export default function DashboardLayout() {
   // Employee dashboard on mobile paints a gradient behind the whole header
   // (top bar included). Only this route; every other page is unchanged.
   const { pathname } = useLocation();
-  const overHero = pathname.replace(/\/$/, "") === "/employee/dashboard";
+  const cleanPath = pathname.replace(/\/$/, "");
+  const overHero =
+    cleanPath === "/employee/dashboard" ||
+    /^\/[^/]+\/profile\/(personal|my-profile)$/.test(cleanPath);
 
   return (
     <div className="flex min-h-screen bg-slate-50">
