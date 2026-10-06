@@ -2,7 +2,6 @@ import {
   AlarmClock,
   Bell,
   CalendarClock,
-  CheckCheck,
   Clock,
   LogOut,
   Megaphone,
@@ -16,7 +15,6 @@ import { useToast } from "../../context/ToastContext";
 import { useNotificationLiveUpdates } from "../../hooks/useNotificationLiveUpdates";
 import { apiClient } from "../../services/apiClient";
 import { initNotificationFallback } from "../../services/Notificationfallback";
-import { parseServerDate } from "../../utils/date";
 
 // Notification bell now backed by the real API (see app/notifications —
 // GET /notifications/my, PUT /:id/read, PUT /my/read-all). The leaves
@@ -115,33 +113,12 @@ function showBrowserNotification(n, onOpen) {
   }
 }
 
-function timeAgo(dateStr) {
-  if (!dateStr) return "";
-  const parsed = parseServerDate(dateStr);
-  if (!parsed) return "";
-  const diffMs = Date.now() - parsed.getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return parsed.toLocaleDateString([], {
-    month: "short",
-    day: "numeric",
-  });
-}
-
 function NotificationBell({ overHero = false }) {
   const { role } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const ref = useRef(null);
 
-  const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   // Tracks notification ids we've already shown (in the list or as a
   // toast), so the live-updates socket (or a reconnect replaying a row
@@ -160,8 +137,7 @@ function NotificationBell({ overHero = false }) {
         setNotifications(rows);
         for (const n of rows) seenIdsRef.current.add(n.id);
       })
-      .catch(() => setNotifications([]))
-      .finally(() => setLoading(false));
+      .catch(() => setNotifications([]));
   }
 
   useEffect(() => {
@@ -169,7 +145,6 @@ function NotificationBell({ overHero = false }) {
   }, []);
 
   function openNotifications() {
-    setOpen(false);
     navigate(`${ROLE_BASE_PATH[role] || ""}/notifications`);
   }
 
@@ -313,42 +288,13 @@ function NotificationBell({ overHero = false }) {
     }
   }, []);
 
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const unreadCount = notifications.filter((n) => !n.is_read).length;
-  const recent = notifications.slice(0, 6);
-
-  async function markOneRead(n) {
-    if (n.is_read) return;
-    setNotifications((prev) =>
-      prev.map((x) => (x.id === n.id ? { ...x, is_read: true } : x)),
-    );
-    try {
-      await apiClient.put(`/notifications/${n.id}/read`);
-    } catch {
-      // Non-critical — a background refresh will resync state.
-    }
-  }
-
-  async function markAllRead() {
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    try {
-      await apiClient.put("/notifications/my/read-all");
-    } catch {
-      // Non-critical — a background refresh will resync state.
-    }
-  }
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative">
       <button
-        onClick={() => setOpen((o) => !o)}
+        type="button"
+        onClick={openNotifications}
         className={`relative w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
           overHero
             ? "text-slate-500 hover:bg-slate-100 max-lg:text-white max-lg:hover:bg-white/10"
@@ -363,85 +309,6 @@ function NotificationBell({ overHero = false }) {
           </span>
         )}
       </button>
-
-      {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-white shadow-lg rounded-xl border border-slate-100 z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-            <h4 className="text-sm font-semibold text-slate-800">
-              Notifications
-            </h4>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="flex items-center gap-1 text-xs text-orange-600 font-medium hover:underline"
-              >
-                <CheckCheck size={12} /> Mark all read
-              </button>
-            )}
-          </div>
-
-          <div className="max-h-80 overflow-y-auto">
-            {loading ? (
-              <div className="p-4 space-y-2">
-                <div className="h-10 bg-slate-100 rounded animate-pulse" />
-                <div className="h-10 bg-slate-100 rounded animate-pulse" />
-              </div>
-            ) : recent.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-8">
-                You're all caught up.
-              </p>
-            ) : (
-              <ul className="divide-y divide-slate-50">
-                {recent.map((n) => {
-                  const { icon: Icon, className } = typeStyle(
-                    n.notification_type,
-                  );
-                  return (
-                    <li key={n.id}>
-                      <button
-                        onClick={() => markOneRead(n)}
-                        className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-slate-50 transition-colors ${
-                          !n.is_read ? "bg-orange-50/40" : ""
-                        }`}
-                      >
-                        <div
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${className}`}
-                        >
-                          <Icon size={15} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate">
-                            {n.title}
-                          </p>
-                          <p className="text-xs text-slate-500 line-clamp-2">
-                            {n.message}
-                          </p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            {timeAgo(n.created_at)}
-                          </p>
-                        </div>
-                        {!n.is_read && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 shrink-0" />
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-
-          <button
-            onClick={() => {
-              setOpen(false);
-              navigate(`${ROLE_BASE_PATH[role] || ""}/notifications`);
-            }}
-            className="w-full text-center text-xs font-medium text-orange-600 py-2.5 border-t border-slate-100 hover:bg-orange-50"
-          >
-            View All Notifications
-          </button>
-        </div>
-      )}
     </div>
   );
 }

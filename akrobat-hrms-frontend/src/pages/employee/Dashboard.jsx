@@ -16,7 +16,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import BirthdaysCard, {
   OnLeaveTodayCard,
@@ -34,6 +34,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { isFieldEmployee } from "../../utils/employeeType";
+import { isSiteEmployee } from "../../utils/workingLocation";
 
 // Mobile-only "Quick Actions" row — four big tiles right under the
 // Check-in card. The first three go straight to a page; "More" opens a
@@ -54,6 +55,9 @@ const QUICK_ACTION_TILES = [
     label: "Attendance",
     icon: Clock,
     style: "from-sky-50 to-white border-sky-100 text-sky-500",
+    // Working Location = "Site" employees don't see their own attendance
+    // pages (see utils/workingLocation.js) — hidden from Quick Actions.
+    hideForSite: true,
   },
   {
     // Same orange as the Announcements tile.
@@ -71,6 +75,7 @@ const MORE_LINKS = [
     to: "/employee/attendance/history",
     label: "Attendance History",
     icon: History,
+    hideForSite: true,
   },
   {
     to: "/employee/profile/sites",
@@ -121,6 +126,10 @@ function isAnnouncementExpired(a) {
 export default function EmployeeDashboard() {
   const { user } = useAuth();
   const isFieldStaff = isFieldEmployee(user);
+  const isSiteLocation = isSiteEmployee(user);
+  const quickTiles = QUICK_ACTION_TILES.filter(
+    (t) => !(t.hideForSite && isSiteLocation),
+  );
   // Off for everyone until HR enables it for a specific person on the
   // Employee edit screen — see app/auth/services.py::get_me and
   // sql/030.sql. Not a role/department check on purpose.
@@ -168,6 +177,42 @@ export default function EmployeeDashboard() {
           { key: "meeting", label: "Meeting" },
         ]
       : [];
+
+  // Swipe carousel helpers — keep the active dot in sync with scroll.
+  const swipeRef = useRef(null);
+  // Carousel height follows the ACTIVE card only, so a shorter card
+  // (Check In) doesn't leave blank space the height of the taller one.
+  const [swipeH, setSwipeH] = useState(null);
+  useEffect(() => {
+    const el = swipeRef.current;
+    if (!el) return;
+    const idx = Math.max(
+      0,
+      mobileTabs.findIndex((t) => t.key === mobileTab),
+    );
+    const measure = () => {
+      const pane = el.children[idx];
+      if (pane) setSwipeH(pane.offsetHeight);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    Array.from(el.children).forEach((c) => ro.observe(c));
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobileTab, isFieldStaff, canOutdoorCheckin]);
+  const handleSwipeScroll = (e) => {
+    const el = e.currentTarget;
+    const idx = Math.round(el.scrollLeft / el.clientWidth);
+    const key = mobileTabs[idx]?.key;
+    if (key && key !== mobileTab) setMobileTab(key);
+  };
+  const scrollToPane = (key) => {
+    const el = swipeRef.current;
+    const idx = mobileTabs.findIndex((t) => t.key === key);
+    if (el && idx >= 0)
+      el.scrollTo({ left: idx * el.clientWidth, behavior: "smooth" });
+  };
 
   // Recent leave requests (for the small icon next to "Hi, {firstName}")
   // — fetched from /leaves/my, same endpoint LeaveApply.jsx uses for its
@@ -369,53 +414,65 @@ export default function EmployeeDashboard() {
             Everyone else has no second tab at all, so they just get the
             plain check-in card, same as before. ---------- */}
         <div className="mb-6">
+          {/* Swipe carousel: horizontal scroll-snap, one card per
+              "page". Replaces the old tab strip — swipe left/right to
+              move between Check In and Site Visit / Meeting. */}
+          <div
+            ref={swipeRef}
+            onScroll={handleSwipeScroll}
+            style={swipeH ? { height: swipeH + 16 } : undefined}
+            className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory items-start gap-3 pb-4 transition-[height] duration-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <div className="w-full shrink-0 snap-center">
+              <div className="rounded-2xl shadow-xl shadow-slate-900/20 [&>div]:rounded-2xl [&>div]:border-0">
+                <CheckInOutCard
+                  ultraCompact
+                  onActivityChange={loadTodayStatus}
+                />
+              </div>
+            </div>
+
+            {isFieldStaff && (
+              <div className="w-full shrink-0 snap-center">
+                <SiteVisitCard
+                  checkedIn={todayStatus.checkedIn}
+                  checkedOut={todayStatus.checkedOut}
+                  onActivityChange={loadTodayStatus}
+                />
+              </div>
+            )}
+
+            {/* Ad-hoc "meeting/site" check-in — separate gate from
+                isFieldStaff; only for employees HR enabled. */}
+            {!isFieldStaff && canOutdoorCheckin && (
+              <div className="w-full shrink-0 snap-center">
+                <div className="rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
+                  <OutdoorCheckinAccessModal
+                    checkedIn={todayStatus.checkedIn}
+                    checkedOut={todayStatus.checkedOut}
+                    onActivityChange={loadTodayStatus}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Page dots (indicator only) */}
           {mobileTabs.length > 0 && (
-            <div className="flex gap-1.5 mb-3 bg-slate-100 rounded-xl p-1">
+            <div className="flex justify-center items-center gap-1.5 mt-1">
               {mobileTabs.map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
-                  onClick={() => setMobileTab(tab.key)}
-                  className={`flex-1 text-sm font-semibold py-2 rounded-lg transition-colors ${
+                  aria-label={tab.label}
+                  onClick={() => scrollToPane(tab.key)}
+                  className={`h-1.5 rounded-full transition-all ${
                     mobileTab === tab.key
-                      ? "bg-white text-slate-800 shadow-sm"
-                      : "text-slate-500"
+                      ? "w-5 bg-orange-500"
+                      : "w-1.5 bg-slate-300"
                   }`}
-                >
-                  {tab.label}
-                </button>
+                />
               ))}
-            </div>
-          )}
-
-          {(mobileTabs.length === 0 || mobileTab === "checkin") && (
-            <div className="rounded-2xl shadow-xl shadow-slate-900/20 [&>div]:rounded-2xl [&>div]:border-0">
-              <CheckInOutCard ultraCompact onActivityChange={loadTodayStatus} />
-            </div>
-          )}
-
-          {isFieldStaff && mobileTab === "sitevisit" && (
-            <div className="rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
-              <SiteVisitCard
-                checkedIn={todayStatus.checkedIn}
-                checkedOut={todayStatus.checkedOut}
-                onActivityChange={loadTodayStatus}
-              />
-            </div>
-          )}
-
-          {/* Ad-hoc "meeting/site" check-in — completely separate gate
-              from isFieldStaff above. Renders only for the specific
-              employees HR has individually enabled, regardless of
-              their department or role, and only on its own "Meeting"
-              tab now rather than stacked below Check In. */}
-          {!isFieldStaff && canOutdoorCheckin && mobileTab === "meeting" && (
-            <div className="rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
-              <OutdoorCheckinAccessModal
-                checkedIn={todayStatus.checkedIn}
-                checkedOut={todayStatus.checkedOut}
-                onActivityChange={loadTodayStatus}
-              />
             </div>
           )}
         </div>
@@ -435,7 +492,7 @@ export default function EmployeeDashboard() {
         </div>
 
         <div className="grid grid-cols-4 gap-2.5 mb-6">
-          {QUICK_ACTION_TILES.map(({ to, label, icon: Icon, style }) => (
+          {quickTiles.map(({ to, label, icon: Icon, style }) => (
             <Link
               key={to}
               to={to}
@@ -566,23 +623,25 @@ export default function EmployeeDashboard() {
 
             {openSheet === "more" && (
               <div className="grid grid-cols-3 gap-2.5 pb-2">
-                {MORE_LINKS.filter((l) => !l.fieldOnly || isFieldStaff).map(
-                  ({ to, label, icon: Icon }) => (
-                    <Link
-                      key={to}
-                      to={to}
-                      onClick={() => setOpenSheet(null)}
-                      className="rounded-2xl border border-slate-200 bg-slate-50/60 py-3.5 px-1.5 flex flex-col items-center gap-2 text-center active:scale-[0.96] transition-transform"
-                    >
-                      <span className="w-10 h-10 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center">
-                        <Icon size={18} />
-                      </span>
-                      <span className="text-[11px] font-medium text-slate-600 leading-tight">
-                        {label}
-                      </span>
-                    </Link>
-                  ),
-                )}
+                {MORE_LINKS.filter(
+                  (l) =>
+                    (!l.fieldOnly || isFieldStaff) &&
+                    !(l.hideForSite && isSiteLocation),
+                ).map(({ to, label, icon: Icon }) => (
+                  <Link
+                    key={to}
+                    to={to}
+                    onClick={() => setOpenSheet(null)}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/60 py-3.5 px-1.5 flex flex-col items-center gap-2 text-center active:scale-[0.96] transition-transform"
+                  >
+                    <span className="w-10 h-10 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center">
+                      <Icon size={18} />
+                    </span>
+                    <span className="text-[11px] font-medium text-slate-600 leading-tight">
+                      {label}
+                    </span>
+                  </Link>
+                ))}
               </div>
             )}
 

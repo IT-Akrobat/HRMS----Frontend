@@ -602,11 +602,7 @@ export default function LeaveApply() {
           </div>
         )}
 
-        <CollapsibleSection
-          title="Leave Type Entitlements"
-          icon={CalendarDays}
-          defaultOpen
-        >
+        <CollapsibleSection title="Leave Type Entitlements" icon={CalendarDays}>
           <p className="text-xs text-slate-400 mb-3">
             Used / entitled days, this year
           </p>

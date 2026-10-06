@@ -291,21 +291,28 @@ export default function Attendance() {
             </Link> */}
           </div>
 
-          <div className="bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3">
-            <div className="text-[11px] text-slate-400 mb-0.5">Status</div>
-            <div
-              className={`text-sm font-medium ${
-                checkedOut
-                  ? "text-slate-300"
+          <div className="bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] text-slate-400 mb-0.5">Status</div>
+              <div className="text-sm font-medium text-slate-200 truncate">
+                {checkedOut
+                  ? `Out at ${formatTime(dayData?.check_out_time)}`
                   : checkedIn
-                    ? "text-green-400"
-                    : "text-orange-300"
+                    ? `In at ${formatTime(dayData?.check_in_time)}`
+                    : "Not checked in yet"}
+              </div>
+            </div>
+            <span
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold text-white ${
+                checkedOut
+                  ? "bg-slate-500"
+                  : checkedIn
+                    ? "bg-blue-500"
+                    : "bg-orange-500"
               }`}
             >
               {statusLabel}
-              {checkedIn && ` - ${formatTime(dayData?.check_in_time)}`}
-              {checkedOut && ` - out ${formatTime(dayData?.check_out_time)}`}
-            </div>
+            </span>
           </div>
         </div>
 
