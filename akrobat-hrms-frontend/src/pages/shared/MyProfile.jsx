@@ -5,7 +5,9 @@ import {
   Building2,
   Camera,
   Check,
+  Download,
   Droplet,
+  Edit3,
   FileText,
   Heart,
   Loader2,
@@ -182,12 +184,6 @@ export default function MyProfile() {
   const [documents, setDocuments] = useState([]);
   const [docsLoading, setDocsLoading] = useState(true);
 
-  // Sites currently assigned to this employee (GET /site-assignments/my —
-  // same self-service endpoint the check-in / site-visit screens use) —
-  // shown as "Assigned Site(s)" under Job Details.
-  const [siteAssignments, setSiteAssignments] = useState([]);
-  const [sitesLoading, setSitesLoading] = useState(true);
-
   // "Download my full report" (header action) — profile, assigned sites,
   // and lifetime attendance totals as an .xlsx, via the same
   // GET /reports/employees/{id}/full endpoint the Super Admin Reports
@@ -260,12 +256,6 @@ export default function MyProfile() {
       .finally(() => setLoading(false));
 
     loadMyDocuments();
-
-    apiClient
-      .get("/site-assignments/my")
-      .then((res) => setSiteAssignments(res.data || res || []))
-      .catch(() => setSiteAssignments([]))
-      .finally(() => setSitesLoading(false));
   }, []);
 
   const empId = profile?.profile?.employee_id || profile?.id || user?.id;
@@ -664,9 +654,6 @@ export default function MyProfile() {
   const designationName = p.designation?.designation_name || "—";
   const department = profile?.department?.department_name || "—";
   const photoSrc = photoOverride || p.profile_photo;
-  const siteNames = siteAssignments
-    .map((a) => a.locations?.location_name)
-    .filter(Boolean);
 
   // If no real email was ever set for this employee, the backend fills
   // in a placeholder login email built from the employee code itself
@@ -697,7 +684,7 @@ export default function MyProfile() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* <button
+          <button
             onClick={downloadMyFullReport}
             disabled={downloadingReport}
             title="Download Full Report"
@@ -711,11 +698,11 @@ export default function MyProfile() {
             <span className="hidden sm:inline">Download Full Report</span>
             {/* Mobile only: label is hidden above, and instead appears as a
                     tooltip on hover so the button stays icon-only by default. */}
-          {/* <span className="sm:hidden pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
+            <span className="sm:hidden pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
               Download Full Report
             </span>
-          </button> */}
-          {/* <button
+          </button>
+          <button
             onClick={openEditModal}
             title="Edit Profile"
             className="group relative flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 hover:bg-slate-50 max-lg:text-white max-lg:bg-orange-500 max-lg:border-transparent max-lg:hover:bg-orange-600"
@@ -725,7 +712,7 @@ export default function MyProfile() {
             <span className="sm:hidden pointer-events-none absolute top-full mt-2 right-0 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
               Edit Profile
             </span>
-          </button> */}
+          </button>
         </div>
       </div>
 
@@ -936,33 +923,27 @@ export default function MyProfile() {
                       value={p.working_location}
                     />
                     <Field
-                      label="Assigned Site(s)"
-                      value={
-                        sitesLoading
-                          ? "Loading…"
-                          : siteNames.length
-                            ? siteNames.join(", ")
-                            : "—"
-                      }
-                    />
-                    <Field
                       label="Reporting Manager"
                       value={p.manager?.full_name}
                     />
                     <Field
                       label="Shift"
+                      className="max-lg:col-span-2"
                       value={
                         p.shift?.shift_name
-                          ? `${p.shift.shift_name} (${p.shift.start_time?.slice(0, 5) || "—"} - ${p.shift.end_time?.slice(0, 5) || "—"})`
+                          ? // Some shift names already carry their own
+                            // "(9:00-6:00)" suffix; strip it so the times
+                            // are only shown once, from the real fields.
+                            `${p.shift.shift_name.replace(/\s*\([^)]*\)\s*$/, "")} (${p.shift.start_time?.slice(0, 5) || "—"} - ${p.shift.end_time?.slice(0, 5) || "—"})`
                           : "—"
                       }
                     />
                   </div>
 
-                  {/* <p className="text-xs text-slate-400 mt-5">
+                  <p className="text-xs text-slate-400 mt-5">
                     Department, designation and reporting line are set by HR —
                     reach out to them for corrections.
-                  </p> */}
+                  </p>
                 </div>
               )}
 

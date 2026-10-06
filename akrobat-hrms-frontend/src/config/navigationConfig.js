@@ -448,7 +448,7 @@ export const NAVIGATION_CONFIG = {
 
   [ROLES.HR_ADMIN]: [
     { label: "My Space", icon: LayoutDashboard, path: "/hr-admin/dashboard" },
-    { label: "Company", icon: Building2, path: "/hr-admin/company" },
+    // { label: "Company", icon: Building2, path: "/hr-admin/company" },
     {
       label: "Employees",
       icon: Users,
