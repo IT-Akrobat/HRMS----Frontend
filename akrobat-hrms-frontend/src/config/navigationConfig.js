@@ -447,7 +447,7 @@ export const NAVIGATION_CONFIG = {
   ],
 
   [ROLES.HR_ADMIN]: [
-    { label: "My Space", icon: LayoutDashboard, path: "/hr-admin/dashboard" },
+    { label: "Dashboard", icon: LayoutDashboard, path: "/hr-admin/dashboard" },
     // { label: "Company", icon: Building2, path: "/hr-admin/company" },
     {
       label: "Employees",
@@ -471,7 +471,6 @@ export const NAVIGATION_CONFIG = {
       label: "Leave Management",
       icon: Palmtree,
       children: [
-        { label: "Apply Leave", path: "/hr-admin/leave/apply" },
         { label: "Leave Requests (View)", path: "/hr-admin/leave/requests" },
         // { label: "Leave Policies", path: "/hr-admin/leave/policies" },
         { label: "Leave Balance", path: "/hr-admin/leave/balance" },
@@ -607,3 +606,52 @@ export const NAVIGATION_CONFIG = {
     { label: "Settings", icon: Settings, path: "/super-admin/settings" },
   ],
 };
+
+/**
+ * HR "My Space" sidebar -- the same menu a normal employee sees, but every
+ * path lives under /hr-admin/me. Sidebar.jsx swaps to this whenever HR is
+ * inside My Space (see isHrSelfPath in roles.js); the Company sidebar is
+ * NAVIGATION_CONFIG[ROLES.HR_ADMIN] above.
+ */
+export const HR_SELF_NAVIGATION = [
+  { label: "Dashboard", icon: LayoutDashboard, path: "/hr-admin/me/dashboard" },
+  {
+    label: "My Profile",
+    icon: User,
+    children: [
+      { label: "Personal Details", path: "/hr-admin/me/profile/personal" },
+      {
+        label: "Sites Worked",
+        path: "/hr-admin/me/profile/sites",
+        fieldOnly: true,
+      },
+    ],
+  },
+  {
+    label: "Attendance",
+    icon: Clock,
+    hideForSite: true,
+    children: [
+      { label: "My Attendance", path: "/hr-admin/me/attendance" },
+      { label: "Attendance History", path: "/hr-admin/me/attendance/history" },
+    ],
+  },
+  {
+    label: "Leave",
+    icon: Palmtree,
+    children: [
+      { label: "Apply Leave", path: "/hr-admin/me/leave/apply" },
+      { label: "Leave History", path: "/hr-admin/me/leave/history" },
+    ],
+  },
+  {
+    label: "Team",
+    icon: Users,
+    children: [
+      { label: "All Employees", path: "/hr-admin/me/people/all" },
+      { label: "My Department", path: "/hr-admin/me/people/department" },
+    ],
+  },
+  { label: "Notifications", icon: Bell, path: "/hr-admin/me/notifications" },
+  { label: "Settings", icon: Settings, path: "/hr-admin/me/settings" },
+];

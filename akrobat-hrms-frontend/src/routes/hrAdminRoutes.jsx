@@ -4,7 +4,8 @@
 // All page imports are React.lazy() so this role's pages only download
 // when an HR admin actually navigates to them, not upfront on login.
 import { lazy } from "react";
-import { commonRoutes } from "./commonRoutes.jsx";
+import { Navigate } from "react-router-dom";
+import { commonRoutes, selfCommonRoutes } from "./commonRoutes.jsx";
 
 const Attendance = lazy(() => import("../pages/hr-admin/Attendance.jsx"));
 const AttendanceReports = lazy(
@@ -29,11 +30,36 @@ const LiveTracking = lazy(() => import("../pages/hr-admin/LiveTracking.jsx"));
 // const OrganizationDesignations = lazy(() => import("../pages/hr-admin/OrganizationDesignations.jsx"));
 // const OrganizationLocations = lazy(() => import("../pages/hr-admin/OrganizationLocations.jsx"));
 
+// My Space (HR as an employee) -- reuses the employee pages, mounted under
+// /hr-admin/me/*. See useBasePath() for how their links stay in this area.
+const MeDashboard = lazy(() => import("../pages/employee/Dashboard.jsx"));
+const MeAttendance = lazy(() => import("../pages/employee/Attendance.jsx"));
+const MeAttendanceHistory = lazy(
+  () => import("../pages/employee/AttendanceHistory.jsx"),
+);
+const MeLeaveHistory = lazy(() => import("../pages/employee/LeaveHistory.jsx"));
+const MeDirectory = lazy(
+  () => import("../pages/employee/EmployeeDirectory.jsx"),
+);
+const MeDepartment = lazy(() => import("../pages/employee/MyDepartment.jsx"));
+const MeSites = lazy(() => import("../pages/employee/ProfileSite.jsx"));
+
 const ReportsHr = lazy(() => import("../pages/hr-admin/ReportsHr.jsx"));
 
 export const hrAdminRoutes = [
   { path: "dashboard", element: <Dashboard /> },
   ...commonRoutes,
+  // ---- My Space (HR as an employee) ----
+  ...selfCommonRoutes,
+  { path: "me", element: <Navigate to="/hr-admin/me/dashboard" replace /> },
+  { path: "me/dashboard", element: <MeDashboard /> },
+  { path: "me/attendance", element: <MeAttendance /> },
+  { path: "me/attendance/history", element: <MeAttendanceHistory /> },
+  { path: "me/leave/history", element: <MeLeaveHistory /> },
+  { path: "me/people/all", element: <MeDirectory /> },
+  { path: "me/people/department", element: <MeDepartment /> },
+  { path: "me/profile/sites", element: <MeSites /> },
+  // ---- Company ----
   { path: "employees", element: <Employees /> },
   // { path: "employees/add", element: <EmployeesAdd /> },
   // { path: "employees/profile", element: <EmployeesProfile /> },

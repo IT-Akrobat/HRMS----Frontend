@@ -23,9 +23,9 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 import SelectDropdown from "../../components/common/SelectDropdown";
 import DatePicker from "../../components/layout/DatePicker";
-import { ROLE_BASE_PATH } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
+import { useBasePath } from "../../hooks/useBasePath";
 import { apiClient } from "../../services/apiClient";
 import { toLocalISODate } from "../../utils/date";
 
@@ -167,7 +167,8 @@ export default function LeaveApply() {
   // history though, which lives under the current role's own base path
   // (e.g. /manager/leave/history), never a hardcoded /employee/... link.
   const { role } = useAuth();
-  const leaveHistoryPath = `${ROLE_BASE_PATH[role] || "/employee"}/leave/history`;
+  const basePath = useBasePath();
+  const leaveHistoryPath = `${basePath}/leave/history`;
 
   const [form, setForm] = useState({
     leave_type: "",

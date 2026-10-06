@@ -32,6 +32,7 @@ import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import SiteVisitCard from "../../components/common/SiteVisitCard";
 import { useAuth } from "../../context/AuthContext";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
+import { useBasePath } from "../../hooks/useBasePath";
 import { apiClient } from "../../services/apiClient";
 import { isFieldEmployee } from "../../utils/employeeType";
 import { isSiteEmployee } from "../../utils/workingLocation";
@@ -125,6 +126,10 @@ function isAnnouncementExpired(a) {
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
+  // "/employee/..." in the link tables above becomes "/hr-admin/me/..." when
+  // HR opens this page from My Space.
+  const base = useBasePath();
+  const withBase = (p) => p.replace(/^\/employee/, base);
   const isFieldStaff = isFieldEmployee(user);
   const isSiteLocation = isSiteEmployee(user);
   const quickTiles = QUICK_ACTION_TILES.filter(
@@ -495,7 +500,7 @@ export default function EmployeeDashboard() {
           {quickTiles.map(({ to, label, icon: Icon, style }) => (
             <Link
               key={to}
-              to={to}
+              to={withBase(to)}
               className={`rounded-2xl border bg-gradient-to-br py-4 px-1 flex flex-col items-center gap-2 active:scale-[0.96] transition-transform ${style}`}
             >
               <Icon size={24} strokeWidth={1.75} />
@@ -630,7 +635,7 @@ export default function EmployeeDashboard() {
                 ).map(({ to, label, icon: Icon }) => (
                   <Link
                     key={to}
-                    to={to}
+                    to={withBase(to)}
                     onClick={() => setOpenSheet(null)}
                     className="rounded-2xl border border-slate-200 bg-slate-50/60 py-3.5 px-1.5 flex flex-col items-center gap-2 text-center active:scale-[0.96] transition-transform"
                   >

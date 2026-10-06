@@ -21,8 +21,7 @@ import {
   ShieldCheck,
   UserCheck,
   UserPlus,
-  Users,
-  Users2,
+  Users
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -31,7 +30,6 @@ import AttendanceTrendChart from "../../components/common/AttendanceTrendChart";
 import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
-import CheckInOutCard from "../../components/common/CheckInOutCard";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import OutdoorCheckinAccessModal from "../../components/common/Outdoorcheckinaccessmodal";
 import PageHeader from "../../components/common/PageHeader";
@@ -600,30 +598,6 @@ export default function HrAdminDashboard() {
           {/* Overview of your system and activity */}
         </p>
         {/* <QuoteOfDayCard compact /> */}
-
-        {/* Straight-nav quick actions (Employee List / Live Site
-            Tracking / Audit Logs / Reports / Leave Balance) — the
-            desktop header's tooltip-on-hover circles don't work on
-            touch, so this is a horizontally-scrollable row with the
-            label always visible underneath instead. Separate from the
-            floating "+" speed-dial below, which stays reserved for the
-            three modal-opening create actions. */}
-        <div className="flex items-center gap-4 overflow-x-auto no-scrollbar mt-3 -mx-1 px-1">
-          {NAV_QUICK_ACTIONS.map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              className="flex flex-col items-center gap-1.5 shrink-0"
-            >
-              <span className="w-11 h-11 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center">
-                <Icon size={18} />
-              </span>
-              <span className="text-[11px] text-slate-500 whitespace-nowrap">
-                {label}
-              </span>
-            </Link>
-          ))}
-        </div>
       </div>
 
       {/* =================================================================
@@ -638,11 +612,10 @@ export default function HrAdminDashboard() {
       ================================================================= */}
       <div className="lg:hidden">
         {/* ---------- Segmented tab switcher ---------- */}
-        <div className="grid grid-cols-3 gap-1 bg-slate-100 rounded-full p-1 mb-4">
+        <div className="grid grid-cols-2 gap-1 bg-slate-100 rounded-full p-1 mb-4">
           {[
             { key: "overview", label: "Overview", icon: LayoutGrid },
             { key: "activity", label: "Activity", icon: Activity },
-            { key: "team", label: "Team", icon: Users2 },
           ].map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -662,15 +635,6 @@ export default function HrAdminDashboard() {
         {/* ---------- Overview tab ---------- */}
         {mobileTab === "overview" && (
           <div className="flex flex-col gap-4 mb-6">
-            {/* ---------- Check-in/out ----------
-                Same treatment as the Manager dashboard's mobile
-                check-in: a slim gradient-bordered shell plus the
-                `ultraCompact` layout on CheckInOutCard itself (single
-                row, no side timeline) instead of the plain white
-                `compact` card. Desktop (below) is unaffected. */}
-            <div className="rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
-              <CheckInOutCard ultraCompact onActivityChange={loadLogs} />
-            </div>
             <AttendanceTrendChart
               trend={trend}
               loading={trendLoading}
@@ -777,7 +741,7 @@ export default function HrAdminDashboard() {
             mobile pattern than the Employee dashboard's bento grid +
             bottom sheet, though it borrows the same "same components,
             different entry point" idea. ---------- */}
-        {mobileTab === "team" && (
+        {mobileTab === "overview" && (
           <div className="flex flex-col gap-2.5 mb-6">
             {[
               {
@@ -1079,9 +1043,6 @@ export default function HrAdminDashboard() {
       <div className="hidden lg:grid lg:grid-cols-[65%_1fr] gap-4 sm:gap-6 items-start min-w-0">
         {/* ================= Left column (65%) ================= */}
         <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
-          {/* ---------- Check-in/out (HR Admin is a person too) ---------- */}
-          <CheckInOutCard onActivityChange={loadLogs} />
-
           {/* ---------- Recent audit activity: fixed height, hidden scrollbar ---------- */}
           <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 flex flex-col h-[300px] sm:h-[360px]">
             <div className="flex items-center justify-between mb-3">

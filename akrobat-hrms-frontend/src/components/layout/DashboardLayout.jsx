@@ -21,7 +21,8 @@ export default function DashboardLayout() {
   const cleanPath = pathname.replace(/\/$/, "");
   const overHero =
     cleanPath === "/employee/dashboard" ||
-    /^\/[^/]+\/profile\/(personal|my-profile)$/.test(cleanPath);
+    cleanPath === "/hr-admin/me/dashboard" ||
+    /^\/[^/]+(\/me)?\/profile\/(personal|my-profile)$/.test(cleanPath);
 
   return (
     <div className="flex min-h-screen bg-slate-50">

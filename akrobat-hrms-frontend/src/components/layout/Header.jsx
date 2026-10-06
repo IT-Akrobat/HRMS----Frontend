@@ -9,9 +9,10 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ROLE_BASE_PATH, ROLE_LABELS } from "../../config/roles";
+import { ROLE_LABELS } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
+import { useBasePath } from "../../hooks/useBasePath";
 import { useNotificationLiveUpdates } from "../../hooks/useNotificationLiveUpdates";
 import { apiClient } from "../../services/apiClient";
 import { initNotificationFallback } from "../../services/Notificationfallback";
@@ -115,6 +116,7 @@ function showBrowserNotification(n, onOpen) {
 
 function NotificationBell({ overHero = false }) {
   const { role } = useAuth();
+  const base = useBasePath();
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -145,7 +147,7 @@ function NotificationBell({ overHero = false }) {
   }, []);
 
   function openNotifications() {
-    navigate(`${ROLE_BASE_PATH[role] || ""}/notifications`);
+    navigate(`${base}/notifications`);
   }
 
   // Shared by every delivery path below (WebSocket live-update, and the
@@ -319,6 +321,7 @@ function NotificationBell({ overHero = false }) {
 // is untouched.
 export default function Header({ onMenuClick, overHero = false }) {
   const { user, role, logout } = useAuth();
+  const base = useBasePath();
   const navigate = useNavigate();
 
   // The employee's actual stored photo, same field every other screen
@@ -371,9 +374,7 @@ export default function Header({ onMenuClick, overHero = false }) {
             registered for every role in routes/commonRoutes.jsx) */}
         <button
           type="button"
-          onClick={() =>
-            navigate(`${ROLE_BASE_PATH[role] || ""}/profile/personal`)
-          }
+          onClick={() => navigate(`${base}/profile/personal`)}
           title="My Profile"
           aria-label="Open My Profile"
           className="flex items-center gap-2 rounded-lg p-0.5 pr-1 hover:bg-slate-50 transition-colors"

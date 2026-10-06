@@ -5,7 +5,7 @@ import logo from "../../assets/images/akrobat-logo.png"; // TODO: replace placeh
 import slide1 from "../../assets/images/slide1.jpeg"; // TODO: replace placeholder
 import slide2 from "../../assets/images/slide2.jpeg";
 import slide3 from "../../assets/images/slide3.jpeg"; // TODO: replace placeholder
-import { DEFAULT_ROUTE_BY_ROLE } from "../../config/roles";
+import { DEFAULT_ROUTE_BY_ROLE, HR_HOME, ROLES } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
 
 const SLIDES = [slide1, slide2, slide3];
@@ -63,10 +63,15 @@ export default function Login() {
       // Prefer wherever the user was headed before being bounced to
       // /login (ProtectedRoute sets this), otherwise their role's
       // default dashboard.
+      // HR always lands on the My Profile / Company chooser after a fresh
+      // login, even if they were bounced to /login from another page
+      // (e.g. after logout) -- otherwise `from` would skip the chooser.
       const redirectTo =
-        location.state?.from?.pathname ??
-        DEFAULT_ROUTE_BY_ROLE[user.role] ??
-        "/";
+        user.role === ROLES.HR_ADMIN
+          ? HR_HOME
+          : (location.state?.from?.pathname ??
+            DEFAULT_ROUTE_BY_ROLE[user.role] ??
+            "/");
       navigate(redirectTo, { replace: true });
     } catch (err) {
       // The backend can be cold-starting (Render free/low tier spins the

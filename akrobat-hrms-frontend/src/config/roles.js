@@ -22,7 +22,8 @@ export const ROLES = {
 export const DEFAULT_ROUTE_BY_ROLE = {
   [ROLES.EMPLOYEE]: "/employee/dashboard",
   [ROLES.MANAGER]: "/manager/dashboard",
-  [ROLES.HR_ADMIN]: "/hr-admin/dashboard",
+  // HR lands on the chooser page (My Profile / Company) after login.
+  [ROLES.HR_ADMIN]: "/hr-admin/home",
   [ROLES.SUPER_ADMIN]: "/super-admin/dashboard",
 };
 
@@ -38,6 +39,19 @@ export const ROLE_BASE_PATH = {
   [ROLES.HR_ADMIN]: "/hr-admin",
   [ROLES.SUPER_ADMIN]: "/super-admin",
 };
+
+// HR has two workspaces under /hr-admin:
+//   My Space -> /hr-admin/me/*   (own dashboard, attendance, leave... like an employee)
+//   Company  -> /hr-admin/*      (employees, reports, audit logs... HR tools)
+// The active workspace is derived from the URL, so it survives refresh and
+// the browser back button without any extra state.
+export const HR_SELF_BASE = "/hr-admin/me";
+export const HR_COMPANY_HOME = "/hr-admin/dashboard";
+export const HR_HOME = "/hr-admin/home"; // post-login chooser: My Profile / Company
+
+export function isHrSelfPath(pathname = "") {
+  return pathname === HR_SELF_BASE || pathname.startsWith(HR_SELF_BASE + "/");
+}
 
 // Human readable labels (e.g. for header "Role" chip)
 export const ROLE_LABELS = {

@@ -21,6 +21,7 @@ import { Link } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 import SelectDropdown from "../../components/common/SelectDropdown";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
+import { useBasePath } from "../../hooks/useBasePath";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
@@ -111,6 +112,7 @@ function formatDateRange(start, end) {
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
 export default function LeaveHistory() {
+  const base = useBasePath();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -261,7 +263,7 @@ export default function LeaveHistory() {
               <Info size={16} />
             </button>
             <Link
-              to="/employee/leave/apply"
+              to={`${base}/leave/apply`}
               title="Back to My Leaves"
               className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-2.5 sm:px-3.5 py-2 rounded-lg"
             >

@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import InstallPrompt from "./components/common/InstallPrompt.jsx";
@@ -13,6 +13,9 @@ import { useAuth } from "./context/AuthContext";
 // that JS (or its heavy deps like jspdf/leaflet/xlsx-js-style) loads
 // until someone actually logs in and navigates to a route that needs it.
 import Login from "./pages/auth/Login.jsx";
+
+// HR's post-login chooser (My Profile / Company) -- full screen, no sidebar.
+const HrHome = lazy(() => import("./pages/hr-admin/HrHome.jsx"));
 
 // Small, dependency-free fallback shown while a role's page chunk is
 // still downloading (route navigation, not first paint -- Login itself
@@ -67,6 +70,16 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<RootRedirect />} />
+
+          {/* HR chooser: My Profile (employee view) or Company */}
+          <Route
+            path="/hr-admin/home"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.HR_ADMIN]}>
+                <HrHome />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Employee */}
           <Route

@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 import { useAuth } from "../../context/AuthContext";
+import { useBasePath } from "../../hooks/useBasePath";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate, toLocalISODate } from "../../utils/date";
 import { isFieldEmployee } from "../../utils/employeeType";
@@ -104,6 +105,7 @@ function formatShortDate(dateStr) {
 }
 
 export default function Attendance() {
+  const base = useBasePath();
   const { user } = useAuth();
   const isFieldStaff = isFieldEmployee(user);
 
@@ -244,7 +246,7 @@ export default function Attendance() {
         subtitle="Track your daily attendance and working hours."
         actions={
           <Link
-            to="/employee/attendance/history"
+            to={`${base}/attendance/history`}
             title="View History"
             className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-2.5 sm:px-3.5 py-2 rounded-lg"
           >
@@ -283,7 +285,7 @@ export default function Attendance() {
               <div className="text-base font-semibold">My Attendance</div>
             </div>
             {/* <Link
-              to="/employee/attendance/history"
+              to={`${base}/attendance/history`}
               title="View History"
               className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center"
             >

@@ -31,6 +31,7 @@ import * as XLSX from "xlsx-js-style";
 import PageHeader from "../../components/common/PageHeader";
 import DatePicker from "../../components/layout/DatePicker";
 import { useAuth } from "../../context/AuthContext";
+import { useBasePath } from "../../hooks/useBasePath";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate, toLocalISODate } from "../../utils/date";
 import { isSiteEmployee } from "../../utils/workingLocation";
@@ -357,6 +358,7 @@ function ExportMenu({ disabled, onExportExcel, onExportPdf, compact = false }) {
 }
 
 export default function AttendanceHistory() {
+  const base = useBasePath();
   const { user } = useAuth();
   // Site employees do not see working hours / break / total working hours.
   const hideHours = isSiteEmployee(user);
@@ -570,7 +572,7 @@ export default function AttendanceHistory() {
               <Info size={16} />
             </button>
             <Link
-              to="/employee/attendance"
+              to={`${base}/attendance`}
               title="Back to Attendance"
               className="flex items-center gap-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-2.5 sm:px-3.5 py-2 rounded-lg"
             >

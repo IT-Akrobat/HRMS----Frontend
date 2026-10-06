@@ -37,3 +37,10 @@ export const commonRoutes = [
   { path: "notifications", element: <Notifications /> },
   { path: "leave/apply", element: <LeaveApply /> },
 ];
+
+// HR's "My Space" workspace (/hr-admin/me/*) needs the same self-service
+// pages, so they are mounted a second time under the "me/" prefix.
+export const selfCommonRoutes = commonRoutes.map((r) => ({
+  ...r,
+  path: `me/${r.path}`,
+}));

@@ -947,16 +947,9 @@ export default function CheckInOutCard({
       geoHint = "Couldn't get a location fix. Tap Check in to try again.";
     else if (geoStatus === "unsupported")
       geoHint = "This browser doesn't support location.";
-    else if (geoStatus === "ok" && nearest && nearest.withinRadius)
-      geoHint = `Within range of ${nearest.location.location_name}${place ? ` — ${place}` : ""}`;
-    else if (geoStatus === "ok" && nearest)
-      geoHint = `${place ? `Detected at ${place}` : "Location detected"} (${Math.round(nearest.distance)}m from ${nearest.location.location_name})`;
-    else if (geoStatus === "ok")
-      geoHint = place
-        ? `Detected at ${place}`
-        : placeLoading
-          ? "Location acquired — resolving place…"
-          : "Location acquired";
+    // geoStatus === "ok": nothing to show. The "Within range of …" /
+    // "Detected at …" line was removed on purpose — only problems
+    // (denied / unavailable / unsupported) surface a hint now.
 
     return (
       <MobileAttendanceCard

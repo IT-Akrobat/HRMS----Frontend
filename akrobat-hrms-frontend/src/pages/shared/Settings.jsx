@@ -19,8 +19,9 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 import ToggleSwitch from "../../components/common/ToggleSwitch";
-import { ROLE_BASE_PATH, ROLES } from "../../config/roles";
+import { ROLES } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
+import { useBasePath } from "../../hooks/useBasePath";
 import { apiClient } from "../../services/apiClient";
 import { holidaysService } from "../../services/holidaysService";
 
@@ -244,7 +245,8 @@ export default function Settings() {
   // "profile/personal", so this just needs to point at the current role's
   // own base path (e.g. /manager/profile/personal) rather than being
   // hardcoded to /employee.
-  const profileLink = `${ROLE_BASE_PATH[role] || "/employee"}/profile/personal`;
+  const basePath = useBasePath();
+  const profileLink = `${basePath}/profile/personal`;
 
   // ---------------- Security: change password ----------------
   const [pwd, setPwd] = useState({ current: "", next: "", confirm: "" });
