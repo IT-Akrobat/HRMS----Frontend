@@ -5,9 +5,7 @@ import {
   Building2,
   Camera,
   Check,
-  Download,
   Droplet,
-  Edit3,
   FileText,
   Heart,
   Loader2,
@@ -22,7 +20,7 @@ import {
   Trash2,
   Upload,
   User,
-  X,
+  X
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx-js-style";
@@ -683,8 +681,8 @@ export default function MyProfile() {
             View and manage your personal and professional information.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
+        {/* <div className="flex items-center gap-2">
+          {/* <button
             onClick={downloadMyFullReport}
             disabled={downloadingReport}
             title="Download Full Report"
@@ -698,11 +696,11 @@ export default function MyProfile() {
             <span className="hidden sm:inline">Download Full Report</span>
             {/* Mobile only: label is hidden above, and instead appears as a
                     tooltip on hover so the button stays icon-only by default. */}
-            <span className="sm:hidden pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
+        {/* <span className="sm:hidden pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
               Download Full Report
             </span>
-          </button>
-          <button
+          </button> */}
+        {/* <button
             onClick={openEditModal}
             title="Edit Profile"
             className="group relative flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 hover:bg-slate-50 max-lg:text-white max-lg:bg-orange-500 max-lg:border-transparent max-lg:hover:bg-orange-600"
@@ -712,8 +710,7 @@ export default function MyProfile() {
             <span className="sm:hidden pointer-events-none absolute top-full mt-2 right-0 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
               Edit Profile
             </span>
-          </button>
-        </div>
+          </button> */}
       </div>
 
       {downloadError && (
@@ -940,10 +937,10 @@ export default function MyProfile() {
                     />
                   </div>
 
-                  <p className="text-xs text-slate-400 mt-5">
+                  {/* <p className="text-xs text-slate-400 mt-5">
                     Department, designation and reporting line are set by HR —
                     reach out to them for corrections.
-                  </p>
+                  </p> */}
                 </div>
               )}
 
