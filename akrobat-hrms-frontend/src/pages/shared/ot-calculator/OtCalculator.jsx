@@ -9,37 +9,19 @@ import { otCalculatorService } from "./otCalculatorService";
 import { buildSaveItems, currentMonth, effectiveRow, rowKey } from "./otUtils";
 
 // OT Calculator page for HR Admin and Super Admin.
-// Two tabs share one fetch + one set of unsaved edits:
-//   1. Monthly Calculator (one person)   2. Excel Sheet (everyone)
-// WEB: unchanged (both tabs, Save goes straight to the server).
-// MOBILE: Monthly tab is hidden, only Excel Sheet is shown, and Save opens a
-// "review changes" bottom sheet listing the edited dates first.
-
-function useIsMobile() {
-  const query = "(max-width: 1023px)";
-  const [mobile, setMobile] = useState(
-    () => typeof window !== "undefined" && window.matchMedia(query).matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const onChange = (e) => setMobile(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-  return mobile;
-}
+// Single Excel Sheet view (everyone) on web and mobile.
+// WEB: Save goes straight to the server.
+// MOBILE: Save opens a "review changes" bottom sheet listing the edited
+// dates first.
 
 export default function OtCalculator() {
-  const [tab, setTab] = useState("monthly");
   const [month, setMonth] = useState(currentMonth());
   const [data, setData] = useState({ employees: [] });
   const [edits, setEdits] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null); // { text, error }
-  const isMobile = useIsMobile();
   const [reviewOpen, setReviewOpen] = useState(false);
-  const activeTab = isMobile ? "excel" : tab;
   useModalBackClose(reviewOpen, () => setReviewOpen(false));
 
   const load = useCallback(() => {
@@ -99,13 +81,6 @@ export default function OtCalculator() {
     }
   }
 
-  const tabClass = (id) =>
-    `flex-1 lg:flex-none min-h-[44px] px-5 rounded-lg text-sm transition-colors ${
-      tab === id
-        ? "bg-white text-orange-700 font-bold shadow-sm"
-        : "text-slate-600 font-medium"
-    }`;
-
   return (
     <div>
       <PageHeader
@@ -129,23 +104,6 @@ export default function OtCalculator() {
         />
       </div>
 
-      <div className="hidden lg:inline-flex lg:w-auto bg-slate-200/70 rounded-xl p-1 mb-5">
-        <button
-          type="button"
-          className={tabClass("monthly")}
-          onClick={() => setTab("monthly")}
-        >
-          Monthly Calculator
-        </button>
-        <button
-          type="button"
-          className={tabClass("excel")}
-          onClick={() => setTab("excel")}
-        >
-          Excel Sheet
-        </button>
-      </div>
-
       {message && (
         <div
           role="status"
@@ -161,17 +119,6 @@ export default function OtCalculator() {
 
       {loading ? (
         <div className="text-slate-500 py-12 text-center">Loading...</div>
-      ) : activeTab === "monthly" ? (
-        <MonthlyTab
-          data={data}
-          month={month}
-          edits={edits}
-          onEdit={handleEdit}
-          onSave={handleSave}
-          onReset={() => setEdits({})}
-          saving={saving}
-          dirtyCount={dirtyCount}
-        />
       ) : (
         <ExcelTab
           data={data}

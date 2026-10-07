@@ -26,6 +26,7 @@ import StatCard from "../../components/common/StatCard";
 import DatePicker from "../../components/layout/DatePicker";
 import { reportsService } from "../../services/ReportService";
 import { parseServerDate } from "../../utils/date";
+import { is12h } from "../../utils/timeFormat";
 
 // ---------------------------------------------------------------------
 // Excel export styling -- field labels ("Employee Name", "Blood Group",
@@ -139,7 +140,11 @@ function formatTime(value) {
   if (!value) return "—";
   const d = parseServerDate(value);
   if (!d || Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString([], {
+    hour: "2-digit",
+    hour12: is12h(),
+    minute: "2-digit",
+  });
 }
 
 // OT for on-site staff eligible for additional salary. ot_hours is the
@@ -282,7 +287,11 @@ const COLUMNS = {
       header: "Working Hours",
       render: (r) => formatMinutes(r.working_minutes),
     },
-    { header: "OT (extra salary)", render: (r) => formatOtLabel(r) || "—" },
+    {
+      header: "OT (extra salary)",
+      otOnly: true, // shown only for staff marked OT-eligible
+      render: (r) => formatOtLabel(r) || "—",
+    },
     { header: "Status", render: (r) => <StatusPill value={r.status} /> },
   ],
   leaves: [
@@ -1006,7 +1015,11 @@ export default function Reports() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const columns = COLUMNS[activeTab];
+  // The OT column is only for staff marked OT-eligible: hide the whole
+  // column when nobody in the current list is eligible, and leave the cell
+  // (table) / line (mobile card) out for rows that are not.
+  const hasOtRows = filtered.some((r) => r.ot_eligible);
+  const columns = COLUMNS[activeTab].filter((c) => !c.otOnly || hasOtRows);
 
   // "Export Excel"/"Export CSV" always exports every record for the tab,
   // regardless of what's typed in the search box — searching is only for
@@ -1728,7 +1741,7 @@ export default function Reports() {
                     >
                       {columns.map((c) => (
                         <td key={c.header} className="px-4 py-3 text-slate-600">
-                          {c.render(row)}
+                          {c.otOnly && !row.ot_eligible ? "" : c.render(row)}
                         </td>
                       ))}
                       {activeTab === "employees" && (
@@ -1805,16 +1818,19 @@ export default function Reports() {
                     {columns[0].render(row)}
                   </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
-                    {columns.slice(1).map((c) => (
-                      <div key={c.header} className="min-w-0">
-                        <div className="text-[10px] font-medium text-slate-400 mb-0.5 uppercase tracking-wide">
-                          {c.header}
+                    {columns
+                      .slice(1)
+                      .filter((c) => !(c.otOnly && !row.ot_eligible))
+                      .map((c) => (
+                        <div key={c.header} className="min-w-0">
+                          <div className="text-[10px] font-medium text-slate-400 mb-0.5 uppercase tracking-wide">
+                            {c.header}
+                          </div>
+                          <div className="text-[12.5px] text-slate-700 truncate">
+                            {c.render(row)}
+                          </div>
                         </div>
-                        <div className="text-[12.5px] text-slate-700 truncate">
-                          {c.render(row)}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                   {activeTab === "employees" && (
                     <button
