@@ -122,7 +122,6 @@ export default function OtCalculator() {
         <span className="text-sm text-slate-500">Month</span>
         <DatePicker
           monthOnly
-          sheetOnMobile
           value={month}
           onChange={handleMonthChange}
           placeholder="Select month"
