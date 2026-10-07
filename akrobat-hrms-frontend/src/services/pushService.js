@@ -44,6 +44,37 @@ export function isPushSupported() {
   );
 }
 
+// iOS only supports Web Push for sites added to the Home Screen and opened
+// from that icon. In a normal Safari tab PushManager doesn't exist at all.
+export function isIos() {
+  return (
+    /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+export function isStandalone() {
+  return (
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  );
+}
+
+// One of: "needs-install" | "unsupported" | "denied" | "enabled" | "ready"
+export async function getPushStatus() {
+  if (isIos() && !isStandalone()) return "needs-install";
+  if (!isPushSupported()) return "unsupported";
+  if (Notification.permission === "denied") return "denied";
+  try {
+    const reg = await navigator.serviceWorker.getRegistration("/");
+    const sub = await reg?.pushManager.getSubscription();
+    if (sub && Notification.permission === "granted") return "enabled";
+  } catch {
+    // fall through to "ready"
+  }
+  return "ready";
+}
+
 async function registerServiceWorker() {
   // Reuses an existing registration if the browser already has one for
   // this scope rather than registering a duplicate.
@@ -104,7 +135,9 @@ export async function enablePushNotifications() {
     let subscription = await registration.pushManager.getSubscription();
 
     if (subscription) {
-      const currentKeyBytes = new Uint8Array(subscription.options.applicationServerKey);
+      const currentKeyBytes = new Uint8Array(
+        subscription.options.applicationServerKey,
+      );
       const currentKeyB64 = uint8ArrayToBase64Url(currentKeyBytes);
       if (currentKeyB64 !== data.public_key) {
         await subscription.unsubscribe();
