@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import PageHeader from "../../../components/common/PageHeader";
 import { useModalBackClose } from "../../../components/common/usemodalbackclose";
+import DatePicker from "../../../components/layout/DatePicker";
 import ExcelTab from "./ExcelTab";
 
 import ReviewChangesSheet from "./ReviewChangesSheet";
@@ -76,9 +77,10 @@ export default function OtCalculator() {
     });
   }
 
-  function handleMonthChange(e) {
+  function handleMonthChange(value) {
+    if (!value || value === month) return;
     if (dirtyCount && !window.confirm("Discard unsaved OT changes?")) return;
-    setMonth(e.target.value);
+    setMonth(value);
   }
 
   async function handleSave() {
@@ -117,15 +119,14 @@ export default function OtCalculator() {
       />
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <label className="text-sm text-slate-500" htmlFor="ot-month">
-          Month
-        </label>
-        <input
-          id="ot-month"
-          type="month"
+        <span className="text-sm text-slate-500">Month</span>
+        <DatePicker
+          monthOnly
+          sheetOnMobile
           value={month}
           onChange={handleMonthChange}
-          className="min-h-[44px] rounded-lg border border-slate-200 bg-white px-3 text-sm"
+          placeholder="Select month"
+          className="w-[168px]"
         />
       </div>
 

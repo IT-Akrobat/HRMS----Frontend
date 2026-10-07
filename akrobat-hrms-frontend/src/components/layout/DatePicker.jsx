@@ -718,13 +718,13 @@ export default function DatePicker({
             ref={sheetRef}
             role="dialog"
             aria-modal="true"
-            aria-label="Select date"
+            aria-label={monthOnly ? "Select month" : "Select date"}
             className="relative w-full bg-white rounded-t-2xl shadow-xl border-t border-slate-200 px-5 pt-2.5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
           >
             <div className="w-10 h-1 rounded-full bg-slate-200 mx-auto mb-2" />
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-base font-semibold text-slate-800">
-                {label || "Select date"}
+                {label || (monthOnly ? "Select month" : "Select date")}
               </h3>
               <button
                 type="button"

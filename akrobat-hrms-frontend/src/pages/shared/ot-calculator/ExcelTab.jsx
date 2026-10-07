@@ -8,6 +8,7 @@ import {
 import { useRef, useState } from "react";
 import SearchInput from "../../../components/common/SearchInput";
 import SelectDropdown from "../../../components/common/SelectDropdown";
+import { formatClock } from "../../../utils/timeFormat";
 import { exportOtExcel, readOtExcel } from "./otExcel";
 import { effectiveRow, empTotals, formatH } from "./otUtils";
 
@@ -262,10 +263,10 @@ export default function ExcelTab({
                         {row.weekday}
                       </td>
                       <td className="px-3 py-2 border-r border-slate-100">
-                        {row.shift_end || "--"}
+                        {formatClock(row.shift_end) || "--"}
                       </td>
                       <td className="px-3 py-2 border-r border-slate-100">
-                        {row.check_out || "--"}
+                        {formatClock(row.check_out) || "--"}
                       </td>
                       <td className="px-3 py-2 border-r border-slate-100">
                         {row.after_shift_minutes}
@@ -453,10 +454,10 @@ export default function ExcelTab({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold text-slate-800">
-                          {row.check_out || "--"}
+                          {formatClock(row.check_out) || "--"}
                         </div>
                         <div className="text-xs text-slate-400">
-                          till {row.shift_end || "--"}
+                          till {formatClock(row.shift_end) || "--"}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -592,27 +593,29 @@ export default function ExcelTab({
           </div>
         )}
 
-        <div className="sticky bottom-3 mt-4 bg-white border border-slate-200 rounded-xl shadow-lg p-3 flex items-center gap-3">
-          <div className="min-w-0">
-            <div className="text-[11px] text-slate-500 leading-none">
-              All staff
+        {dirtyCount > 0 && (
+          <div className="sticky bottom-3 mt-4 bg-white border border-slate-200 rounded-xl shadow-lg p-3 flex items-center gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] text-slate-500 leading-none">
+                All staff
+              </div>
+              <div className="text-lg font-bold text-orange-700 leading-tight">
+                {formatH(allFinal)}
+              </div>
             </div>
-            <div className="text-lg font-bold text-orange-700 leading-tight">
-              {formatH(allFinal)}
-            </div>
+            <button
+              type="button"
+              onClick={onReview || onSave}
+              disabled={saving || dirtyCount === 0}
+              className="flex-1 bg-brand-orange text-white text-sm font-medium px-4 min-h-[44px] rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50 transition flex items-center justify-center gap-2"
+            >
+              <Save size={16} />
+              {saving
+                ? "Saving..."
+                : `Save changes${dirtyCount ? ` (${dirtyCount})` : ""}`}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onReview || onSave}
-            disabled={saving || dirtyCount === 0}
-            className="flex-1 bg-brand-orange text-white text-sm font-medium px-4 min-h-[44px] rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50 transition flex items-center justify-center gap-2"
-          >
-            <Save size={16} />
-            {saving
-              ? "Saving..."
-              : `Save changes${dirtyCount ? ` (${dirtyCount})` : ""}`}
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
