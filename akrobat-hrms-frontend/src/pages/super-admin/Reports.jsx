@@ -136,15 +136,26 @@ function formatDate(value) {
   });
 }
 
-function formatTime(value) {
+// `tz` is the IANA timezone the record happened in (sent by the backend
+// as `timezone`, worked out from the check-in GPS). Showing the time in
+// that zone means everyone sees the same clock time as the employee did,
+// wherever the viewer is. Falls back to the viewer's own zone.
+function formatTime(value, tz) {
   if (!value) return "—";
   const d = parseServerDate(value);
   if (!d || Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleTimeString([], {
+  const opts = {
     hour: "2-digit",
     hour12: is12h(),
     minute: "2-digit",
-  });
+  };
+  if (tz) opts.timeZone = tz;
+  try {
+    return d.toLocaleTimeString([], opts);
+  } catch {
+    delete opts.timeZone;
+    return d.toLocaleTimeString([], opts);
+  }
 }
 
 // OT for on-site staff eligible for additional salary. ot_hours is the
@@ -281,8 +292,14 @@ const COLUMNS = {
       ),
     },
     { header: "Date", render: (r) => formatDate(r.attendance_date) },
-    { header: "Check-in", render: (r) => formatTime(r.check_in_time) },
-    { header: "Check-out", render: (r) => formatTime(r.check_out_time) },
+    {
+      header: "Check-in",
+      render: (r) => formatTime(r.check_in_time, r.timezone),
+    },
+    {
+      header: "Check-out",
+      render: (r) => formatTime(r.check_out_time, r.timezone),
+    },
     {
       header: "Working Hours",
       render: (r) => formatMinutes(r.working_minutes),
@@ -468,8 +485,8 @@ function toCsv(tabKey, rows) {
     attendance: (r) => [
       employeeLabel(r.employees?.full_name, r.employees?.employee_id),
       formatDate(r.attendance_date),
-      formatTime(r.check_in_time),
-      formatTime(r.check_out_time),
+      formatTime(r.check_in_time, r.timezone),
+      formatTime(r.check_out_time, r.timezone),
       formatMinutes(r.working_minutes),
       formatOtLabel(r),
       r.status || "",
@@ -618,8 +635,8 @@ function attendanceExportRow(r) {
     r.employees?.full_name || "",
     r.employees?.employee_id || "",
     formatDate(r.attendance_date),
-    formatTime(r.check_in_time),
-    formatTime(r.check_out_time),
+    formatTime(r.check_in_time, r.timezone),
+    formatTime(r.check_out_time, r.timezone),
     formatMinutes(r.working_minutes),
     formatMinutes(r.break_minutes),
     formatMinutes(r.overtime_minutes),
@@ -696,8 +713,8 @@ function dayExportCells(day) {
     return [...blank, rec?.status || (isPast ? "Not Check-in" : "")];
   }
   return [
-    formatTime(rec.check_in_time),
-    rec.check_out_time ? formatTime(rec.check_out_time) : "",
+    formatTime(rec.check_in_time, rec.timezone),
+    rec.check_out_time ? formatTime(rec.check_out_time, rec.timezone) : "",
     formatMinutes(rec.working_minutes),
     formatMinutes(rec.break_minutes),
     formatMinutes(rec.overtime_minutes),

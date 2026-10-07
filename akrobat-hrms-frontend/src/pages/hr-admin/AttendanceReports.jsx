@@ -48,10 +48,19 @@ function formatDateLabel(iso) {
 // "Z" so the value is parsed as UTC and then formatted in the viewer's
 // local zone (see utils/date.js; manager/AttendanceReports.jsx already
 // does this).
-function formatTime(iso) {
+// `tz` = IANA timezone the record happened in (backend sends `timezone`,
+// worked out from the check-in GPS), so the clock time matches the
+// employee's wherever the viewer is. Falls back to the viewer's zone.
+function formatTime(iso, tz) {
   const d = parseServerDate(iso);
   if (!d) return "--";
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const opts = { hour: "2-digit", minute: "2-digit" };
+  if (tz) opts.timeZone = tz;
+  try {
+    return d.toLocaleTimeString([], opts);
+  } catch {
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
 }
 
 function initials(name) {
@@ -147,8 +156,8 @@ function downloadCsv(rows, filename) {
         r.employee_code || "",
         r.department || "",
         formatDateForExport(r.date),
-        r.check_in_time ? formatTime(r.check_in_time) : "",
-        r.check_out_time ? formatTime(r.check_out_time) : "",
+        r.check_in_time ? formatTime(r.check_in_time, r.timezone) : "",
+        r.check_out_time ? formatTime(r.check_out_time, r.timezone) : "",
         r.working_hours ?? 0,
         formatOt(r),
         r.status || "",
@@ -945,8 +954,8 @@ function DepartmentGroup({ deptName, records, onExportEmployee }) {
                       {formatDateLabel(r.date)}
                     </td>
                     <td className="px-4 py-2">
-                      {formatTime(r.check_in_time)} →{" "}
-                      {formatTime(r.check_out_time)}
+                      {formatTime(r.check_in_time, r.timezone)} →{" "}
+                      {formatTime(r.check_out_time, r.timezone)}
                     </td>
                     <td className="px-4 py-2 w-16">{r.working_hours}h</td>
                     <td className="px-4 py-2 w-44 text-xs text-slate-500">
@@ -999,8 +1008,8 @@ function DepartmentGroup({ deptName, records, onExportEmployee }) {
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>
-                      {formatTime(r.check_in_time)} →{" "}
-                      {formatTime(r.check_out_time)}
+                      {formatTime(r.check_in_time, r.timezone)} →{" "}
+                      {formatTime(r.check_out_time, r.timezone)}
                     </span>
                     <span className="text-slate-500 font-medium">
                       {r.working_hours}h
