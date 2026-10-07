@@ -63,6 +63,41 @@ function styleHeaderRow(sheet, colCount) {
   }
 }
 
+const TOTAL_STYLE = {
+  font: { bold: true },
+  fill: { patternType: "solid", fgColor: { rgb: "FFE8CC" } },
+  border: { top: { style: "thin", color: { rgb: "999999" } } },
+};
+
+function sum(rows, pick) {
+  return rows.reduce((t, r) => t + (Number(pick(r)) || 0), 0);
+}
+
+// Writes a bold TOTAL row `dataRows` rows below the header (after one
+// blank spacer row) and extends the sheet range so Excel shows it.
+function appendTotalsRow(sheet, colCount, dataRows, values) {
+  const r = dataRows + 2; // 0 = header, 1..dataRows = data, +1 spacer
+  values.forEach((v, c) => {
+    if (v === "" || v === undefined) {
+      sheet[XLSX.utils.encode_cell({ r, c })] = {
+        t: "s",
+        v: "",
+        s: TOTAL_STYLE,
+      };
+      return;
+    }
+    sheet[XLSX.utils.encode_cell({ r, c })] = {
+      t: typeof v === "number" ? "n" : "s",
+      v,
+      s: TOTAL_STYLE,
+    };
+  });
+  const range = XLSX.utils.decode_range(sheet["!ref"]);
+  range.e.r = Math.max(range.e.r, r);
+  range.e.c = Math.max(range.e.c, colCount - 1);
+  sheet["!ref"] = XLSX.utils.encode_range(range);
+}
+
 // Status column colouring for the attendance Excel exports (needs
 // xlsx-js-style, see the import note at the top of this file).
 const STATUS_COLORS = {
@@ -467,65 +502,103 @@ function employeeLabel(name, empId) {
   return empId ? `${name} (${empId})` : name;
 }
 
-function toCsv(tabKey, rows) {
-  const cols = COLUMNS[tabKey];
-  // Mirrors each tab's COLUMNS render() output as plain text, so the CSV
-  // always matches what's on screen (formatted dates/times/durations/
-  // currency) instead of raw DB fields — one value per header, in order.
-  const flatteners = {
-    employees: (r) => [
-      employeeLabel(r.full_name, r.email),
-      r.employee_id || "",
-      r.departments?.department_name || "",
-      r.designations?.designation_name || "",
-      r.employment_status || "",
-      formatDate(r.joining_date),
-      r.tenure?.label || "",
+// Mirrors each tab's COLUMNS render() output as plain text, so exports
+// (CSV / Excel) always match what's on screen (formatted dates/times/
+// durations/currency) instead of raw DB fields -- one value per header.
+const TAB_FLATTENERS = {
+  employees: (r) => [
+    employeeLabel(r.full_name, r.email),
+    r.employee_id || "",
+    r.departments?.department_name || "",
+    r.designations?.designation_name || "",
+    r.employment_status || "",
+    formatDate(r.joining_date),
+    r.tenure?.label || "",
+  ],
+  attendance: (r) => [
+    employeeLabel(r.employees?.full_name, r.employees?.employee_id),
+    formatDate(r.attendance_date),
+    formatTime(r.check_in_time, r.timezone),
+    formatTime(r.check_out_time, r.timezone),
+    formatMinutes(r.working_minutes),
+    formatOtLabel(r),
+    r.status || "",
+  ],
+  leaves: (r) => [
+    employeeLabel(r.employees?.full_name, r.employees?.employee_id),
+    `${formatDate(r.start_date)} - ${formatDate(r.end_date)}`,
+    r.total_days ?? "",
+    r.reason || "",
+    r.status || "",
+    formatDate(r.applied_date),
+  ],
+  payroll: (r) => [
+    employeeLabel(r.employees?.full_name, r.employees?.employee_id),
+    `${String(r.payroll_month).padStart(2, "0")}/${r.payroll_year}`,
+    formatCurrency(r.basic_salary),
+    formatCurrency(r.net_salary),
+    r.payment_status || "",
+    formatDate(r.payment_date),
+  ],
+  projects: (r) => [
+    r.project_code
+      ? `${r.project_name} (${r.project_code})`
+      : r.project_name || "",
+    r.client_name || "",
+    r.status || "",
+    `${r.progress_percentage ?? 0}%`,
+    `${formatDate(r.start_date)} - ${formatDate(r.end_date)}`,
+  ],
+};
+
+// Excel export for the simple tabs (Leave Requests / Payroll / Projects):
+// same columns + values as the on-screen table, written as a styled .xlsx.
+const TAB_SHEET_NAMES = {
+  leaves: "Leave Requests",
+  payroll: "Payroll",
+  projects: "Projects",
+};
+
+function downloadTabExcel(tabKey, rows) {
+  const headers = COLUMNS[tabKey].map((c) => c.header);
+  const sheet = XLSX.utils.aoa_to_sheet([
+    headers,
+    ...rows.map((r) => TAB_FLATTENERS[tabKey](r)),
+  ]);
+  sheet["!cols"] = headers.map((h) => ({
+    wch: Math.max(14, Math.min(40, h.length + 6)),
+  }));
+  styleHeaderRow(sheet, headers.length);
+  const totals = {
+    leaves: () => [
+      "TOTAL",
+      `${rows.length} requests`,
+      sum(rows, (r) => r.total_days),
+      "",
+      "",
+      "",
     ],
-    attendance: (r) => [
-      employeeLabel(r.employees?.full_name, r.employees?.employee_id),
-      formatDate(r.attendance_date),
-      formatTime(r.check_in_time, r.timezone),
-      formatTime(r.check_out_time, r.timezone),
-      formatMinutes(r.working_minutes),
-      formatOtLabel(r),
-      r.status || "",
+    payroll: () => [
+      "TOTAL",
+      `${rows.length} records`,
+      formatCurrency(sum(rows, (r) => r.basic_salary)),
+      formatCurrency(sum(rows, (r) => r.net_salary)),
+      "",
+      "",
     ],
-    leaves: (r) => [
-      employeeLabel(r.employees?.full_name, r.employees?.employee_id),
-      `${formatDate(r.start_date)} - ${formatDate(r.end_date)}`,
-      r.total_days ?? "",
-      r.reason || "",
-      r.status || "",
-      formatDate(r.applied_date),
-    ],
-    payroll: (r) => [
-      employeeLabel(r.employees?.full_name, r.employees?.employee_id),
-      `${String(r.payroll_month).padStart(2, "0")}/${r.payroll_year}`,
-      formatCurrency(r.basic_salary),
-      formatCurrency(r.net_salary),
-      r.payment_status || "",
-      formatDate(r.payment_date),
-    ],
-    projects: (r) => [
-      r.project_code
-        ? `${r.project_name} (${r.project_code})`
-        : r.project_name || "",
-      r.client_name || "",
-      r.status || "",
-      `${r.progress_percentage ?? 0}%`,
-      `${formatDate(r.start_date)} - ${formatDate(r.end_date)}`,
-    ],
-  };
-  const headers = cols.map((c) => c.header);
-  const lines = [headers.join(",")];
-  rows.forEach((r) => {
-    const vals = flatteners[tabKey](r).map(
-      (v) => `"${(v ?? "").toString().replace(/"/g, '""')}"`,
-    );
-    lines.push(vals.join(","));
-  });
-  return lines.join("\n");
+    projects: () => ["TOTAL", `${rows.length} projects`, "", "", ""],
+  }[tabKey];
+  if (totals) appendTotalsRow(sheet, headers.length, rows.length, totals());
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    workbook,
+    sheet,
+    TAB_SHEET_NAMES[tabKey] || "Report",
+  );
+  XLSX.writeFile(
+    workbook,
+    `${tabKey}-report-${new Date().toISOString().slice(0, 10)}.xlsx`,
+  );
 }
 
 // Full-detail Employees export (Employees tab "Export" button) — every
@@ -605,6 +678,10 @@ function downloadEmployeesExcel(rows) {
     wch: Math.max(14, Math.min(28, h.length + 4)),
   }));
   styleHeaderRow(sheet, EMPLOYEES_EXPORT_HEADER.length);
+  appendTotalsRow(sheet, EMPLOYEES_EXPORT_HEADER.length, rows.length, [
+    "TOTAL",
+    `${rows.length} employees`,
+  ]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Employees");
   XLSX.writeFile(
@@ -639,7 +716,10 @@ function attendanceExportRow(r) {
     formatTime(r.check_out_time, r.timezone),
     formatMinutes(r.working_minutes),
     formatMinutes(r.break_minutes),
-    formatMinutes(r.overtime_minutes),
+    // Same OT rule as the on-screen table: only OT-eligible staff get OT,
+    // measured past shift end (rounded to whole hours) -- NOT the raw
+    // working-minus-8h figure, which disagreed with the screen.
+    r.ot_eligible ? formatMinutes((r.ot_hours || 0) * 60) : "",
     r.ot_eligible ? r.ot_hours || 0 : "",
     r.ot_eligible ? r.after_shift_minutes || 0 : "",
     r.late_minutes || 0,
@@ -668,6 +748,20 @@ function downloadAttendanceExcel(rows, monthLabel) {
   ];
   styleHeaderRow(sheet, ATTENDANCE_EXPORT_HEADER.length);
   styleStatusColumn(sheet, ATTENDANCE_EXPORT_HEADER.length - 1, 1, rows.length);
+  appendTotalsRow(sheet, ATTENDANCE_EXPORT_HEADER.length, rows.length, [
+    "TOTAL",
+    `${rows.length} records`,
+    "",
+    "",
+    "",
+    formatMinutes(sum(rows, (r) => r.working_minutes)),
+    formatMinutes(sum(rows, (r) => r.break_minutes)),
+    formatMinutes(sum(rows, (r) => (r.ot_eligible ? r.ot_hours || 0 : 0) * 60)),
+    sum(rows, (r) => (r.ot_eligible ? r.ot_hours || 0 : 0)),
+    sum(rows, (r) => (r.ot_eligible ? r.after_shift_minutes || 0 : 0)),
+    sum(rows, (r) => r.late_minutes),
+    `${rows.filter((r) => String(r.status).toLowerCase() === "present").length} present`,
+  ]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Attendance");
   // Month-only download (no employee picked) gets a filename tagged
@@ -717,9 +811,37 @@ function dayExportCells(day) {
     rec.check_out_time ? formatTime(rec.check_out_time, rec.timezone) : "",
     formatMinutes(rec.working_minutes),
     formatMinutes(rec.break_minutes),
-    formatMinutes(rec.overtime_minutes),
+    // Same OT as the Reports screen ("2h OT (2h 3m after shift)"); blank
+    // for staff who aren't OT-eligible.
+    formatOtLabel(rec),
     rec.late_minutes || 0,
     rec.status || "",
+  ];
+}
+
+// Totals across a list of calendar days (only days that have a real
+// check-in count), used for the TOTAL row at the bottom of the monthly
+// Excel downloads.
+function monthTotalsRow(days, leadingBlanks) {
+  const recs = days
+    .filter((d) => d.day_type === "Record" && d.record?.check_in_time)
+    .map((d) => d.record);
+  const otMin = recs.reduce(
+    (t, r) => t + (r.ot_eligible ? (r.ot_hours || 0) * 60 : 0),
+    0,
+  );
+  const anyOt = recs.some((r) => r.ot_eligible);
+  const count = (st) =>
+    recs.filter((r) => String(r.status).toLowerCase() === st).length;
+  return [
+    ...leadingBlanks,
+    "", // check-in
+    "", // check-out
+    formatMinutes(recs.reduce((t, r) => t + (r.working_minutes || 0), 0)),
+    formatMinutes(recs.reduce((t, r) => t + (r.break_minutes || 0), 0)),
+    anyOt ? formatMinutes(otMin) : "",
+    recs.reduce((t, r) => t + (r.late_minutes || 0), 0),
+    `${count("present")} present / ${count("half day")} half / ${count("absent")} absent`,
   ];
 }
 
@@ -744,19 +866,31 @@ function downloadMonthlyCalendarExcel(employees, monthLabel) {
   });
   const sheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
   sheet["!cols"] = [
-    { wch: 20 },
+    { wch: 26 },
     { wch: 14 },
-    { wch: 12 },
-    { wch: 10 },
-    { wch: 10 },
     { wch: 14 },
     { wch: 10 },
     { wch: 10 },
+    { wch: 14 },
     { wch: 10 },
-    { wch: 12 },
+    { wch: 26 },
+    { wch: 11 },
+    { wch: 36 },
   ];
   styleHeaderRow(sheet, header.length);
   styleStatusColumn(sheet, header.length - 1, 1, rows.length);
+  // Grand total of everything above (all employees, all dates).
+  const allDays = employees.flatMap((e) => e.days || []);
+  appendTotalsRow(
+    sheet,
+    header.length,
+    rows.length,
+    monthTotalsRow(allDays, [
+      "TOTAL",
+      `${employees.length} employee${employees.length === 1 ? "" : "s"}`,
+      "",
+    ]),
+  );
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Attendance");
   XLSX.writeFile(workbook, `attendance-report-${monthLabel}.xlsx`);
@@ -790,7 +924,9 @@ function EmployeeSearchSelect({
   const containerRef = useRef(null);
 
   const selected = options.find((e) => e.id === value);
-  const hasText = open ? query.length > 0 : !!selected;
+  // Show the clear (X) whenever there's anything in the box -- typed
+  // text or a picked employee -- even after the dropdown has closed.
+  const hasText = query.length > 0 || !!selected;
 
   const clearSearch = (e) => {
     e.stopPropagation();
@@ -831,7 +967,7 @@ function EmployeeSearchSelect({
               ? query
               : selected
                 ? employeeLabel(selected.full_name, selected.employee_id)
-                : ""
+                : query
           }
           onChange={(e) => {
             setQuery(e.target.value);
@@ -840,7 +976,9 @@ function EmployeeSearchSelect({
           }}
           onFocus={() => {
             setOpen(true);
-            setQuery("");
+            // Keep any typed text; only drop the "picked employee" label
+            // so the box becomes editable again.
+            if (selected) setQuery("");
           }}
           placeholder={placeholder || "Search employee..."}
           className="w-full pl-8 pr-8 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
@@ -985,6 +1123,15 @@ export default function Reports() {
     setPage(1);
   }, [activeTab, search, monthlyEmployeeId, monthlyEmployeeQuery]);
 
+  // Switching tabs clears every search/filter (all tabs' search boxes and
+  // the Attendance employee picker), so each tab opens fresh.
+  useEffect(() => {
+    setSearchByTab({});
+    setMonthlyEmployeeId("");
+    setMonthlyEmployeeQuery("");
+    setMonthlyError(null);
+  }, [activeTab]);
+
   const rows = reportData[activeTab] || [];
   const loading = !!loadingTabs[activeTab];
   const error = errorTabs[activeTab];
@@ -1038,7 +1185,7 @@ export default function Reports() {
   const hasOtRows = filtered.some((r) => r.ot_eligible);
   const columns = COLUMNS[activeTab].filter((c) => !c.otOnly || hasOtRows);
 
-  // "Export Excel"/"Export CSV" always exports every record for the tab,
+  // "Export Excel" always exports every record for the tab,
   // regardless of what's typed in the search box — searching is only for
   // narrowing what's shown on screen (and, on Attendance, for the
   // "Download Month" button below). Use `rows`, not `filtered`, here.
@@ -1051,14 +1198,7 @@ export default function Reports() {
       downloadAttendanceExcel(rows);
       return;
     }
-    const csv = toCsv(activeTab, rows);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${activeTab}-report-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadTabExcel(activeTab, rows);
   }
 
   // One employee's full report as a 2-sheet .xlsx: profile + lifetime
@@ -1261,38 +1401,22 @@ export default function Reports() {
           formatDate(day.attendance_date),
           ...dayExportCells(day),
         ]);
-        const totalsRow = [
-          "TOTAL",
-          "",
-          "",
-          formatMinutes(summary.total_working_minutes),
-          formatMinutes(summary.total_break_minutes),
-          formatMinutes(summary.total_overtime_minutes),
-          summary.total_late_minutes || 0,
-          `${summary.present_days || 0} present / ${summary.half_days || 0} half / ${summary.absent_days || 0} absent`,
-        ];
+        const totalsRow = monthTotalsRow(data.days || [], ["TOTAL"]);
 
-        const sheet = XLSX.utils.aoa_to_sheet([header, ...rows, [], totalsRow]);
+        const sheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
+        appendTotalsRow(sheet, header.length, rows.length, totalsRow);
         sheet["!cols"] = [
-          { wch: 12 },
+          { wch: 14 },
           { wch: 10 },
           { wch: 10 },
           { wch: 14 },
           { wch: 10 },
-          { wch: 10 },
-          { wch: 10 },
-          { wch: 30 },
+          { wch: 26 },
+          { wch: 11 },
+          { wch: 36 },
         ];
         styleHeaderRow(sheet, header.length);
         styleStatusColumn(sheet, header.length - 1, 1, rows.length);
-        // TOTAL row sits after the header + all data rows + one blank
-        // spacer row -- bolded the same way as a label, so it stands
-        // out from the daily rows above it.
-        const totalsRowIndex = 1 + rows.length + 1;
-        for (let c = 0; c < header.length; c++) {
-          const addr = XLSX.utils.encode_cell({ r: totalsRowIndex, c });
-          if (sheet[addr]) sheet[addr].s = LABEL_STYLE;
-        }
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, sheet, "Monthly Attendance");
 
@@ -1662,7 +1786,7 @@ export default function Reports() {
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               >
                 <Download size={14} />
-                {activeTab === "employees" ? "Export Excel" : "Export CSV"}
+                Export Excel
               </button>
             </div>
           </div>
@@ -1693,7 +1817,7 @@ export default function Reports() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 active:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 ml-auto"
               >
                 <Download size={13} />
-                {activeTab === "employees" ? "Export Excel" : "Export CSV"}
+                Export Excel
               </button>
             </div>
           </div>

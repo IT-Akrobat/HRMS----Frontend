@@ -53,6 +53,29 @@ export function isHrSelfPath(pathname = "") {
   return pathname === HR_SELF_BASE || pathname.startsWith(HR_SELF_BASE + "/");
 }
 
+// Managers get the same two workspaces as HR:
+//   My Space -> /manager/me/*   (own dashboard, attendance, leave... like an employee)
+//   Company  -> /manager/*      (team members, team attendance, leave approvals...)
+export const MANAGER_SELF_BASE = "/manager/me";
+export const MANAGER_COMPANY_HOME = "/manager/dashboard";
+
+// Roles that have the My Space / Company switch in the sidebar, with the
+// base path of their My Space and where "Company" takes them.
+export const SELF_SPACE_BY_ROLE = {
+  [ROLES.HR_ADMIN]: { base: HR_SELF_BASE, companyHome: HR_COMPANY_HOME },
+  [ROLES.MANAGER]: {
+    base: MANAGER_SELF_BASE,
+    companyHome: MANAGER_COMPANY_HOME,
+  },
+};
+
+// True when `pathname` is inside this role's My Space (HR or Manager).
+export function isSelfSpacePath(role, pathname = "") {
+  const base = SELF_SPACE_BY_ROLE[role]?.base;
+  if (!base) return false;
+  return pathname === base || pathname.startsWith(base + "/");
+}
+
 // Human readable labels (e.g. for header "Role" chip)
 export const ROLE_LABELS = {
   [ROLES.EMPLOYEE]: "Employee",

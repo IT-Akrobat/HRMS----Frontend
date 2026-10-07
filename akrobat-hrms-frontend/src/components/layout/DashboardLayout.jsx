@@ -22,6 +22,7 @@ export default function DashboardLayout() {
   const overHero =
     cleanPath === "/employee/dashboard" ||
     cleanPath === "/hr-admin/me/dashboard" ||
+    cleanPath === "/manager/me/dashboard" ||
     /^\/[^/]+(\/me)?\/profile\/(personal|my-profile)$/.test(cleanPath);
 
   return (

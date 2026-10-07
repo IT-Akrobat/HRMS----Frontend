@@ -316,10 +316,6 @@ export default function ManagerDashboard() {
             icon={MapPin}
           />
         </div>
-        <p className="text-sm text-slate-500 mb-3">
-          Here's how your team is doing today
-        </p>
-
         {/* <QuoteOfDayCard compact /> */}
         {/* <MobileQuickActions actions={MANAGER_QUICK_ACTIONS} /> */}
       </div>
@@ -721,62 +717,34 @@ export default function ManagerDashboard() {
 
       {/* =================================================================
           MOBILE-ONLY DASHBOARD BODY (below lg)
-          A different pattern from the desktop two-column layout on
-          purpose: Check-in up top, then the three team work-lists
-          (Activity / Attendance / Requests) live behind a segmented tab
-          switcher instead of three separate stacked full-height cards —
-          a manager only looks at one of these at a time, so only one is
-          on screen. The lighter glance content (On Leave, Announcements,
-          Birthdays) is a swipeable card carousel instead of a bento grid
-          + bottom sheet. Same data/components as desktop; only the
-          interaction changes.
+          Simple: two pill tabs (Activity / Requests) and one plain list.
+          Same data as desktop; Team Pulse cards are desktop-only.
       ================================================================= */}
       <div className="lg:hidden">
-        {/* ---------- Check-in/out (a Manager is a person too) ----------
-            Deliberately NOT the plain white bordered card used on desktop
-            and on the Employee dashboard — a slim gradient-bordered shell
-            plus the new `ultraCompact` layout on CheckInOutCard itself
-            (single row, no side timeline) keeps this short. The shared
-            component's default rendering (desktop/Employee mobile) is
-            unaffected — `ultraCompact` is opt-in. */}
-        <div className="mb-5 rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#132445] to-orange-500/90 p-[3px] shadow-lg shadow-slate-900/10 [&>div]:rounded-[13px]">
-          <CheckInOutCard ultraCompact onActivityChange={loadTeamAttendance} />
-        </div>
-
-        {/* ---------- Segmented tabs: Activity / Attendance / Requests / On Leave ---------- */}
-        <div className="flex items-center gap-2 mb-2 px-0.5">
-          <span className="h-1.5 w-4 rounded-full bg-orange-500" />
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Your Team
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-3 gap-1.5 bg-slate-100 rounded-xl p-1 mb-3">
+        <div className="grid grid-cols-2 gap-1.5 bg-slate-100 rounded-full p-1 mb-3">
           {[
             { key: "activity", label: "Activity", icon: Activity },
-            // { key: "attendance", label: "Attendance", icon: UserCheck },
             {
               key: "requests",
               label: "Requests",
               icon: ClipboardCheck,
-              badge: pendingLeaveCount || null,
+              badge: pendingLeaveCount,
             },
-            // { key: "onleave", label: "On Leave", icon: PlaneTakeoff },
           ].map(({ key, label, icon: Icon, badge }) => (
             <button
               key={key}
               type="button"
               onClick={() => setMobileTab(key)}
-              className={`relative flex flex-col items-center justify-center gap-1 rounded-lg py-2 text-[10px] font-medium transition-colors ${
+              className={`flex items-center justify-center gap-1.5 rounded-full py-2.5 text-[13px] font-semibold transition-colors ${
                 mobileTab === key
                   ? "bg-white text-orange-600 shadow-sm"
                   : "text-slate-500"
               }`}
             >
-              <Icon size={14} />
+              <Icon size={15} />
               {label}
               {badge ? (
-                <span className="absolute top-1 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-orange-500 text-white text-[9px] font-semibold flex items-center justify-center">
+                <span className="min-w-[16px] h-4 px-1 rounded-full bg-orange-500 text-white text-[10px] font-semibold flex items-center justify-center">
                   {badge}
                 </span>
               ) : null}
@@ -784,315 +752,120 @@ export default function ManagerDashboard() {
           ))}
         </div>
 
-        {/* ---------- Active tab panel ----------
-            "On Leave" reuses OnLeaveTodayCard directly (it already brings
-            its own card chrome/heading), so the wrapper drops its own
-            border/padding for that one tab to avoid a card-in-a-card. */}
-        <div
-          className={
-            mobileTab === "onleave"
-              ? "h-[22rem] flex flex-col mb-6"
-              : "bg-white rounded-xl border border-slate-200 p-3.5 h-[22rem] flex flex-col mb-6"
-          }
-        >
-          {mobileTab === "onleave" && <OnLeaveTodayCard />}
-          {mobileTab === "activity" && (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
-                  <Activity size={15} className="text-orange-500" /> Team Recent
-                  Activity
-                </h3>
-                <Link
-                  to="/manager/team/members"
-                  className="text-xs text-orange-600 font-medium flex items-center gap-1 shrink-0"
-                >
-                  View Team <ArrowRight size={12} />
-                </Link>
+        {/* Fills the rest of the screen (full page), list scrolls inside. */}
+        <div className="bg-white rounded-2xl border border-slate-200 mb-4 min-h-[calc(100dvh-15rem)] overflow-y-auto">
+          {mobileTab === "activity" &&
+            (attendanceLoading ? (
+              <div className="p-3.5 space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-10 bg-slate-100 rounded animate-pulse"
+                  />
+                ))}
               </div>
-
-              {attendanceLoading ? (
-                <div className="space-y-2">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="h-10 bg-slate-100 rounded animate-pulse"
-                    />
-                  ))}
-                </div>
-              ) : teamActivity.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  No team check-in/check-out activity yet today.
-                </p>
-              ) : (
-                <ul className="divide-y divide-slate-100 overflow-y-auto no-scrollbar flex-1">
-                  {teamActivity.map((entry) => {
-                    const matchedOffice = resolveLocationName(
-                      entry.lat,
-                      entry.lon,
-                      locations,
-                    );
-                    const locationName =
-                      matchedOffice ||
-                      (entry.lat != null && entry.lon != null
-                        ? `${Number(entry.lat).toFixed(4)}, ${Number(
-                            entry.lon,
-                          ).toFixed(4)}`
-                        : null);
-                    return (
-                      <li
-                        key={entry.key}
-                        className="py-2.5 flex items-start gap-2.5"
-                      >
-                        <LogIcon kind={entry.kind} />
-                        <div className="min-w-0 flex-1 flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-800 truncate">
-                              {entry.name}
-                            </p>
-                            <p className="text-xs text-slate-500 truncate">
-                              {entry.action}
-                            </p>
-                            {locationName && (
-                              <p className="text-[11px] text-slate-400 flex items-center gap-0.5 truncate">
-                                <MapPin size={9} className="shrink-0" />{" "}
-                                {locationName}
-                              </p>
-                            )}
-                          </div>
-                          {entry.time && (
-                            <span className="text-xs text-slate-400 whitespace-nowrap">
-                              {formatTime(entry.time)}
-                            </span>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </>
-          )}
-
-          {mobileTab === "attendance" && (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-slate-800 text-sm">
-                  Team Attendance — Today
-                </h3>
-                <Link
-                  to="/manager/team/members"
-                  className="text-xs text-orange-600 font-medium flex items-center gap-1 shrink-0"
-                >
-                  View Team <ArrowRight size={12} />
-                </Link>
-              </div>
-
-              {attendanceLoading ? (
-                <div className="h-24 bg-slate-100 rounded animate-pulse" />
-              ) : teamAttendance.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  No attendance records for your team today.
-                </p>
-              ) : (
-                <ul className="divide-y divide-slate-100 overflow-y-auto no-scrollbar flex-1">
-                  {teamAttendance.map((row) => (
+            ) : teamActivity.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-slate-400">
+                No team check-in/check-out activity yet today.
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {teamActivity.map((entry) => {
+                  const matchedOffice = resolveLocationName(
+                    entry.lat,
+                    entry.lon,
+                    locations,
+                  );
+                  const locationName =
+                    matchedOffice ||
+                    (entry.lat != null && entry.lon != null
+                      ? `${Number(entry.lat).toFixed(4)}, ${Number(
+                          entry.lon,
+                        ).toFixed(4)}`
+                      : null);
+                  const isIn = entry.kind === "checkin";
+                  return (
                     <li
-                      key={row.id}
-                      className="py-2.5 flex items-center justify-between gap-3"
+                      key={entry.key}
+                      className="flex items-center gap-3 px-3.5 py-3"
                     >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-700 truncate">
-                          {row.employees?.full_name || "—"}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          In{" "}
-                          {row.check_in_time
-                            ? parseServerDate(
-                                row.check_in_time,
-                              )?.toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : "—"}
-                          {"  ·  "}
-                          Out{" "}
-                          {row.check_out_time
-                            ? parseServerDate(
-                                row.check_out_time,
-                              )?.toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : "—"}
-                        </p>
+                      <div className="w-9 h-9 rounded-full bg-orange-50 text-orange-600 text-xs font-bold flex items-center justify-center shrink-0">
+                        {(entry.name || "?")
+                          .split(/\s+/)
+                          .slice(0, 2)
+                          .map((p) => p[0])
+                          .join("")
+                          .toUpperCase()}
                       </div>
-                      <span
-                        className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${
-                          row.status === "Present"
-                            ? "bg-blue-50 text-blue-600"
-                            : "bg-orange-50 text-orange-500"
-                        }`}
-                      >
-                        {row.status}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-
-          {mobileTab === "requests" && (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-slate-800 text-sm">
-                  Pending Leave Requests
-                </h3>
-                <Link
-                  to="/manager/leave/pending"
-                  className="text-xs text-orange-600 font-medium flex items-center gap-1 shrink-0"
-                >
-                  View All <ArrowRight size={12} />
-                </Link>
-              </div>
-
-              {leavesLoading ? (
-                <div className="space-y-2">
-                  {[1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="h-12 bg-slate-100 rounded animate-pulse"
-                    />
-                  ))}
-                </div>
-              ) : teamLeaves.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  No pending leave requests from your team.
-                </p>
-              ) : (
-                <ul className="divide-y divide-slate-100 overflow-y-auto no-scrollbar flex-1">
-                  {teamLeaves.map((leave) => (
-                    <li
-                      key={leave.id}
-                      className="py-3 flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-700 truncate">
-                          {leave.employees?.full_name}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-800 truncate">
+                          {entry.name}
                         </p>
-                        <p className="text-xs text-slate-400 truncate">
-                          {leave.leave_types?.leave_name} · {leave.from_date} →{" "}
-                          {leave.to_date}
-                        </p>
-                      </div>
-                      <span
-                        className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${leaveBadgeStyle(
-                          leave.status,
-                        )}`}
-                      >
-                        {leave.status}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* ---------- Team Pulse: swipeable card carousel ----------
-            On Leave Today / Announcements / Upcoming Birthdays / Upcoming Holidays, one
-            full-width card per swipe. Who's on leave is also reachable
-            from the "On Leave" tab above — this is the quick-glance copy. */}
-        <div className="flex items-center gap-2 mb-2 px-0.5">
-          <span className="h-1.5 w-4 rounded-full bg-orange-500" />
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Team Pulse
-          </h2>
-        </div>
-
-        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1 -mx-4 px-4">
-          <div className="snap-start shrink-0 w-[86%]">
-            <div className="h-64">
-              <OnLeaveTodayCard />
-            </div>
-          </div>
-
-          <div className="snap-start shrink-0 w-[86%]">
-            <div className="bg-white rounded-xl border border-slate-200 p-3.5 h-64 flex flex-col">
-              <h3 className="font-semibold text-slate-800 flex items-center gap-2 mb-3 text-sm">
-                <Megaphone size={16} className="text-orange-500" />{" "}
-                Announcements
-              </h3>
-              {announcements.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  No active announcements.
-                </p>
-              ) : (
-                <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
-                  {[...announcements]
-                    .sort((a, b) => {
-                      const aExpired = isAnnouncementExpired(a);
-                      const bExpired = isAnnouncementExpired(b);
-                      if (aExpired !== bExpired) return aExpired ? 1 : -1;
-                      return (b.end_date || "").localeCompare(a.end_date || "");
-                    })
-                    .slice(0, 3)
-                    .map((a) => {
-                      const expired = isAnnouncementExpired(a);
-                      return (
-                        <div
-                          key={a.id}
-                          className={
-                            "rounded-lg p-2.5 border " +
-                            (expired
-                              ? "bg-slate-50 border-slate-200 opacity-60"
-                              : "bg-orange-50 border-orange-100")
-                          }
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <p
-                              className={
-                                "text-sm font-medium truncate " +
-                                (expired ? "text-slate-500" : "text-slate-800")
-                              }
-                            >
-                              {a.title}
-                            </p>
-                            {expired && (
-                              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
-                                Expired
-                              </span>
-                            )}
-                          </div>
-                          <p
-                            className={
-                              "text-xs mt-0.5 line-clamp-2 " +
-                              (expired ? "text-slate-400" : "text-slate-500")
-                            }
-                          >
-                            {a.description}
+                        {locationName && (
+                          <p className="text-xs text-slate-500 truncate">
+                            {locationName}
                           </p>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-            </div>
-          </div>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[13px] font-semibold text-slate-800">
+                          {entry.time ? formatTime(entry.time) : ""}
+                        </p>
+                        <p
+                          className={`text-[11px] font-medium ${
+                            isIn ? "text-green-600" : "text-orange-500"
+                          }`}
+                        >
+                          {entry.action}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ))}
 
-          <div className="snap-start shrink-0 w-[86%]">
-            <div className="h-64">
-              <BirthdaysCard />
-            </div>
-          </div>
-
-          <div className="snap-start shrink-0 w-[86%]">
-            <div className="h-64">
-              <HolidaysCalendarCard />
-            </div>
-          </div>
+          {mobileTab === "requests" &&
+            (leavesLoading ? (
+              <div className="p-3.5 space-y-2">
+                {[1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="h-12 bg-slate-100 rounded animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : teamLeaves.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-slate-400">
+                No pending leave requests from your team.
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {teamLeaves.map((leave) => (
+                  <li
+                    key={leave.id}
+                    className="flex items-center justify-between gap-3 px-3.5 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">
+                        {leave.employees?.full_name}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {leave.leave_types?.leave_name} · {leave.from_date} →{" "}
+                        {leave.to_date}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${leaveBadgeStyle(
+                        leave.status,
+                      )}`}
+                    >
+                      {leave.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ))}
         </div>
       </div>
       {/* ================= END mobile-only dashboard body ================= */}

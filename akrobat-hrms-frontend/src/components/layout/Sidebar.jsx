@@ -11,15 +11,10 @@ import { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import logo from "../../assets/images/akrobat-logo.png";
 import {
-  HR_SELF_NAVIGATION,
   NAVIGATION_CONFIG,
+  SELF_NAVIGATION_BY_ROLE,
 } from "../../config/navigationConfig";
-import {
-  HR_COMPANY_HOME,
-  HR_SELF_BASE,
-  isHrSelfPath,
-  ROLES,
-} from "../../config/roles";
+import { isSelfSpacePath, SELF_SPACE_BY_ROLE } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
 import { isFieldEmployee } from "../../utils/employeeType";
 import { isSiteEmployee } from "../../utils/workingLocation";
@@ -40,11 +35,13 @@ export default function Sidebar({
   const { role, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  // HR has two workspaces: "My Space" (employee-style menu for their own
-  // attendance/leave/profile) and "Company" (the HR admin menu). Which one
-  // is active comes straight from the URL, so refresh/back just work.
-  const isHr = role === ROLES.HR_ADMIN;
-  const inMySpace = isHr && isHrSelfPath(location.pathname);
+  // HR and Managers have two workspaces: "My Space" (employee-style menu
+  // for their own attendance/leave/profile) and "Company" (the HR admin /
+  // manager menu). Which one is active comes straight from the URL, so
+  // refresh/back just work.
+  const selfSpace = SELF_SPACE_BY_ROLE[role];
+  const hasSwitch = !!selfSpace;
+  const inMySpace = hasSwitch && isSelfSpacePath(role, location.pathname);
   // Items flagged `fieldOnly` (e.g. "Sites Worked") are shown only to
   // Inspection / Operation department staff.
   const showFieldOnly = isFieldEmployee(user);
@@ -56,7 +53,10 @@ export default function Sidebar({
   // time a group was clicked and snapped the menu back to the active group.
   const items = useMemo(
     () =>
-      (inMySpace ? HR_SELF_NAVIGATION : (NAVIGATION_CONFIG[role] ?? []))
+      (inMySpace
+        ? (SELF_NAVIGATION_BY_ROLE[role] ?? [])
+        : (NAVIGATION_CONFIG[role] ?? [])
+      )
         .filter((item) => !(item.hideForSite && siteEmployee))
         .map((item) =>
           item.children
@@ -177,9 +177,10 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* HR only: switch between My Space (own employee-style menu) and
-            Company (HR admin menu). Collapsed rail shows just the icons. */}
-        {isHr && (
+        {/* HR + Manager: switch between My Space (own employee-style menu)
+            and Company (HR admin / manager menu). Collapsed rail shows just
+            the icons. */}
+        {hasSwitch && (
           <div
             className={`shrink-0 border-b border-white/10 p-2 ${
               effectiveCollapsed ? "flex flex-col gap-1" : "flex gap-1"
@@ -191,14 +192,14 @@ export default function Sidebar({
                 label: "My Space",
                 icon: User,
                 active: inMySpace,
-                to: `${HR_SELF_BASE}/dashboard`,
+                to: `${selfSpace.base}/dashboard`,
               },
               {
                 key: "company",
                 label: "Company",
                 icon: Building2,
                 active: !inMySpace,
-                to: HR_COMPANY_HOME,
+                to: selfSpace.companyHome,
               },
             ].map(({ key, label, icon: SwitchIcon, active, to }) => (
               <button

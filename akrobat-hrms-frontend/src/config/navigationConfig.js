@@ -420,7 +420,6 @@ export const NAVIGATION_CONFIG = {
       label: "Leave Management",
       icon: Palmtree,
       children: [
-        { label: "Apply Leave", path: "/manager/leave/apply" },
         { label: "Team Leave Requests", path: "/manager/leave/pending" },
         { label: "Leave History", path: "/manager/leave/history" },
       ],
@@ -661,3 +660,61 @@ export const HR_SELF_NAVIGATION = [
   { label: "Notifications", icon: Bell, path: "/hr-admin/me/notifications" },
   { label: "Settings", icon: Settings, path: "/hr-admin/me/settings" },
 ];
+
+/**
+ * Builds the employee-style "My Space" menu for any base path. HR uses
+ * /hr-admin/me (HR_SELF_NAVIGATION above); managers use /manager/me.
+ */
+function buildSelfNavigation(base) {
+  return [
+    { label: "Dashboard", icon: LayoutDashboard, path: `${base}/dashboard` },
+    {
+      label: "My Profile",
+      icon: User,
+      children: [
+        { label: "Personal Details", path: `${base}/profile/personal` },
+        {
+          label: "Sites Worked",
+          path: `${base}/profile/sites`,
+          fieldOnly: true,
+        },
+      ],
+    },
+    {
+      label: "Attendance",
+      icon: Clock,
+      hideForSite: true,
+      children: [
+        { label: "My Attendance", path: `${base}/attendance` },
+        { label: "Attendance History", path: `${base}/attendance/history` },
+      ],
+    },
+    {
+      label: "Leave",
+      icon: Palmtree,
+      children: [
+        { label: "Apply Leave", path: `${base}/leave/apply` },
+        { label: "Leave History", path: `${base}/leave/history` },
+      ],
+    },
+    {
+      label: "Team",
+      icon: Users,
+      children: [
+        { label: "All Employees", path: `${base}/people/all` },
+        { label: "My Department", path: `${base}/people/department` },
+      ],
+    },
+    { label: "Notifications", icon: Bell, path: `${base}/notifications` },
+    { label: "Settings", icon: Settings, path: `${base}/settings` },
+  ];
+}
+
+/** Manager "My Space" sidebar (see isSelfSpacePath in roles.js). */
+export const MANAGER_SELF_NAVIGATION = buildSelfNavigation("/manager/me");
+
+/** My Space menu per role, used by Sidebar.jsx. */
+export const SELF_NAVIGATION_BY_ROLE = {
+  [ROLES.HR_ADMIN]: HR_SELF_NAVIGATION,
+  [ROLES.MANAGER]: MANAGER_SELF_NAVIGATION,
+};
