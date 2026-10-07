@@ -465,6 +465,7 @@ export const NAVIGATION_CONFIG = {
         { label: "Attendance Overview", path: "/hr-admin/attendance" },
         // { label: "Shift Management", path: "/hr-admin/attendance/shifts" },
         { label: "Attendance Reports", path: "/hr-admin/attendance/reports" },
+        { label: "OT Calculator", path: "/hr-admin/attendance/ot-calculator" },
       ],
     },
     {
@@ -571,6 +572,11 @@ export const NAVIGATION_CONFIG = {
       label: "Live Site Tracking",
       icon: Clock,
       path: "/super-admin/attendance/live-tracking",
+    },
+    {
+      label: "OT Calculator",
+      icon: Clock,
+      path: "/super-admin/attendance/ot-calculator",
     },
     {
       label: "Security",

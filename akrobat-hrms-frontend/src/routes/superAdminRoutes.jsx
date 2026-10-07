@@ -7,6 +7,9 @@ import { lazy } from "react";
 import { commonRoutes } from "./commonRoutes.jsx";
 
 const Dashboard = lazy(() => import("../pages/super-admin/Dashboard.jsx"));
+const OtCalculator = lazy(
+  () => import("../pages/shared/ot-calculator/OtCalculator.jsx"),
+);
 const LeaveRequests = lazy(
   () => import("../pages/super-admin/LeaveRequests.jsx"),
 );
@@ -56,6 +59,7 @@ export const superAdminRoutes = [
   // { path: "employees/managers", element: <EmployeesManagers /> },
   { path: "leave/requests", element: <LeaveRequests /> },
   { path: "attendance/live-tracking", element: <LiveTracking /> },
+  { path: "attendance/ot-calculator", element: <OtCalculator /> },
   { path: "security/login-activity", element: <SecurityLoginActivity /> },
   { path: "security/audit-logs", element: <SecurityAuditLogs /> },
   { path: "security/access-control", element: <SecurityAccessControl /> },

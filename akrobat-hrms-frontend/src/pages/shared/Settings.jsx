@@ -18,6 +18,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
+import PushSetupCard from "../../components/common/PushSetupCard";
 import ToggleSwitch from "../../components/common/ToggleSwitch";
 import { ROLES } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
@@ -664,87 +665,90 @@ export default function Settings() {
           )}
 
           {activeTab === "notifications" && (
-            <SectionCard
-              title="Notification preferences"
-              description="Choose what you'd like to be notified about."
-            >
-              {notifMsg.text && (
-                <Banner type={notifMsg.type} message={notifMsg.text} />
-              )}
-              {notifLoading ? (
-                <div className="space-y-4 animate-pulse">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="h-12 bg-slate-100 rounded-lg" />
-                  ))}
+            <>
+              <PushSetupCard />
+              <SectionCard
+                title="Notification preferences"
+                description="Choose what you'd like to be notified about."
+              >
+                {notifMsg.text && (
+                  <Banner type={notifMsg.type} message={notifMsg.text} />
+                )}
+                {notifLoading ? (
+                  <div className="space-y-4 animate-pulse">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="h-12 bg-slate-100 rounded-lg" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    <ToggleSwitch
+                      label="Leave request updates"
+                      description="When your leave is approved, rejected, or commented on."
+                      checked={notifs.leave_updates}
+                      onChange={(v) =>
+                        setNotifs((n) => ({ ...n, leave_updates: v }))
+                      }
+                    />
+                    <ToggleSwitch
+                      label="Announcements"
+                      description="Company-wide announcements."
+                      checked={notifs.announcements}
+                      onChange={(v) =>
+                        setNotifs((n) => ({ ...n, announcements: v }))
+                      }
+                    />
+                    <ToggleSwitch
+                      label="Birthdays & work anniversaries"
+                      description="Reminders about teammates' celebrations."
+                      checked={notifs.celebrations}
+                      onChange={(v) =>
+                        setNotifs((n) => ({ ...n, celebrations: v }))
+                      }
+                    />
+                    <ToggleSwitch
+                      label="Attendance reminders"
+                      description="A nudge if you haven't checked in by your shift start."
+                      checked={notifs.attendance_reminders}
+                      onChange={(v) =>
+                        setNotifs((n) => ({ ...n, attendance_reminders: v }))
+                      }
+                    />
+                    <ToggleSwitch
+                      label="Checkout reminders"
+                      description="A nudge if you haven't checked out by your shift end."
+                      checked={notifs.checkout_reminders}
+                      onChange={(v) =>
+                        setNotifs((n) => ({ ...n, checkout_reminders: v }))
+                      }
+                    />
+                    <ToggleSwitch
+                      label="Holiday reminders"
+                      description="A heads-up the day before (and on the day of) a company holiday."
+                      checked={notifs.holiday_reminders}
+                      onChange={(v) =>
+                        setNotifs((n) => ({ ...n, holiday_reminders: v }))
+                      }
+                    />
+                  </div>
+                )}
+                {!notifLoading && (
+                  <PendingChanges
+                    items={notifChanges}
+                    onDiscard={() => setNotifs(savedNotifs)}
+                  />
+                )}
+                <div className="mt-5 pt-5 border-t border-slate-100 flex justify-end">
+                  <button
+                    onClick={saveNotifications}
+                    disabled={notifLoading || notifSaving || !notifsDirty}
+                    className="bg-brand-orange text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50 transition"
+                  >
+                    {notifSaving ? "Saving…" : "Save preferences"}
+                  </button>
                 </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  <ToggleSwitch
-                    label="Leave request updates"
-                    description="When your leave is approved, rejected, or commented on."
-                    checked={notifs.leave_updates}
-                    onChange={(v) =>
-                      setNotifs((n) => ({ ...n, leave_updates: v }))
-                    }
-                  />
-                  <ToggleSwitch
-                    label="Announcements"
-                    description="Company-wide announcements."
-                    checked={notifs.announcements}
-                    onChange={(v) =>
-                      setNotifs((n) => ({ ...n, announcements: v }))
-                    }
-                  />
-                  <ToggleSwitch
-                    label="Birthdays & work anniversaries"
-                    description="Reminders about teammates' celebrations."
-                    checked={notifs.celebrations}
-                    onChange={(v) =>
-                      setNotifs((n) => ({ ...n, celebrations: v }))
-                    }
-                  />
-                  <ToggleSwitch
-                    label="Attendance reminders"
-                    description="A nudge if you haven't checked in by your shift start."
-                    checked={notifs.attendance_reminders}
-                    onChange={(v) =>
-                      setNotifs((n) => ({ ...n, attendance_reminders: v }))
-                    }
-                  />
-                  <ToggleSwitch
-                    label="Checkout reminders"
-                    description="A nudge if you haven't checked out by your shift end."
-                    checked={notifs.checkout_reminders}
-                    onChange={(v) =>
-                      setNotifs((n) => ({ ...n, checkout_reminders: v }))
-                    }
-                  />
-                  <ToggleSwitch
-                    label="Holiday reminders"
-                    description="A heads-up the day before (and on the day of) a company holiday."
-                    checked={notifs.holiday_reminders}
-                    onChange={(v) =>
-                      setNotifs((n) => ({ ...n, holiday_reminders: v }))
-                    }
-                  />
-                </div>
-              )}
-              {!notifLoading && (
-                <PendingChanges
-                  items={notifChanges}
-                  onDiscard={() => setNotifs(savedNotifs)}
-                />
-              )}
-              <div className="mt-5 pt-5 border-t border-slate-100 flex justify-end">
-                <button
-                  onClick={saveNotifications}
-                  disabled={notifLoading || notifSaving || !notifsDirty}
-                  className="bg-brand-orange text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50 transition"
-                >
-                  {notifSaving ? "Saving…" : "Save preferences"}
-                </button>
-              </div>
-            </SectionCard>
+              </SectionCard>
+            </>
           )}
 
           {activeTab === "preferences" && (

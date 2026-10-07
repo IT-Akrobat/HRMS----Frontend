@@ -142,6 +142,19 @@ function formatTime(value) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+// OT for on-site staff eligible for additional salary. ot_hours is the
+// rounded whole-hour OT; after_shift_minutes is the raw time past shift
+// end (shown even when OT rounds down to 0h).
+function formatOtLabel(r) {
+  if (!r?.ot_eligible) return "";
+  const raw = r.after_shift_minutes || 0;
+  if (!raw) return "0h";
+  const h = Math.floor(raw / 60);
+  const m = raw % 60;
+  const rawLabel = h ? `${h}h ${m}m` : `${m}m`;
+  return `${r.ot_hours}h OT (${rawLabel} after shift)`;
+}
+
 function formatMinutes(mins) {
   const total = Math.max(0, Math.round(Number(mins) || 0));
   const h = Math.floor(total / 60);
@@ -269,6 +282,7 @@ const COLUMNS = {
       header: "Working Hours",
       render: (r) => formatMinutes(r.working_minutes),
     },
+    { header: "OT (extra salary)", render: (r) => formatOtLabel(r) || "—" },
     { header: "Status", render: (r) => <StatusPill value={r.status} /> },
   ],
   leaves: [
@@ -448,6 +462,7 @@ function toCsv(tabKey, rows) {
       formatTime(r.check_in_time),
       formatTime(r.check_out_time),
       formatMinutes(r.working_minutes),
+      formatOtLabel(r),
       r.status || "",
     ],
     leaves: (r) => [
@@ -583,6 +598,8 @@ const ATTENDANCE_EXPORT_HEADER = [
   "Working Hours",
   "Break",
   "Overtime",
+  "OT Hours (extra salary)",
+  "Mins After Shift",
   "Late (min)",
   "Status",
 ];
@@ -597,6 +614,8 @@ function attendanceExportRow(r) {
     formatMinutes(r.working_minutes),
     formatMinutes(r.break_minutes),
     formatMinutes(r.overtime_minutes),
+    r.ot_eligible ? r.ot_hours || 0 : "",
+    r.ot_eligible ? r.after_shift_minutes || 0 : "",
     r.late_minutes || 0,
     r.status || "",
   ];
@@ -617,10 +636,12 @@ function downloadAttendanceExcel(rows, monthLabel) {
     { wch: 10 },
     { wch: 10 },
     { wch: 10 },
+    { wch: 14 },
+    { wch: 14 },
     { wch: 12 },
   ];
   styleHeaderRow(sheet, ATTENDANCE_EXPORT_HEADER.length);
-  styleStatusColumn(sheet, 9, 1, rows.length);
+  styleStatusColumn(sheet, ATTENDANCE_EXPORT_HEADER.length - 1, 1, rows.length);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Attendance");
   // Month-only download (no employee picked) gets a filename tagged

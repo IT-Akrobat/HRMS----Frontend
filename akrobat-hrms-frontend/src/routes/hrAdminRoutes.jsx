@@ -8,6 +8,9 @@ import { Navigate } from "react-router-dom";
 import { commonRoutes, selfCommonRoutes } from "./commonRoutes.jsx";
 
 const Attendance = lazy(() => import("../pages/hr-admin/Attendance.jsx"));
+const OtCalculator = lazy(
+  () => import("../pages/shared/ot-calculator/OtCalculator.jsx"),
+);
 const AttendanceReports = lazy(
   () => import("../pages/hr-admin/AttendanceReports.jsx"),
 );
@@ -69,6 +72,7 @@ export const hrAdminRoutes = [
   { path: "attendance", element: <Attendance /> },
   // { path: "attendance/shifts", element: <AttendanceShifts /> },
   { path: "attendance/reports", element: <AttendanceReports /> },
+  { path: "attendance/ot-calculator", element: <OtCalculator /> },
   { path: "attendance/live-tracking", element: <LiveTracking /> },
   { path: "leave/requests", element: <LeaveRequests /> },
   // { path: "leave/policies", element: <LeavePolicies /> },

@@ -105,6 +105,19 @@ function formatDateForExport(iso) {
   );
 }
 
+// OT for on-site staff eligible for additional salary. Backend returns
+// ot_hours (rounded, whole hours) and after_shift_minutes (raw minutes
+// worked past shift end) -- show both so HR sees e.g. "0h OT (35m after shift)".
+function formatOt(r) {
+  if (!r.ot_eligible) return "";
+  const raw = r.after_shift_minutes || 0;
+  if (!raw) return "0h";
+  const h = Math.floor(raw / 60);
+  const m = raw % 60;
+  const rawLabel = h ? `${h}h ${m}m` : `${m}m`;
+  return `${r.ot_hours}h OT (${rawLabel} after shift)`;
+}
+
 function downloadCsv(rows, filename) {
   const headers = [
     "Employee",
@@ -114,6 +127,7 @@ function downloadCsv(rows, filename) {
     "Check In",
     "Check Out",
     "Hours",
+    "OT",
     "Status",
   ];
   const lines = [];
@@ -136,6 +150,7 @@ function downloadCsv(rows, filename) {
         r.check_in_time ? formatTime(r.check_in_time) : "",
         r.check_out_time ? formatTime(r.check_out_time) : "",
         r.working_hours ?? 0,
+        formatOt(r),
         r.status || "",
       ]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
@@ -934,6 +949,21 @@ function DepartmentGroup({ deptName, records, onExportEmployee }) {
                       {formatTime(r.check_out_time)}
                     </td>
                     <td className="px-4 py-2 w-16">{r.working_hours}h</td>
+                    <td className="px-4 py-2 w-44 text-xs text-slate-500">
+                      {r.ot_eligible ? (
+                        <span
+                          className={
+                            r.ot_hours > 0
+                              ? "font-semibold text-emerald-600"
+                              : ""
+                          }
+                        >
+                          {formatOt(r)}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-right w-28">
                       <span
                         className={`text-xs px-2 py-1 rounded-md ${
@@ -976,6 +1006,11 @@ function DepartmentGroup({ deptName, records, onExportEmployee }) {
                       {r.working_hours}h
                     </span>
                   </div>
+                  {r.ot_eligible && (
+                    <div className="mt-1 text-xs text-slate-500">
+                      OT: {formatOt(r)}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
