@@ -11,6 +11,10 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
+import CreateLeaveTypeButton from "../../components/common/CreateLeaveTypeButton";
+import HrManagedLeaveForm from "../../components/common/HrManagedLeaveForm";
+import McCertificate from "../../components/common/McCertificate";
+import McValidationQueue from "../../components/common/McValidationQueue";
 import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
 import SearchInput from "../../components/common/SearchInput";
@@ -154,10 +158,32 @@ export default function LeaveRequests() {
 
   return (
     <div>
-      <PageHeader
-        title="Leave Requests"
-        subtitle="Company-wide leave approvals. As Super Admin, you're the only role that can approve or reject a request."
-      />
+      {/* Desktop: title + description on the left, button at the right. */}
+      <div className="hidden sm:block">
+        <PageHeader
+          title="Leave Requests"
+          subtitle="Company-wide leave requests. You can approve or reject any request; leave managers handle their own team's."
+          actions={
+            <>
+              <CreateLeaveTypeButton />
+              <HrManagedLeaveForm onChanged={load} />
+            </>
+          }
+        />
+      </div>
+
+      {/* Mobile: title with the button at its right; no description on mobile. */}
+      <div className="sm:hidden mb-5">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-slate-800">Leave Requests</h1>
+          <div className="flex items-center gap-2">
+            <CreateLeaveTypeButton label="Leave type" />
+            <HrManagedLeaveForm onChanged={load} label="Record leave" />
+          </div>
+        </div>
+      </div>
+
+      <McValidationQueue onChanged={load} />
 
       {error && (
         <div className="mb-4 text-sm text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-4 py-2.5">
@@ -258,6 +284,7 @@ export default function LeaveRequests() {
                       {formatShort(leave.start_date)} →{" "}
                       {formatShort(leave.end_date)}
                     </p>
+                    <McCertificate leave={leave} mode="hr" onChanged={load} />
                   </div>
 
                   <div className="flex items-center justify-end gap-2 sm:w-56 shrink-0">

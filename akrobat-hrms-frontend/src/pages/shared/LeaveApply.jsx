@@ -80,6 +80,8 @@ function displayFor(leaveName) {
 
 // Turns "MATERNITY LEAVE" into "Maternity Leave" for the dropdown/labels.
 function toTitleCase(name) {
+  // Sick Leave is called "MC (Medical Leave)" in the app.
+  if ((name || "").toUpperCase() === "SICK LEAVE") return "MC (Medical Leave)";
   return (name || "")
     .toLowerCase()
     .split(" ")
@@ -175,6 +177,7 @@ export default function LeaveApply() {
     from_date: "",
     to_date: "",
     reason: "",
+    half_day: false,
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -267,10 +270,13 @@ export default function LeaveApply() {
       .flatMap((l) => expandDateRange(l.start_date, l.end_date));
   }, [allLeaves]);
 
-  const totalDays = useMemo(
-    () => toDays(form.from_date, form.to_date),
-    [form.from_date, form.to_date],
-  );
+  // A half-day request is a single date counted as 0.5 day.
+  const totalDays = useMemo(() => {
+    const days = toDays(form.from_date, form.to_date);
+    return form.half_day && days === 1 ? 0.5 : days;
+  }, [form.from_date, form.to_date, form.half_day]);
+
+  const canHalfDay = !!form.from_date && form.from_date === form.to_date;
 
   const selectedType = (entitlements || []).find(
     (t) => t.leave_name === form.leave_type,
@@ -340,15 +346,21 @@ export default function LeaveApply() {
         from_date: form.from_date,
         to_date: form.to_date,
         reason: form.reason.trim(),
+        half_day: canHalfDay && form.half_day,
       });
 
-      setSuccess(res?.message || "Leave request submitted successfully.");
+      setSuccess(
+        form.leave_type === "SICK LEAVE"
+          ? "MC submitted. Please attach your medical certificate from Leave History."
+          : res?.message || "Leave request submitted successfully.",
+      );
       setApplyOpen(false);
       setForm({
         leave_type: entitlements?.[0]?.leave_name || "",
         from_date: "",
         to_date: "",
         reason: "",
+        half_day: false,
       });
 
       // Refresh so "Recent Requests" and the entitlements panel reflect
@@ -538,6 +550,17 @@ export default function LeaveApply() {
                       {fieldErrors.from_date || fieldErrors.to_date}
                     </p>
                   )}
+                  {canHalfDay && (
+                    <label className="mt-2 flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.half_day}
+                        onChange={(e) => update("half_day", e.target.checked)}
+                        className="rounded border-slate-300 text-orange-500 focus:ring-orange-300"
+                      />
+                      Half day (0.5 day)
+                    </label>
+                  )}
                   {totalDays !== null && (
                     <div className="mt-2 inline-flex items-center gap-2 bg-orange-50 text-orange-700 text-xs font-medium rounded-lg px-3 py-1.5">
                       <CalendarDays size={13} />
@@ -640,7 +663,9 @@ export default function LeaveApply() {
                     </span>
                   </div>
                   <div className="text-right shrink-0">
-                    {t.unlimited ? (
+                    {t.show_balance === false ? (
+                      <span className="text-[11px] text-slate-400">—</span>
+                    ) : t.unlimited ? (
                       <span className="text-sm font-semibold text-slate-800">
                         —
                       </span>
@@ -857,6 +882,17 @@ export default function LeaveApply() {
                 </div>
               </div>
 
+              {canHalfDay && (
+                <label className="mt-2 flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.half_day}
+                    onChange={(e) => update("half_day", e.target.checked)}
+                    className="rounded border-slate-300 text-orange-500 focus:ring-orange-300"
+                  />
+                  Half day (0.5 day)
+                </label>
+              )}
               {totalDays !== null && (
                 <div className="mt-3 inline-flex items-center gap-2 bg-orange-50 text-orange-700 text-xs font-medium rounded-lg px-3 py-1.5">
                   <CalendarDays size={13} />
@@ -972,7 +1008,9 @@ export default function LeaveApply() {
                       </span>
                     </div>
                     <div className="text-right shrink-0">
-                      {t.unlimited ? (
+                      {t.show_balance === false ? (
+                        <span className="text-[11px] text-slate-400">—</span>
+                      ) : t.unlimited ? (
                         <span className="text-sm font-semibold text-slate-800">
                           —
                         </span>

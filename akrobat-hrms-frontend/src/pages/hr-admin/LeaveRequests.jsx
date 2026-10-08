@@ -8,6 +8,10 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
+import CreateLeaveTypeButton from "../../components/common/CreateLeaveTypeButton";
+import HrManagedLeaveForm from "../../components/common/HrManagedLeaveForm";
+import McCertificate from "../../components/common/McCertificate";
+import McValidationQueue from "../../components/common/McValidationQueue";
 import PageHeader from "../../components/common/PageHeader";
 import SearchInput from "../../components/common/SearchInput";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
@@ -116,10 +120,32 @@ export default function LeaveRequests() {
 
   return (
     <div>
-      <PageHeader
-        title="Leave Requests"
-        subtitle="Company-wide leave visibility. Approval and rejection is handled by Super Admin."
-      />
+      {/* Desktop: title + description on the left, button at the right. */}
+      <div className="hidden sm:block">
+        <PageHeader
+          title="Leave Requests"
+          subtitle="Company-wide leave visibility. Each leave is approved by the employee's leave manager (or Super Admin)."
+          actions={
+            <>
+              <CreateLeaveTypeButton />
+              <HrManagedLeaveForm onChanged={loadRecords} />
+            </>
+          }
+        />
+      </div>
+
+      {/* Mobile: title with the button at its right; no description on mobile. */}
+      <div className="sm:hidden mb-5">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-slate-800">Leave Requests</h1>
+          <div className="flex items-center gap-2">
+            <CreateLeaveTypeButton label="Leave type" />
+            <HrManagedLeaveForm onChanged={loadRecords} label="Record leave" />
+          </div>
+        </div>
+      </div>
+
+      <McValidationQueue onChanged={loadRecords} />
 
       <div className="bg-white rounded-xl border border-slate-200">
         {/* Tabs + search */}
@@ -210,6 +236,11 @@ export default function LeaveRequests() {
                       {formatShort(leave.start_date)} →{" "}
                       {formatShort(leave.end_date)}
                     </p>
+                    <McCertificate
+                      leave={leave}
+                      mode="hr"
+                      onChanged={loadRecords}
+                    />
                   </div>
 
                   <div className="flex items-center justify-end sm:w-32 shrink-0">

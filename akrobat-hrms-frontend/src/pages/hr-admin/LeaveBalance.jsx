@@ -20,9 +20,6 @@ import { apiClient } from "../../services/apiClient";
 // leave counts against balance; Pending/Rejected don't.
 // ---------------------------------------------------------------------
 
-const PAGE_SIZE = 100;
-const MAX_PAGES = 10; // safety cap — 1,000 approved leave records
-
 function asList(res) {
   if (Array.isArray(res)) return res;
   if (Array.isArray(res?.data)) return res.data;
@@ -144,7 +141,7 @@ function LeaveTypeRow({ leaveName, allocated, used, balance, pct }) {
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-sm font-medium text-slate-700">{leaveName}</span>
         <span className={`text-xs font-medium ${style.text}`}>
-          {round1(balance)} / {allocated} left
+          {round1(used)} / {allocated} taken
         </span>
       </div>
       <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -153,110 +150,85 @@ function LeaveTypeRow({ leaveName, allocated, used, balance, pct }) {
           style={{ width: `${clamped}%`, backgroundColor: style.ring }}
         />
       </div>
-      <p className="text-xs text-slate-400 mt-1">{round1(used)} days used</p>
+      <p className="text-xs text-slate-400 mt-1">{round1(balance)} days left</p>
     </div>
   );
 }
 
 export default function LeaveBalance() {
   const [employees, setEmployees] = useState([]);
-  const [leaveTypes, setLeaveTypes] = useState([]);
-  const [records, setRecords] = useState([]);
+  const [balanceRows, setBalanceRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [view, setView] = useState("employee"); // "employee" | "type"
   const [activeType, setActiveType] = useState("");
   const [search, setSearch] = useState("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // The real balances (leave_balances + Replacement credits) -- the same
+  // numbers employees see on Apply Leave -- not "company default days
+  // minus approved requests", which ignored the imported sheet balances.
+  async function fetchAll(showSpinner = true) {
+    if (showSpinner) setLoading(true);
+    setError(null);
+    try {
+      const [empRes, balRes] = await Promise.all([
+        apiClient.get("/employees/"),
+        apiClient.get("/leaves/balances"),
+      ]);
+      setEmployees(asList(empRes));
+      setBalanceRows(balRes?.data?.balances || []);
+    } catch (err) {
+      setError(err.message || "Could not load leave balances.");
+      setEmployees([]);
+      setBalanceRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
+    fetchAll();
+  }, []);
 
-    async function load() {
-      try {
-        const [empRes, typesRes] = await Promise.all([
-          apiClient.get("/employees/"),
-          apiClient.get("/leaves/types"),
-        ]);
+  // Days are held when someone applies and returned on rejection, so any
+  // leave event can change a balance.
+  useAttendanceLiveUpdates((event) => {
+    if (event?.type === "leave_event") fetchAll(false);
+  });
 
-        let approved = [];
-        let page = 1;
-        while (page <= MAX_PAGES) {
-          const res = await apiClient.get(
-            `/leaves/?status=Approved&page=${page}&limit=${PAGE_SIZE}`,
-          );
-          const chunk = res?.data?.records || [];
-          approved = approved.concat(chunk);
-          const total = res?.data?.total || 0;
-          if (approved.length >= total || chunk.length === 0) break;
-          page += 1;
-        }
-
-        if (!cancelled) {
-          setEmployees(asList(empRes));
-          setLeaveTypes(asList(typesRes));
-          setRecords(approved);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message || "Could not load leave balances.");
-          setEmployees([]);
-          setLeaveTypes([]);
-          setRecords([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  // Leave details (every request, with dates/status) for the employee
+  // whose popup is open.
+  useEffect(() => {
+    if (!selectedEmployeeId) {
+      setHistory([]);
+      return;
     }
-
-    load();
+    let cancelled = false;
+    setHistoryLoading(true);
+    apiClient
+      .get(`/leaves/?employee_id=${selectedEmployeeId}&page=1&limit=100`)
+      .then((res) => {
+        if (!cancelled) setHistory(res?.data?.records || []);
+      })
+      .catch(() => {
+        if (!cancelled) setHistory([]);
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedEmployeeId]);
 
-  // A leave changes the numbers on this page only once it's approved
-  // (see the `status=Approved` filter above) — every check-in/out and
-  // pending/rejected leave elsewhere in the company would otherwise
-  // trigger this fairly expensive multi-page refetch for nothing, so
-  // filter to the one event type/action that actually affects balances.
-  useAttendanceLiveUpdates((event) => {
-    if (event?.type === "leave_event" && event?.action === "approved") {
-      setLoading(true);
-      setError(null);
-      (async () => {
-        try {
-          const [empRes, typesRes] = await Promise.all([
-            apiClient.get("/employees/"),
-            apiClient.get("/leaves/types"),
-          ]);
-
-          let approved = [];
-          let page = 1;
-          while (page <= MAX_PAGES) {
-            const res = await apiClient.get(
-              `/leaves/?status=Approved&page=${page}&limit=${PAGE_SIZE}`,
-            );
-            const chunk = res?.data?.records || [];
-            approved = approved.concat(chunk);
-            const total = res?.data?.total || 0;
-            if (approved.length >= total || chunk.length === 0) break;
-            page += 1;
-          }
-
-          setEmployees(asList(empRes));
-          setLeaveTypes(asList(typesRes));
-          setRecords(approved);
-        } catch (err) {
-          setError(err.message || "Could not load leave balances.");
-        } finally {
-          setLoading(false);
-        }
-      })();
-    }
-  });
+  // One entry per leave type that exists in the balances (tabs in "By leave type").
+  const leaveTypes = useMemo(() => {
+    const names = [...new Set(balanceRows.map((r) => r.leave_name))].sort();
+    return names.map((n) => ({ id: n, leave_name: n }));
+  }, [balanceRows]);
 
   useEffect(() => {
     if (!activeType && leaveTypes.length > 0) {
@@ -264,7 +236,8 @@ export default function LeaveBalance() {
     }
   }, [leaveTypes, activeType]);
 
-  // Per employee: { id, name, department, types: { [leaveName]: { allocated, used, balance, pct } }, totalAllocated, totalBalance, totalPct, minPct }
+  // Per employee: only employees that actually have balances
+  // (MC-only staff have none and are left out).
   const balances = useMemo(() => {
     const byEmployee = {};
     employees.forEach((e) => {
@@ -273,45 +246,53 @@ export default function LeaveBalance() {
         name: e.full_name,
         photo: e.profile_photo,
         department: e.departments?.department_name || e.department_name || "—",
-        used: {},
+        types: {},
       };
     });
 
-    records.forEach((r) => {
+    balanceRows.forEach((r) => {
       const entry = byEmployee[r.employee_id];
       if (!entry) return;
-      const typeName = r.leave_types?.leave_name || "Leave";
-      entry.used[typeName] = (entry.used[typeName] || 0) + (r.total_days || 0);
-    });
-
-    return Object.values(byEmployee).map((emp) => {
-      const types = {};
-      leaveTypes.forEach((lt) => {
-        const allocated = lt.default_days || 0;
-        const used = emp.used[lt.leave_name] || 0;
-        const balance = Math.max(0, allocated - used);
-        types[lt.leave_name] = {
-          allocated,
-          used,
-          balance,
-          pct: allocated ? (balance / allocated) * 100 : 0,
-        };
-      });
-
-      const values = Object.values(types);
-      const totalAllocated = values.reduce((s, t) => s + t.allocated, 0);
-      const totalBalance = values.reduce((s, t) => s + t.balance, 0);
-
-      return {
-        ...emp,
-        types,
-        totalAllocated,
-        totalBalance,
-        totalPct: totalAllocated ? (totalBalance / totalAllocated) * 100 : 0,
-        minPct: values.length ? Math.min(...values.map((t) => t.pct)) : 100,
+      const allocated = r.total_days || 0;
+      const balance = Math.max(0, r.remaining_days || 0);
+      entry.types[r.leave_name] = {
+        allocated,
+        used: r.used_days || 0,
+        balance,
+        pct: allocated ? (balance / allocated) * 100 : 0,
       };
     });
-  }, [employees, records, leaveTypes]);
+
+    // HR / Super Admin see EVERY employee. Those with no balance row yet
+    // (not on the imported sheet, or yearly balances not generated) are
+    // shown with "No balance set" instead of being silently dropped.
+    return Object.values(byEmployee).map((emp) => {
+      const values = Object.values(emp.types);
+      if (values.length === 0) {
+        return {
+          ...emp,
+          hasBalance: false,
+          totalAllocated: 0,
+          totalUsed: 0,
+          totalBalance: 0,
+          totalPct: 0,
+          minPct: 100,
+        };
+      }
+      const totalAllocated = values.reduce((sum, t) => sum + t.allocated, 0);
+      const totalBalance = values.reduce((sum, t) => sum + t.balance, 0);
+      const totalUsed = values.reduce((sum, t) => sum + t.used, 0);
+      return {
+        ...emp,
+        hasBalance: true,
+        totalAllocated,
+        totalUsed,
+        totalBalance,
+        totalPct: totalAllocated ? (totalBalance / totalAllocated) * 100 : 0,
+        minPct: Math.min(...values.map((t) => t.pct)),
+      };
+    });
+  }, [employees, balanceRows]);
 
   const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -327,7 +308,11 @@ export default function LeaveBalance() {
   // is spotting who's about to run out, so that's what leads instead of
   // an alphabetical list.
   const sortedByEmployee = useMemo(
-    () => [...searched].sort((a, b) => a.totalBalance - b.totalBalance),
+    () =>
+      [...searched].sort((a, b) => {
+        if (a.hasBalance !== b.hasBalance) return a.hasBalance ? -1 : 1;
+        return a.totalBalance - b.totalBalance;
+      }),
     [searched],
   );
 
@@ -346,13 +331,14 @@ export default function LeaveBalance() {
   );
 
   const summary = useMemo(() => {
-    const runningLow = balances.filter((b) => b.minPct <= 20).length;
-    const avgUsedPct = balances.length
+    const withBalance = balances.filter((b) => b.hasBalance);
+    const runningLow = withBalance.filter((b) => b.minPct <= 20).length;
+    const avgUsedPct = withBalance.length
       ? Math.round(
-          balances.reduce(
+          withBalance.reduce(
             (s, b) => s + (b.totalAllocated ? 100 - b.totalPct : 0),
             0,
-          ) / balances.length,
+          ) / withBalance.length,
         )
       : 0;
     return { total: balances.length, avgUsedPct, runningLow };
@@ -362,7 +348,7 @@ export default function LeaveBalance() {
     <div>
       <PageHeader
         title="Leave balance"
-        subtitle="Remaining leave per employee, tracked against approved leave taken."
+        subtitle="Remaining leave per employee for this year (balance forward and entitlement, less leave taken)."
       />
 
       <div className="grid grid-cols-3 gap-3 mb-5">
@@ -456,7 +442,11 @@ export default function LeaveBalance() {
               photo={emp.photo}
               department={emp.department}
               pct={emp.totalPct}
-              balanceLabel={`${round1(emp.totalBalance)}/${emp.totalAllocated} left`}
+              balanceLabel={
+                emp.hasBalance
+                  ? `${round1(emp.totalUsed)}/${emp.totalAllocated} taken`
+                  : "No balance set"
+              }
               onClick={() => setSelectedEmployeeId(emp.id)}
             />
           ))}
@@ -473,7 +463,7 @@ export default function LeaveBalance() {
                 photo={emp.photo}
                 department={emp.department}
                 pct={t.pct}
-                balanceLabel={`${round1(t.balance)}/${t.allocated} left`}
+                balanceLabel={`${round1(t.used)}/${t.allocated} taken`}
                 onClick={() => setSelectedEmployeeId(emp.id)}
               />
             );
@@ -498,11 +488,12 @@ export default function LeaveBalance() {
               />
               <div>
                 <p className="text-sm font-medium text-slate-800">
-                  {round1(selectedEmployee.totalBalance)} /{" "}
-                  {selectedEmployee.totalAllocated} days left overall
+                  {selectedEmployee.hasBalance
+                    ? `${round1(selectedEmployee.totalUsed)} / ${selectedEmployee.totalAllocated} days taken overall`
+                    : "No leave balance set for this year"}
                 </p>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Based on approved leave taken this year
+                  Leave taken out of total entitlement this year
                 </p>
               </div>
             </div>
@@ -521,6 +512,44 @@ export default function LeaveBalance() {
                   />
                 );
               })}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <p className="text-sm font-medium text-slate-700 mb-2">
+                Leave details
+              </p>
+              {historyLoading ? (
+                <p className="text-xs text-slate-400">Loading…</p>
+              ) : history.length === 0 ? (
+                <p className="text-xs text-slate-400">
+                  No leave requests recorded.
+                </p>
+              ) : (
+                <div className="max-h-56 overflow-y-auto divide-y divide-slate-100">
+                  {history.map((l) => (
+                    <div
+                      key={l.id}
+                      className="py-2 flex items-start justify-between gap-3"
+                    >
+                      <div>
+                        <p className="text-xs font-medium text-slate-700">
+                          {l.leave_types?.leave_name || "Leave"} ·{" "}
+                          {l.total_days} day{l.total_days === 1 ? "" : "s"}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {String(l.start_date).slice(0, 10)}
+                          {l.end_date && l.end_date !== l.start_date
+                            ? ` → ${String(l.end_date).slice(0, 10)}`
+                            : ""}
+                        </p>
+                      </div>
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 shrink-0">
+                        {l.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

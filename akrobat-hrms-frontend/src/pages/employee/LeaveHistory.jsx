@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import McCertificate from "../../components/common/McCertificate";
 import PageHeader from "../../components/common/PageHeader";
 import SelectDropdown from "../../components/common/SelectDropdown";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
@@ -503,11 +504,15 @@ export default function LeaveHistory() {
             const lt = leaveTypeStyle(r.leave_types?.leave_name);
             const LtIcon = lt.icon;
             return (
-              <button
+              <div
                 key={r.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedLeave(r)}
-                className="w-full text-left bg-white rounded-xl border border-slate-200 p-4 active:bg-slate-50"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") setSelectedLeave(r);
+                }}
+                className="w-full text-left bg-white rounded-xl border border-slate-200 p-4 active:bg-slate-50 cursor-pointer"
               >
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -543,7 +548,9 @@ export default function LeaveHistory() {
                     <LtIcon size={12} className={lt.text} />
                   </div>
                   <span className="text-sm text-slate-600 truncate">
-                    {r.leave_types?.leave_name || "Leave"}
+                    {r.leave_types?.leave_name === "SICK LEAVE"
+                      ? "MC (Medical Leave)"
+                      : r.leave_types?.leave_name || "Leave"}
                   </span>
                 </div>
 
@@ -556,7 +563,14 @@ export default function LeaveHistory() {
                 <p className="text-[11px] text-slate-400">
                   Applied on {formatShort(r.applied_date)}
                 </p>
-              </button>
+
+                {/* MC step 2: attach / replace the certificate right here. */}
+                <McCertificate
+                  leave={r}
+                  mode="employee"
+                  onChanged={loadLeaves}
+                />
+              </div>
             );
           })}
 
@@ -663,6 +677,12 @@ export default function LeaveHistory() {
                             {r.leave_types?.leave_name || "Leave"}
                           </span>
                         </div>
+                        {/* MC step 2: attach / replace the certificate here. */}
+                        <McCertificate
+                          leave={r}
+                          mode="employee"
+                          onChanged={loadLeaves}
+                        />
                       </td>
                       <td className="px-5 py-3.5 text-slate-600">
                         {r.total_days} {r.total_days === 1 ? "Day" : "Days"}
@@ -916,6 +936,14 @@ export default function LeaveHistory() {
                       {r.reason || "No reason provided."}
                     </p>
                   </div>
+                  <McCertificate
+                    leave={r}
+                    mode="employee"
+                    onChanged={() => {
+                      setSelectedLeave(null);
+                      loadLeaves();
+                    }}
+                  />
                 </div>
               </div>
             </div>

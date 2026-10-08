@@ -33,6 +33,7 @@ import {
   filterShiftsForSelection,
   pickDefaultShiftId,
 } from "../../utils/shiftMapping";
+import LeaveEntitlementsField from "../shared/Leaveentitlementsfield";
 
 // ---------------------------------------------------------------------
 // Company-wide Employee List for HR Admin.
@@ -176,6 +177,15 @@ function isSystemGeneratedEmail(employee) {
 // (separate from the free-text "Work Location" city/office field).
 const WORKING_LOCATIONS = ["Office", "Site", "Office and Site"];
 
+const LEAVE_SCHEMES = [
+  {
+    value: "SG_LIST",
+    label: "Singapore list (Annual, MC, Replacement, Childcare)",
+  },
+  { value: "MC_ONLY", label: "MC only (no balances shown)" },
+  { value: "STANDARD", label: "Standard (e.g. Chennai)" },
+];
+
 function EmployeeFormModal({
   mode,
   employee,
@@ -192,8 +202,6 @@ function EmployeeFormModal({
     employees,
     managerCandidates = [],
     roles,
-    annualLeaveTiers,
-    childcareLeaveTiers,
   } = refData;
 
   const [form, setForm] = useState(() => ({
@@ -210,51 +218,18 @@ function EmployeeFormModal({
     employment_status: employee?.employment_status || "Active",
     work_location: employee?.work_location || "",
     working_location: employee?.working_location || "",
-    // Leave policy engine fields (see app/leaves/policy_services.py).
-    // Annual Leave tier is required for every employee; Childcare Leave
-    // tier only matters for employees who pass the CHILDCARE LEAVE
-    // eligibility rule (married — see leave_eligibility_rules). Neither
-    // is returned by GET /employees/ (they live in employee_leave_tier,
-    // not on the employees row), so on Edit these always start blank —
-    // HR only needs to touch them here to *change* the tier; leaving
-    // them blank on Edit leaves the existing assignment untouched.
-    annual_leave_tier_id: "",
-    childcare_leave_tier_id: "",
+    // Leave setup: scheme decides which leave boxes show (Singapore list /
+    // MC only / Standard = Chennai 12-12-12). Days typed in the boxes are
+    // kept in `entitlements`.
+    leave_scheme: employee?.leave_scheme || "MC_ONLY",
+    leave_manager_id: employee?.leave_manager_id || "",
     working_days_per_week: employee?.working_days_per_week || 5,
     outdoor_checkin_enabled: Boolean(employee?.outdoor_checkin_enabled),
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [entitlements, setEntitlements] = useState([]);
 
-  // Childcare Leave tier is only shown once we know the employee is
-  // eligible (married) — see leave_eligibility_rules seed:
-  // CHILDCARE LEAVE -> marital_status=Single -> false. On Edit we can
-  // check the real rule via the API since the employee already exists.
-  // On Create there's no employee_id yet to check against (gender/
-  // marital_status/nationality are set later from the employee's own
-  // "My Profile", not on this form), so the field is shown as optional
-  // with a note instead of being hidden outright.
-  const [childcareEligible, setChildcareEligible] = useState(
-    isEdit ? null : true,
-  );
-
-  useEffect(() => {
-    if (!isEdit || !employee?.id) return;
-    let cancelled = false;
-    apiClient
-      .get(
-        `/leaves/policy/eligibility/${employee.id}/${encodeURIComponent("CHILDCARE LEAVE")}`,
-      )
-      .then((res) => {
-        if (!cancelled) setChildcareEligible(!!res?.data?.eligible);
-      })
-      .catch(() => {
-        if (!cancelled) setChildcareEligible(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isEdit, employee?.id]);
   // Set once the employee is created -- the employee code and temporary
   // password are only ever returned by the backend on this one create
   // call (see app/employees/services.py create_employee), so they're
@@ -380,12 +355,10 @@ function EmployeeFormModal({
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
           working_location: orUndefined(form.working_location),
-          // Only sent if HR actually picked something -- omitting these
-          // leaves the employee's existing tier assignment untouched
-          // rather than clearing it (see app/employees/services.py
-          // update_employee()).
-          annual_leave_tier_id: orUndefined(form.annual_leave_tier_id),
-          childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
+          leave_scheme: form.leave_scheme,
+          leave_manager_id: orUndefined(form.leave_manager_id),
+          // Only the leave days HR typed / changed are sent.
+          leave_entitlements: entitlements.length ? entitlements : undefined,
           working_days_per_week: form.working_days_per_week,
           outdoor_checkin_enabled: form.outdoor_checkin_enabled,
         };
@@ -410,8 +383,9 @@ function EmployeeFormModal({
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
           working_location: orUndefined(form.working_location),
-          annual_leave_tier_id: orUndefined(form.annual_leave_tier_id),
-          childcare_leave_tier_id: orUndefined(form.childcare_leave_tier_id),
+          leave_scheme: form.leave_scheme,
+          leave_manager_id: orUndefined(form.leave_manager_id),
+          leave_entitlements: entitlements.length ? entitlements : undefined,
           working_days_per_week: form.working_days_per_week,
         };
         const response = await apiClient.post("/employees/", payload);
@@ -736,19 +710,41 @@ function EmployeeFormModal({
               Leave Policy
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Annual Leave Tier">
+              <Field label="Leave Scheme">
                 <FilterDropdown
                   fullWidth
-                  allLabel={
-                    isEdit ? "Keep current tier" : "Select tier (optional)"
-                  }
-                  value={form.annual_leave_tier_id}
-                  options={annualLeaveTiers}
-                  getKey={(t) => t.id}
-                  getLabel={(t) => `${t.tier_name} (${t.days} days)`}
-                  onChange={(v) => set("annual_leave_tier_id", v)}
+                  showAllOption={false}
+                  allLabel="Select leave scheme"
+                  value={form.leave_scheme}
+                  onChange={(v) => set("leave_scheme", v)}
+                  options={LEAVE_SCHEMES}
+                  getKey={(o) => o.value}
+                  getLabel={(o) => o.label}
                 />
               </Field>
+              <Field label="Leave Manager (approves leave)">
+                <FilterDropdown
+                  fullWidth
+                  allLabel="None"
+                  value={form.leave_manager_id}
+                  onChange={(v) => set("leave_manager_id", v)}
+                  options={managerCandidates.filter(
+                    (u) => u.id !== employee?.id,
+                  )}
+                  getKey={(u) => u.id}
+                  getLabel={(u) => `${u.full_name} (${u.employee_id})`}
+                />
+              </Field>
+              <div className="sm:col-span-2">
+                <LeaveEntitlementsField
+                  isEdit={isEdit}
+                  employeeId={employee?.id}
+                  gender={employee?.gender || ""}
+                  maritalStatus={employee?.marital_status || ""}
+                  leaveScheme={form.leave_scheme}
+                  onChange={setEntitlements}
+                />
+              </div>
               <Field label="Working Days / Week">
                 <FilterDropdown
                   fullWidth
@@ -768,31 +764,6 @@ function EmployeeFormModal({
                   Used by payroll to calculate the Unpaid Leave deduction.
                 </span>
               </Field>
-
-              {childcareEligible !== false && (
-                <Field label="Childcare Leave Tier">
-                  <FilterDropdown
-                    fullWidth
-                    allLabel={isEdit ? "Keep current tier" : "Not applicable"}
-                    value={form.childcare_leave_tier_id}
-                    options={childcareLeaveTiers}
-                    getKey={(t) => t.id}
-                    getLabel={(t) => `${t.tier_name} (${t.days} days)`}
-                    onChange={(v) => set("childcare_leave_tier_id", v)}
-                  />
-                  <span className="text-xs text-slate-400 mt-1 block">
-                    {isEdit
-                      ? "Only applied if the employee is married."
-                      : "Only applies to married employees — leave blank otherwise, it's silently ignored if they're not eligible."}
-                  </span>
-                </Field>
-              )}
-              {childcareEligible === false && (
-                <div className="col-span-2 text-xs text-slate-400">
-                  Childcare Leave tier hidden — this employee isn't eligible
-                  (must be married).
-                </div>
-              )}
             </div>
           </div>
         </form>
