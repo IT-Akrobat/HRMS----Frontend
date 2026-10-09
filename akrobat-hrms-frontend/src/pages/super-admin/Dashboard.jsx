@@ -5,6 +5,7 @@ import {
   Building2,
   Cake,
   CalendarDays,
+  CalendarRange,
   ChevronRight,
   LayoutGrid,
   Loader2,
@@ -900,6 +901,11 @@ export default function SuperAdminDashboard() {
                   Create Site
                 </span>
               </button>
+              <QuickActionCircle
+                to="/super-admin/leave/balance"
+                label="Leave Balance"
+                icon={CalendarRange}
+              />
               <QuoteOfDayCard compact />
             </div>
           }
@@ -1254,6 +1260,25 @@ export default function SuperAdminDashboard() {
                   <Megaphone size={17} />
                 </span>
               </button>
+
+              <Link
+                to="/super-admin/leave/balance"
+                title="Leave Balance"
+                aria-label="Leave Balance"
+                onClick={() => setQuickMenuOpen(false)}
+                className={`flex items-center gap-2 transition-all duration-150 delay-150 ${
+                  quickMenuOpen
+                    ? "opacity-100 translate-y-0"
+                    : "opacity-0 translate-y-2 pointer-events-none"
+                }`}
+              >
+                <span className="text-xs font-medium text-white bg-[#0B1830]/95 px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
+                  Leave Balance
+                </span>
+                <span className="w-11 h-11 rounded-full bg-[#0B1830]/95 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform shrink-0">
+                  <CalendarRange size={17} />
+                </span>
+              </Link>
 
               {/* Backdrop — tapping anywhere outside the bubbles closes them. */}
               {quickMenuOpen && (

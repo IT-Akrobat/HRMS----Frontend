@@ -13,6 +13,7 @@ const OtCalculator = lazy(
 const LeaveRequests = lazy(
   () => import("../pages/super-admin/LeaveRequests.jsx"),
 );
+const LeaveBalance = lazy(() => import("../pages/hr-admin/LeaveBalance.jsx"));
 const LiveTracking = lazy(
   () => import("../pages/super-admin/LiveTracking.jsx"),
 );
@@ -58,6 +59,7 @@ export const superAdminRoutes = [
   // { path: "employees/hr-admins", element: <EmployeesHrAdmins /> },
   // { path: "employees/managers", element: <EmployeesManagers /> },
   { path: "leave/requests", element: <LeaveRequests /> },
+  { path: "leave/balance", element: <LeaveBalance /> },
   { path: "attendance/live-tracking", element: <LiveTracking /> },
   { path: "attendance/ot-calculator", element: <OtCalculator /> },
   { path: "security/login-activity", element: <SecurityLoginActivity /> },

@@ -565,6 +565,7 @@ export const NAVIGATION_CONFIG = {
       icon: Palmtree,
       children: [
         { label: "Leave Requests", path: "/super-admin/leave/requests" },
+        { label: "Leave Balance", path: "/super-admin/leave/balance" },
       ],
     },
     {

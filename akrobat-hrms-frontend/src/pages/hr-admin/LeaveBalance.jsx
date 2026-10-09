@@ -348,7 +348,14 @@ export default function LeaveBalance() {
     <div>
       <PageHeader
         title="Leave balance"
-        subtitle="Remaining leave per employee for this year (balance forward and entitlement, less leave taken)."
+        // Explanatory line is desktop-only; on mobile it just pushes the
+        // stats and employee list down the screen.
+        subtitle={
+          <span className="hidden lg:inline">
+            Remaining leave per employee for this year (balance forward and
+            entitlement, less leave taken).
+          </span>
+        }
       />
 
       <div className="grid grid-cols-3 gap-3 mb-5">
