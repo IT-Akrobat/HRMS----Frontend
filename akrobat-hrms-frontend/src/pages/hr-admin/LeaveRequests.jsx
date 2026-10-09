@@ -139,8 +139,12 @@ export default function LeaveRequests() {
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-slate-800">Leave Requests</h1>
           <div className="flex items-center gap-2">
-            <CreateLeaveTypeButton label="Leave type" />
-            <HrManagedLeaveForm onChanged={loadRecords} label="Record leave" />
+            <CreateLeaveTypeButton label="Leave type" iconOnly />
+            <HrManagedLeaveForm
+              onChanged={loadRecords}
+              label="Record leave"
+              iconOnly
+            />
           </div>
         </div>
       </div>

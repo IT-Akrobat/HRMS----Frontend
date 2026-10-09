@@ -1,5 +1,5 @@
-import { ClipboardPlus, Loader2, Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Calendar, ClipboardPlus, Loader2, Plus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../../services/apiClient";
 import DatePicker from "../layout/DatePicker";
 import Modal from "./Modal";
@@ -42,6 +42,16 @@ function toDate(iso) {
   return iso ? new Date(`${iso}T00:00:00`) : null;
 }
 
+function fmt(iso) {
+  return iso
+    ? toDate(iso).toLocaleDateString("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+      })
+    : "";
+}
+
 function Label({ children, required }) {
   return (
     <label className="block text-xs font-medium text-slate-600 mb-1.5">
@@ -55,6 +65,8 @@ export default function HrManagedLeaveForm({
   onChanged,
   label = "Hospitalisation / Maternity",
   className = "",
+  // Mobile header: show just a symbol (no text) so both header buttons fit.
+  iconOnly = false,
 }) {
   const [open, setOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
@@ -62,6 +74,16 @@ export default function HrManagedLeaveForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  // Which date the inline calendar is editing: null (hidden) | "from" | "to"
+  const [activeDate, setActiveDate] = useState(null);
+  const calRef = useRef(null);
+
+  // Bring the inline calendar into view inside the scrolling popup.
+  useEffect(() => {
+    if (activeDate && calRef.current) {
+      calRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [activeDate]);
 
   // Employees are only needed once the popup is opened.
   useEffect(() => {
@@ -94,6 +116,7 @@ export default function HrManagedLeaveForm({
 
   function close() {
     setOpen(false);
+    setActiveDate(null);
     setForm(EMPTY);
     setError(null);
     setSuccess(null);
@@ -132,10 +155,14 @@ export default function HrManagedLeaveForm({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`shrink-0 inline-flex items-center justify-center gap-1.5 text-sm font-medium bg-orange-500 text-white px-3.5 py-2.5 rounded-lg hover:bg-orange-600 transition-colors ${className}`}
+        aria-label={label}
+        title={label}
+        className={`shrink-0 inline-flex items-center justify-center gap-1.5 text-sm font-medium bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors ${
+          iconOnly ? "w-10 h-10" : "px-3.5 py-2.5"
+        } ${className}`}
       >
-        <Plus size={15} />
-        {label}
+        {iconOnly ? <ClipboardPlus size={18} /> : <Plus size={15} />}
+        {!iconOnly && label}
       </button>
 
       <Modal
@@ -206,28 +233,77 @@ export default function HrManagedLeaveForm({
 
           <div>
             <Label required>Dates</Label>
-            <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2.5 bg-slate-50/60">
-              <DatePicker
-                value={toDate(form.from_date)}
-                placeholder="From"
-                onSelect={(d) => {
-                  const iso = toISO(d);
-                  setForm((f) => ({
-                    ...f,
-                    from_date: iso,
-                    to_date: f.to_date && f.to_date < iso ? iso : f.to_date,
-                  }));
-                  setError(null);
-                }}
-              />
-              <span className="text-slate-300">→</span>
-              <DatePicker
-                value={toDate(form.to_date)}
-                min={form.from_date || undefined}
-                placeholder="To"
-                onSelect={(d) => set("to_date", toISO(d))}
-              />
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { key: "from", text: "From", iso: form.from_date },
+                { key: "to", text: "To", iso: form.to_date },
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() =>
+                    setActiveDate((a) => (a === f.key ? null : f.key))
+                  }
+                  className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 text-sm text-left transition-colors ${
+                    activeDate === f.key
+                      ? "border-orange-400 ring-2 ring-orange-200 bg-white"
+                      : "border-slate-200 bg-slate-50/60 hover:border-slate-300"
+                  }`}
+                >
+                  <Calendar
+                    size={15}
+                    className={
+                      activeDate === f.key || f.iso
+                        ? "text-orange-500 shrink-0"
+                        : "text-slate-400 shrink-0"
+                    }
+                  />
+                  <span
+                    className={`truncate ${
+                      f.iso ? "text-slate-700" : "text-slate-400"
+                    }`}
+                  >
+                    {f.iso ? fmt(f.iso) : f.text}
+                  </span>
+                </button>
+              ))}
             </div>
+
+            {/* Calendar shown right inside this popup (no second popup). */}
+            {activeDate && (
+              <div ref={calRef} className="mt-2">
+                <DatePicker
+                  key={activeDate}
+                  inline
+                  value={toDate(
+                    activeDate === "from" ? form.from_date : form.to_date,
+                  )}
+                  defaultMonth={
+                    activeDate === "to" ? toDate(form.from_date) : undefined
+                  }
+                  min={
+                    activeDate === "to"
+                      ? form.from_date || undefined
+                      : undefined
+                  }
+                  onSelect={(d) => {
+                    const iso = toISO(d);
+                    if (activeDate === "from") {
+                      setForm((f) => ({
+                        ...f,
+                        from_date: iso,
+                        to_date: f.to_date && f.to_date < iso ? iso : f.to_date,
+                      }));
+                      setError(null);
+                      setActiveDate("to"); // move on to the end date
+                    } else {
+                      set("to_date", iso);
+                      setActiveDate(null); // done -- collapse the calendar
+                    }
+                  }}
+                />
+              </div>
+            )}
             {days && (
               <p className="text-xs text-slate-400 mt-1.5">
                 {days} day{days === 1 ? "" : "s"}

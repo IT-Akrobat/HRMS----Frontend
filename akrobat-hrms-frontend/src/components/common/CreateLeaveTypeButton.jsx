@@ -24,6 +24,8 @@ export default function CreateLeaveTypeButton({
   onChanged,
   label = "New leave type",
   className = "",
+  // Mobile header: show just a symbol (no text) so both header buttons fit.
+  iconOnly = false,
 }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
@@ -66,10 +68,14 @@ export default function CreateLeaveTypeButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`shrink-0 inline-flex items-center justify-center gap-1.5 text-sm font-medium border border-orange-200 text-orange-600 bg-white px-3.5 py-2.5 rounded-lg hover:bg-orange-50 transition-colors ${className}`}
+        aria-label={label}
+        title={label}
+        className={`shrink-0 inline-flex items-center justify-center gap-1.5 text-sm font-medium border border-orange-200 text-orange-600 bg-white rounded-lg hover:bg-orange-50 transition-colors ${
+          iconOnly ? "w-10 h-10" : "px-3.5 py-2.5"
+        } ${className}`}
       >
-        <Plus size={15} />
-        {label}
+        {iconOnly ? <CalendarPlus size={18} /> : <Plus size={15} />}
+        {!iconOnly && label}
       </button>
 
       <Modal

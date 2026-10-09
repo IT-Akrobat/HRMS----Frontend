@@ -107,6 +107,26 @@ export default function DatePicker({
   // ~256px-wide calendar can't spill sideways and overlap neighboring
   // controls.
   overlay = false,
+  // When true, the calendar popover is rendered in a portal on <body>
+  // (position: fixed) instead of inside the picker's own box. Use this
+  // when the picker sits inside something that clips or scrolls its
+  // content -- e.g. a Modal's `overflow-y-auto` body, where the normal
+  // absolutely-positioned calendar gets cut off by the modal footer.
+  // The popover opens below the field, flips ABOVE it when there is not
+  // enough room underneath (typical on phones), is clamped inside the
+  // viewport on every side, and scrolls internally as a last resort.
+  portal = false,
+  // When true there is no trigger and no popup: the calendar itself is
+  // rendered right where the component is placed (always visible, in the
+  // normal page flow). Use it to show the calendar INSIDE a form/modal.
+  // Selecting a day calls onSelect/onChange as usual; the parent decides
+  // when to hide it.
+  inline = false,
+  // Month to show first when there is no selected value (Date or ISO).
+  defaultMonth,
+  // Title shown in the mobile bottom sheet that portal mode uses on phones
+  // (e.g. "From date"). Falls back to "Select date".
+  sheetTitle,
   // When true, the picker switches to a compact month + year chooser
   // (a 4x3 grid of months under a year header with prev/next-year and
   // a quick year-jump list) instead of the day grid. `value`/`onChange`
@@ -163,8 +183,8 @@ export default function DatePicker({
   const [currentMonth, setCurrentMonth] = useState(
     () =>
       new Date(
-        (selectedDate || today).getFullYear(),
-        (selectedDate || today).getMonth(),
+        (selectedDate || toDate(defaultMonth) || today).getFullYear(),
+        (selectedDate || toDate(defaultMonth) || today).getMonth(),
         1,
       ),
   );
@@ -218,6 +238,89 @@ export default function DatePicker({
     setOverlayPos({ top: rect.bottom + 8, left });
   }, [open, overlay]);
 
+  // ---- Portal mode: smart placement (below / above / clamped) ----
+  const popRef = useRef(null);
+  const [portalPos, setPortalPos] = useState(null);
+  const usePortal = portal && !useSheet;
+
+  // Phones (< 640px): portal calendars dock to the bottom-right of the
+  // screen (with a dim backdrop) instead of floating next to the field.
+  const [isNarrow, setIsNarrow] = useState(
+    () =>
+      portal &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 639px)").matches,
+  );
+  useEffect(() => {
+    if (!portal) return;
+    const mq = window.matchMedia("(max-width: 639px)");
+    const handler = (e) => setIsNarrow(e.matches);
+    setIsNarrow(mq.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [portal]);
+  const portalMobile = usePortal && isNarrow;
+
+  useLayoutEffect(() => {
+    if (!open || !usePortal || portalMobile) {
+      setPortalPos(null);
+      return;
+    }
+
+    function place() {
+      const trigger = containerRef.current;
+      if (!trigger) return;
+      const pop = popRef.current;
+      const r = trigger.getBoundingClientRect();
+      const margin = 8;
+      const gap = 6;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const width = Math.min(256, vw - margin * 2);
+
+      // Natural (unclamped) height of the calendar.
+      const naturalH = pop ? pop.scrollHeight + 2 : 330;
+      const spaceBelow = vh - r.bottom - gap - margin;
+      const spaceAbove = r.top - gap - margin;
+
+      let top;
+      let maxHeight;
+      if (naturalH <= spaceBelow) {
+        // Fits under the field.
+        top = r.bottom + gap;
+        maxHeight = spaceBelow;
+      } else if (naturalH <= spaceAbove) {
+        // Fits above the field.
+        top = r.top - gap - naturalH;
+        maxHeight = spaceAbove;
+      } else if (spaceBelow >= spaceAbove) {
+        // Fits neither side: use the roomier side and scroll inside.
+        top = r.bottom + gap;
+        maxHeight = Math.max(spaceBelow, 180);
+      } else {
+        maxHeight = Math.max(spaceAbove, 180);
+        top = Math.max(margin, r.top - gap - Math.min(naturalH, maxHeight));
+      }
+
+      const left = Math.max(margin, Math.min(r.left, vw - width - margin));
+      setPortalPos({ top, left, maxHeight, width });
+    }
+
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+    // Re-measure whenever the calendar's height can change (6-row months,
+    // month/year chooser views).
+  }, [
+    open,
+    usePortal,
+    portalMobile,
+    dayView,
+    currentMonth,
+    yearListOpen,
+    pickerYear,
+  ]);
+
   // Keep the visible month in sync if the controlled value changes from
   // outside (e.g. clearing the field, or a linked "To Date" resetting).
   useEffect(() => {
@@ -236,7 +339,8 @@ export default function DatePicker({
       if (
         containerRef.current &&
         !containerRef.current.contains(event.target) &&
-        !(sheetRef.current && sheetRef.current.contains(event.target))
+        !(sheetRef.current && sheetRef.current.contains(event.target)) &&
+        !(popRef.current && popRef.current.contains(event.target))
       ) {
         setOpen(false);
       }
@@ -257,7 +361,10 @@ export default function DatePicker({
   // its own content shouldn't close it.)
   useEffect(() => {
     if (!open || useSheet) return;
-    function handleScroll() {
+    function handleScroll(e) {
+      // Scrolling inside the calendar itself (portal mode, short screens)
+      // must not close it.
+      if (popRef.current && popRef.current.contains(e.target)) return;
       setOpen(false);
     }
     window.addEventListener("scroll", handleScroll, true);
@@ -405,7 +512,13 @@ export default function DatePicker({
               disabled={disabled}
               title={isApproved ? "Already approved leave" : undefined}
               className={`${
-                useSheet ? "h-10 w-10 text-sm mx-auto" : "h-7 w-7 text-[11px]"
+                useSheet
+                  ? "h-10 w-10 text-sm mx-auto"
+                  : inline
+                    ? "h-9 w-9 text-sm mx-auto"
+                    : portalMobile
+                      ? "h-9 w-9 text-sm mx-auto"
+                      : "h-7 w-7 text-[11px]"
               } relative transition-colors ${
                 isApproved ? "rounded-full" : "rounded-md"
               } ${
@@ -740,6 +853,67 @@ export default function DatePicker({
         </div>,
         document.body,
       )
+    ) : portalMobile ? (
+      createPortal(
+        // Centered popup. It does NOT touch browser history (unlike
+        // sheetOnMobile), so it is safe on top of a Modal that already
+        // manages the back button.
+        <div
+          ref={popRef}
+          className="fixed inset-0 z-[110] flex items-center justify-center p-5"
+        >
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={
+              sheetTitle || (monthOnly ? "Select month" : "Select date")
+            }
+            className="relative w-full max-w-[20rem] bg-white rounded-2xl shadow-xl border border-slate-200 p-4 overflow-y-auto overscroll-contain"
+            style={{ maxHeight: "100%" }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-800">
+                {sheetTitle || (monthOnly ? "Select month" : "Select date")}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg p-1 -mr-1"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            {popoverBody}
+          </div>
+        </div>,
+        document.body,
+      )
+    ) : usePortal ? (
+      createPortal(
+        <div
+          ref={popRef}
+          role="dialog"
+          aria-label={monthOnly ? "Select month" : "Select date"}
+          className="fixed bg-white rounded-xl border border-slate-200 shadow-lg p-4 z-[110] overflow-y-auto overscroll-contain"
+          style={{
+            top: portalPos ? portalPos.top : 0,
+            left: portalPos ? portalPos.left : 0,
+            width: portalPos ? portalPos.width : 256,
+            maxHeight: portalPos ? portalPos.maxHeight : undefined,
+            // Hidden for the single frame it takes to measure + place it,
+            // so it never flashes in the wrong spot.
+            visibility: portalPos ? "visible" : "hidden",
+          }}
+        >
+          {popoverBody}
+        </div>,
+        document.body,
+      )
     ) : overlay && overlayPos ? (
       <div
         className="fixed w-64 max-w-[calc(100vw-1rem)] bg-white rounded-xl border border-slate-200 shadow-lg p-4 z-50"
@@ -752,6 +926,17 @@ export default function DatePicker({
         {popoverBody}
       </div>
     ));
+
+  // ---------------- Inline mode (calendar shown in place) ----------------
+  if (inline) {
+    return (
+      <div
+        className={`bg-white rounded-xl border border-slate-200 p-3 ${className}`}
+      >
+        {popoverBody}
+      </div>
+    );
+  }
 
   // ---------------- Field mode (labeled, bordered box) ----------------
   if (label) {
