@@ -35,6 +35,7 @@ import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { useBasePath } from "../../hooks/useBasePath";
 import useOfficeFeedCounts from "../../hooks/useOfficeFeedCounts";
 import { apiClient } from "../../services/apiClient";
+import { parseLocalISODate } from "../../utils/date";
 import { isFieldEmployee } from "../../utils/employeeType";
 import { rankByCount } from "../../utils/rankCards";
 import { isSiteEmployee } from "../../utils/workingLocation";
@@ -126,6 +127,34 @@ function isAnnouncementExpired(a) {
   return a.end_date < today;
 }
 
+// ---- Helpers for the mobile "Around the Office" tile previews ----
+function initialsOf(name) {
+  return (name || "")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join("");
+}
+
+function shortDate(d) {
+  return d
+    ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+    : "";
+}
+
+// 0 -> "Today", 1 -> "Tomorrow", else "12 Oct".
+function daysAwayLabel(n) {
+  if (n === 0) return "Today";
+  if (n === 1) return "Tomorrow";
+  return shortDate(new Date(Date.now() + n * 86400000));
+}
+
+// "+N more" suffix once a list has more than one entry.
+function moreLabel(list, lead) {
+  return list.length > 1 ? `${lead} · +${list.length - 1} more` : lead;
+}
+
 export default function EmployeeDashboard() {
   const { user } = useAuth();
   // "/employee/..." in the link tables above becomes "/hr-admin/me/..." when
@@ -155,7 +184,7 @@ export default function EmployeeDashboard() {
 
   // Cards with content first (fewest items first), empty cards last --
   // used by both the mobile tiles and the desktop right column.
-  const feedCounts = useOfficeFeedCounts();
+  const { details, ...feedCounts } = useOfficeFeedCounts();
   const rankCounts = {
     ...feedCounts,
     announcements: activeAnnouncements.length,
@@ -335,7 +364,16 @@ export default function EmployeeDashboard() {
         label: "Birthdays",
         icon: Cake,
         accent: "from-pink-50 to-white border-pink-100 text-pink-500",
-        preview: "Tap to see who's celebrating",
+        preview: "No birthdays in the next 30 days",
+        // Shows WHO is celebrating right on the tile.
+        primary: details.birthdays[0]?.full_name,
+        avatar: initialsOf(details.birthdays[0]?.full_name),
+        secondary: details.birthdays[0]
+          ? moreLabel(
+              details.birthdays,
+              daysAwayLabel(details.birthdays[0].days_away),
+            )
+          : null,
         badge: feedCounts.birthdays || null,
       },
       {
@@ -343,7 +381,14 @@ export default function EmployeeDashboard() {
         label: "Holidays",
         icon: CalendarDays,
         accent: "from-sky-50 to-white border-sky-100 text-sky-500",
-        preview: "Tap to view the calendar",
+        preview: "No upcoming holidays",
+        primary: details.holidays[0]?.holiday_name,
+        secondary: details.holidays[0]
+          ? moreLabel(
+              details.holidays,
+              shortDate(parseLocalISODate(details.holidays[0].holiday_date)),
+            )
+          : null,
         badge: feedCounts.holidays || null,
       },
       {
@@ -351,7 +396,17 @@ export default function EmployeeDashboard() {
         label: "On Leave",
         icon: PlaneTakeoff,
         accent: "from-violet-50 to-white border-violet-100 text-violet-500",
-        preview: "Tap to see who's out today",
+        preview: "No one is out today",
+        primary: details.onleave
+          .slice(0, 2)
+          .map((p) => p.full_name)
+          .join(", "),
+        secondary:
+          details.onleave.length > 2
+            ? `Out today · +${details.onleave.length - 2} more`
+            : details.onleave.length
+              ? "Out today"
+              : null,
         badge: feedCounts.onleave || null,
       },
     ],
@@ -550,7 +605,17 @@ export default function EmployeeDashboard() {
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           {officeTiles.map(
-            ({ key, label, icon: Icon, accent, preview, badge }) => (
+            ({
+              key,
+              label,
+              icon: Icon,
+              accent,
+              preview,
+              primary,
+              secondary,
+              avatar,
+              badge,
+            }) => (
               <button
                 key={key}
                 type="button"
@@ -566,9 +631,29 @@ export default function EmployeeDashboard() {
                   ) : null}
                 </div>
                 <p className="text-xs font-semibold text-slate-700">{label}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
-                  {preview}
-                </p>
+                {primary ? (
+                  <>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      {avatar ? (
+                        <span className="w-5 h-5 shrink-0 rounded-full bg-white/80 text-[9px] font-semibold flex items-center justify-center">
+                          {avatar}
+                        </span>
+                      ) : null}
+                      <p className="text-[12px] font-medium text-slate-700 truncate">
+                        {primary}
+                      </p>
+                    </div>
+                    {secondary ? (
+                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                        {secondary}
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
+                    {preview}
+                  </p>
+                )}
               </button>
             ),
           )}
