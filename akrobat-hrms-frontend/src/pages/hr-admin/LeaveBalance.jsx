@@ -133,15 +133,48 @@ function EmployeeTile({ name, photo, department, pct, balanceLabel, onClick }) {
 // Row inside the employee detail modal — one line per leave type showing
 // allocated / used / balance, with a small progress bar so it's scannable
 // alongside the numbers.
-function LeaveTypeRow({ leaveName, allocated, used, balance, pct }) {
+function LeaveTypeRow({
+  leaveName,
+  allocated,
+  used,
+  balance,
+  pct,
+  editable,
+  saving,
+  onSave,
+}) {
   const style = statusFromPct(pct);
   const clamped = Math.max(0, Math.min(100, pct));
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(used));
+
+  function startEdit() {
+    setValue(String(used));
+    setEditing(true);
+  }
+
+  async function save() {
+    const ok = await onSave(leaveName, value);
+    if (ok) setEditing(false);
+  }
+
   return (
     <div className="py-2.5 first:pt-0 last:pb-0">
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-sm font-medium text-slate-700">{leaveName}</span>
-        <span className={`text-xs font-medium ${style.text}`}>
-          {round1(used)} / {allocated} taken
+        <span className="flex items-center gap-2">
+          <span className={`text-xs font-medium ${style.text}`}>
+            {round1(used)} / {allocated} taken
+          </span>
+          {editable && !editing && (
+            <button
+              type="button"
+              onClick={startEdit}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Edit
+            </button>
+          )}
         </span>
       </div>
       <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -151,6 +184,36 @@ function LeaveTypeRow({ leaveName, allocated, used, balance, pct }) {
         />
       </div>
       <p className="text-xs text-slate-400 mt-1">{round1(balance)} days left</p>
+      {editing && (
+        <div className="mt-2 flex items-center gap-2">
+          <label className="text-xs text-slate-500">Days taken</label>
+          <input
+            type="number"
+            min="0"
+            max={allocated}
+            step="0.5"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="w-20 border border-slate-200 rounded-md px-2 py-1 text-sm"
+          />
+          <button
+            type="button"
+            disabled={saving || value === ""}
+            onClick={save}
+            className="text-xs px-2.5 py-1 rounded-md bg-blue-600 text-white disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => setEditing(false)}
+            className="text-xs px-2.5 py-1 rounded-md bg-slate-100 text-slate-600"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -166,6 +229,8 @@ export default function LeaveBalance() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [savingType, setSavingType] = useState(null);
+  const [saveError, setSaveError] = useState(null);
 
   // The real balances (leave_balances + Replacement credits) -- the same
   // numbers employees see on Apply Leave -- not "company default days
@@ -192,6 +257,26 @@ export default function LeaveBalance() {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  // HR correcting how many days an employee has already taken.
+  async function saveUsedDays(leaveName, value) {
+    setSaveError(null);
+    setSavingType(leaveName);
+    try {
+      await apiClient.put("/leaves/policy/set-used", {
+        employee_id: selectedEmployeeId,
+        leave_type: leaveName,
+        used_days: Number(value),
+      });
+      await fetchAll(false);
+      return true;
+    } catch (err) {
+      setSaveError(err.message || "Could not update the balance.");
+      return false;
+    } finally {
+      setSavingType(null);
+    }
+  }
 
   // Days are held when someone applies and returned on rejection, so any
   // leave event can change a balance.
@@ -516,10 +601,17 @@ export default function LeaveBalance() {
                     used={t.used}
                     balance={t.balance}
                     pct={t.pct}
+                    editable={lt.leave_name !== "REPLACEMENT LEAVE"}
+                    saving={savingType === lt.leave_name}
+                    onSave={saveUsedDays}
                   />
                 );
               })}
             </div>
+
+            {saveError && (
+              <p className="text-xs text-red-600 mt-2">{saveError}</p>
+            )}
 
             <div className="mt-4 pt-4 border-t border-slate-100">
               <p className="text-sm font-medium text-slate-700 mb-2">
