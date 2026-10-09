@@ -16,7 +16,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import BirthdaysCard, {
   OnLeaveTodayCard,
@@ -33,8 +33,10 @@ import SiteVisitCard from "../../components/common/SiteVisitCard";
 import { useAuth } from "../../context/AuthContext";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { useBasePath } from "../../hooks/useBasePath";
+import useOfficeFeedCounts from "../../hooks/useOfficeFeedCounts";
 import { apiClient } from "../../services/apiClient";
 import { isFieldEmployee } from "../../utils/employeeType";
+import { rankByCount } from "../../utils/rankCards";
 import { isSiteEmployee } from "../../utils/workingLocation";
 
 // Mobile-only "Quick Actions" row — four big tiles right under the
@@ -150,6 +152,14 @@ export default function EmployeeDashboard() {
     () => announcements.filter((a) => !isAnnouncementExpired(a)),
     [announcements],
   );
+
+  // Cards with content first (fewest items first), empty cards last --
+  // used by both the mobile tiles and the desktop right column.
+  const feedCounts = useOfficeFeedCounts();
+  const rankCounts = {
+    ...feedCounts,
+    announcements: activeAnnouncements.length,
+  };
 
   // ---- Mobile-only dashboard state ----
   // Which "Around the Office" bento tile has its bottom sheet open.
@@ -307,40 +317,46 @@ export default function EmployeeDashboard() {
   // the matching bottom sheet on tap instead of a plain stacked card —
   // reuses the exact same components/data as desktop, just a different
   // entry interaction.
-  const officeTiles = [
-    {
-      key: "announcements",
-      label: "Announcements",
-      icon: Megaphone,
-      accent: "from-orange-50 to-white border-orange-100 text-orange-500",
-      preview:
-        activeAnnouncements.length === 0
-          ? "No active announcements"
-          : activeAnnouncements[0].title,
-      badge: activeAnnouncements.length || null,
-    },
-    {
-      key: "birthdays",
-      label: "Birthdays",
-      icon: Cake,
-      accent: "from-pink-50 to-white border-pink-100 text-pink-500",
-      preview: "Tap to see who's celebrating",
-    },
-    {
-      key: "holidays",
-      label: "Holidays",
-      icon: CalendarDays,
-      accent: "from-sky-50 to-white border-sky-100 text-sky-500",
-      preview: "Tap to view the calendar",
-    },
-    {
-      key: "onleave",
-      label: "On Leave",
-      icon: PlaneTakeoff,
-      accent: "from-violet-50 to-white border-violet-100 text-violet-500",
-      preview: "Tap to see who's out today",
-    },
-  ];
+  const officeTiles = rankByCount(
+    [
+      {
+        key: "announcements",
+        label: "Announcements",
+        icon: Megaphone,
+        accent: "from-orange-50 to-white border-orange-100 text-orange-500",
+        preview:
+          activeAnnouncements.length === 0
+            ? "No active announcements"
+            : activeAnnouncements[0].title,
+        badge: activeAnnouncements.length || null,
+      },
+      {
+        key: "birthdays",
+        label: "Birthdays",
+        icon: Cake,
+        accent: "from-pink-50 to-white border-pink-100 text-pink-500",
+        preview: "Tap to see who's celebrating",
+        badge: feedCounts.birthdays || null,
+      },
+      {
+        key: "holidays",
+        label: "Holidays",
+        icon: CalendarDays,
+        accent: "from-sky-50 to-white border-sky-100 text-sky-500",
+        preview: "Tap to view the calendar",
+        badge: feedCounts.holidays || null,
+      },
+      {
+        key: "onleave",
+        label: "On Leave",
+        icon: PlaneTakeoff,
+        accent: "from-violet-50 to-white border-violet-100 text-violet-500",
+        preview: "Tap to see who's out today",
+        badge: feedCounts.onleave || null,
+      },
+    ],
+    rankCounts,
+  );
 
   const sheetTitles = {
     announcements: "Announcements",
@@ -735,84 +751,114 @@ export default function EmployeeDashboard() {
             grows taller than the viewport / left column — it scrolls
             independently instead of pushing the page down. */}
         <div className="flex flex-col gap-4 sm:gap-6 min-w-0 lg:h-[calc(100vh-6rem)] lg:sticky lg:top-4 lg:overflow-y-auto lg:pr-1 scrollbar-hide">
-          {/* ---------- Announcements ---------- */}
-          <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 h-60 sm:h-72 flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                <Megaphone size={17} className="text-orange-500" />{" "}
-                Announcements
-              </h3>
-            </div>
-            {announcements.length === 0 ? (
-              <p className="text-sm text-slate-400">No announcements yet.</p>
-            ) : (
-              <div className="space-y-3 overflow-y-auto scrollbar-hide flex-1">
-                {/* Active announcements first, then expired ones (most
+          {/* Ranked: cards with content first (fewest items first),
+              empty cards last -- see utils/rankCards.js */}
+          {rankByCount(
+            [
+              {
+                key: "announcements",
+                node: (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 h-60 sm:h-72 flex flex-col">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                        <Megaphone size={17} className="text-orange-500" />{" "}
+                        Announcements
+                      </h3>
+                    </div>
+                    {announcements.length === 0 ? (
+                      <p className="text-sm text-slate-400">
+                        No announcements yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-3 overflow-y-auto scrollbar-hide flex-1">
+                        {/* Active announcements first, then expired ones (most
                     recently ended first) — expired stay visible, just
                     greyed out, instead of disappearing. */}
-                {[...announcements]
-                  .sort((a, b) => {
-                    const aExpired = isAnnouncementExpired(a);
-                    const bExpired = isAnnouncementExpired(b);
-                    if (aExpired !== bExpired) return aExpired ? 1 : -1;
-                    return (b.end_date || "").localeCompare(a.end_date || "");
-                  })
-                  .map((a) => {
-                    const expired = isAnnouncementExpired(a);
-                    return (
-                      <div
-                        key={a.id}
-                        className={
-                          "rounded-lg p-3 border " +
-                          (expired
-                            ? "bg-slate-50 border-slate-200 opacity-60"
-                            : "bg-orange-50 border-orange-100")
-                        }
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <p
-                            className={
-                              "text-sm font-medium " +
-                              (expired ? "text-slate-500" : "text-slate-800")
-                            }
-                          >
-                            {a.title}
-                          </p>
-                          {expired && (
-                            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
-                              Expired
-                            </span>
-                          )}
-                        </div>
-                        <p
-                          className={
-                            "text-xs mt-0.5 " +
-                            (expired ? "text-slate-400" : "text-slate-500")
-                          }
-                        >
-                          {a.description}
-                        </p>
+                        {[...announcements]
+                          .sort((a, b) => {
+                            const aExpired = isAnnouncementExpired(a);
+                            const bExpired = isAnnouncementExpired(b);
+                            if (aExpired !== bExpired) return aExpired ? 1 : -1;
+                            return (b.end_date || "").localeCompare(
+                              a.end_date || "",
+                            );
+                          })
+                          .map((a) => {
+                            const expired = isAnnouncementExpired(a);
+                            return (
+                              <div
+                                key={a.id}
+                                className={
+                                  "rounded-lg p-3 border " +
+                                  (expired
+                                    ? "bg-slate-50 border-slate-200 opacity-60"
+                                    : "bg-orange-50 border-orange-100")
+                                }
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <p
+                                    className={
+                                      "text-sm font-medium " +
+                                      (expired
+                                        ? "text-slate-500"
+                                        : "text-slate-800")
+                                    }
+                                  >
+                                    {a.title}
+                                  </p>
+                                  {expired && (
+                                    <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
+                                      Expired
+                                    </span>
+                                  )}
+                                </div>
+                                <p
+                                  className={
+                                    "text-xs mt-0.5 " +
+                                    (expired
+                                      ? "text-slate-400"
+                                      : "text-slate-500")
+                                  }
+                                >
+                                  {a.description}
+                                </p>
+                              </div>
+                            );
+                          })}
                       </div>
-                    );
-                  })}
-              </div>
-            )}
-          </div>
-
-          {/* ---------- Upcoming Birthdays ---------- */}
-          <div className="h-60 sm:h-72">
-            <BirthdaysCard />
-          </div>
-
-          {/* ---------- Upcoming Holidays ---------- */}
-          <div className="h-60 sm:h-72">
-            <HolidaysCalendarCard />
-          </div>
-
-          {/* ---------- On Leave Today ---------- */}
-          <div className="h-60 sm:h-72">
-            <OnLeaveTodayCard />
-          </div>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: "birthdays",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <BirthdaysCard />
+                  </div>
+                ),
+              },
+              {
+                key: "holidays",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <HolidaysCalendarCard />
+                  </div>
+                ),
+              },
+              {
+                key: "onleave",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <OnLeaveTodayCard />
+                  </div>
+                ),
+              },
+            ],
+            rankCounts,
+          ).map(({ key, node }) => (
+            <Fragment key={key}>{node}</Fragment>
+          ))}
         </div>
       </div>
     </div>

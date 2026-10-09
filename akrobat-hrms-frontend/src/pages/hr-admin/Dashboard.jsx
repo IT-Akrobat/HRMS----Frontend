@@ -21,9 +21,9 @@ import {
   ShieldCheck,
   UserCheck,
   UserPlus,
-  Users
+  Users,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import AttendanceTrendChart from "../../components/common/AttendanceTrendChart";
@@ -39,9 +39,11 @@ import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import UserFormModal from "../../components/common/UserformModal";
 import { useAuth } from "../../context/AuthContext";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
+import useOfficeFeedCounts from "../../hooks/useOfficeFeedCounts";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 import { geocodeQueue, placeKey } from "../../utils/Geocode";
+import { rankByCount } from "../../utils/rankCards";
 
 // -----------------------------------------------------------------------
 // A note on scope: the reference mockup (Server Status / Storage Usage /
@@ -317,6 +319,15 @@ export default function HrAdminDashboard() {
   const [logsError, setLogsError] = useState(null);
 
   const [announcements, setAnnouncements] = useState([]);
+
+  // Cards with content first (fewest items first), empty cards last --
+  // drives both the mobile accordion and the desktop right column.
+  const feedCounts = useOfficeFeedCounts();
+  const rankCounts = {
+    ...feedCounts,
+    announcements: announcements.filter((a) => !isAnnouncementExpired(a))
+      .length,
+  };
 
   const [trend, setTrend] = useState(null);
   const [trendLoading, setTrendLoading] = useState(true);
@@ -743,99 +754,105 @@ export default function HrAdminDashboard() {
             different entry point" idea. ---------- */}
         {mobileTab === "overview" && (
           <div className="flex flex-col gap-2.5 mb-6">
-            {[
-              {
-                key: "onleave",
-                label: "On Leave Today",
-                icon: PlaneTakeoff,
-                accent: "text-violet-500 bg-violet-50",
-                render: () => <OnLeaveTodayCard />,
-              },
-              {
-                key: "announcements",
-                label: "Announcements",
-                icon: Megaphone,
-                accent: "text-orange-500 bg-orange-50",
-                badge:
-                  announcements.filter((a) => !isAnnouncementExpired(a))
-                    .length || null,
-                render: () =>
-                  announcements.length === 0 ? (
-                    <p className="text-sm text-slate-400 px-0.5">
-                      No announcements yet.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {[...announcements]
-                        .sort((a, b) => {
-                          const aExpired = isAnnouncementExpired(a);
-                          const bExpired = isAnnouncementExpired(b);
-                          if (aExpired !== bExpired) return aExpired ? 1 : -1;
-                          return (b.end_date || "").localeCompare(
-                            a.end_date || "",
-                          );
-                        })
-                        .slice(0, 4)
-                        .map((a) => {
-                          const expired = isAnnouncementExpired(a);
-                          return (
-                            <div
-                              key={a.id}
-                              className={
-                                "rounded-lg p-2.5 border " +
-                                (expired
-                                  ? "bg-slate-50 border-slate-200 opacity-60"
-                                  : "bg-orange-50 border-orange-100")
-                              }
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <p
-                                  className={
-                                    "text-sm font-medium truncate " +
-                                    (expired
-                                      ? "text-slate-500"
-                                      : "text-slate-800")
-                                  }
-                                >
-                                  {a.title}
-                                </p>
-                                {expired && (
-                                  <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
-                                    Expired
-                                  </span>
-                                )}
-                              </div>
-                              <p
+            {rankByCount(
+              [
+                {
+                  key: "onleave",
+                  label: "On Leave Today",
+                  icon: PlaneTakeoff,
+                  accent: "text-violet-500 bg-violet-50",
+                  badge: feedCounts.onleave || null,
+                  render: () => <OnLeaveTodayCard />,
+                },
+                {
+                  key: "announcements",
+                  label: "Announcements",
+                  icon: Megaphone,
+                  accent: "text-orange-500 bg-orange-50",
+                  badge:
+                    announcements.filter((a) => !isAnnouncementExpired(a))
+                      .length || null,
+                  render: () =>
+                    announcements.length === 0 ? (
+                      <p className="text-sm text-slate-400 px-0.5">
+                        No announcements yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {[...announcements]
+                          .sort((a, b) => {
+                            const aExpired = isAnnouncementExpired(a);
+                            const bExpired = isAnnouncementExpired(b);
+                            if (aExpired !== bExpired) return aExpired ? 1 : -1;
+                            return (b.end_date || "").localeCompare(
+                              a.end_date || "",
+                            );
+                          })
+                          .slice(0, 4)
+                          .map((a) => {
+                            const expired = isAnnouncementExpired(a);
+                            return (
+                              <div
+                                key={a.id}
                                 className={
-                                  "text-xs mt-0.5 " +
+                                  "rounded-lg p-2.5 border " +
                                   (expired
-                                    ? "text-slate-400"
-                                    : "text-slate-500")
+                                    ? "bg-slate-50 border-slate-200 opacity-60"
+                                    : "bg-orange-50 border-orange-100")
                                 }
                               >
-                                {a.description}
-                              </p>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  ),
-              },
-              {
-                key: "birthdays",
-                label: "Upcoming Birthdays",
-                icon: Cake,
-                accent: "text-pink-500 bg-pink-50",
-                render: () => <BirthdaysCard />,
-              },
-              {
-                key: "holidays",
-                label: "Upcoming Holidays",
-                icon: CalendarDays,
-                accent: "text-orange-500 bg-orange-50",
-                render: () => <HolidaysCalendarCard />,
-              },
-            ].map(({ key, label, icon: Icon, accent, badge, render }) => {
+                                <div className="flex items-center gap-1.5">
+                                  <p
+                                    className={
+                                      "text-sm font-medium truncate " +
+                                      (expired
+                                        ? "text-slate-500"
+                                        : "text-slate-800")
+                                    }
+                                  >
+                                    {a.title}
+                                  </p>
+                                  {expired && (
+                                    <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
+                                      Expired
+                                    </span>
+                                  )}
+                                </div>
+                                <p
+                                  className={
+                                    "text-xs mt-0.5 " +
+                                    (expired
+                                      ? "text-slate-400"
+                                      : "text-slate-500")
+                                  }
+                                >
+                                  {a.description}
+                                </p>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ),
+                },
+                {
+                  key: "birthdays",
+                  label: "Upcoming Birthdays",
+                  icon: Cake,
+                  accent: "text-pink-500 bg-pink-50",
+                  badge: feedCounts.birthdays || null,
+                  render: () => <BirthdaysCard />,
+                },
+                {
+                  key: "holidays",
+                  label: "Upcoming Holidays",
+                  icon: CalendarDays,
+                  accent: "text-orange-500 bg-orange-50",
+                  badge: feedCounts.holidays || null,
+                  render: () => <HolidaysCalendarCard />,
+                },
+              ],
+              rankCounts,
+            ).map(({ key, label, icon: Icon, accent, badge, render }) => {
               const isOpen = mobileTeamOpen.includes(key);
               return (
                 <div
@@ -1157,81 +1174,112 @@ export default function HrAdminDashboard() {
             grows taller than the viewport / left column — it scrolls
             independently instead of pushing the page down. */}
         <div className="flex flex-col gap-4 sm:gap-6 min-w-0 lg:h-[calc(100vh-6rem)] lg:sticky lg:top-4 lg:overflow-y-auto lg:pr-1 no-scrollbar">
-          {/* ---------- On Leave Today ---------- */}
-          <div className="h-60 sm:h-72">
-            <OnLeaveTodayCard />
-          </div>
-
-          {/* ---------- Announcements ---------- */}
-          <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 h-60 sm:h-72 flex flex-col">
-            <h3 className="font-semibold text-slate-800 flex items-center gap-2 mb-3">
-              <Megaphone size={17} className="text-orange-500" /> Announcements
-            </h3>
-            {announcements.length === 0 ? (
-              <p className="text-sm text-slate-400">No announcements yet.</p>
-            ) : (
-              <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
-                {/* Active first, then expired (most recently ended first) —
+          {/* Ranked: cards with content first (fewest items first),
+              empty cards last -- see utils/rankCards.js */}
+          {rankByCount(
+            [
+              {
+                key: "onleave",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <OnLeaveTodayCard />
+                  </div>
+                ),
+              },
+              {
+                key: "announcements",
+                node: (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 h-60 sm:h-72 flex flex-col">
+                    <h3 className="font-semibold text-slate-800 flex items-center gap-2 mb-3">
+                      <Megaphone size={17} className="text-orange-500" />{" "}
+                      Announcements
+                    </h3>
+                    {announcements.length === 0 ? (
+                      <p className="text-sm text-slate-400">
+                        No announcements yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
+                        {/* Active first, then expired (most recently ended first) —
                     expired stay visible, just greyed out. */}
-                {[...announcements]
-                  .sort((a, b) => {
-                    const aExpired = isAnnouncementExpired(a);
-                    const bExpired = isAnnouncementExpired(b);
-                    if (aExpired !== bExpired) return aExpired ? 1 : -1;
-                    return (b.end_date || "").localeCompare(a.end_date || "");
-                  })
-                  .slice(0, 3)
-                  .map((a) => {
-                    const expired = isAnnouncementExpired(a);
-                    return (
-                      <div
-                        key={a.id}
-                        className={
-                          "rounded-lg p-2.5 border " +
-                          (expired
-                            ? "bg-slate-50 border-slate-200 opacity-60"
-                            : "bg-orange-50 border-orange-100")
-                        }
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <p
-                            className={
-                              "text-sm font-medium truncate " +
-                              (expired ? "text-slate-500" : "text-slate-800")
-                            }
-                          >
-                            {a.title}
-                          </p>
-                          {expired && (
-                            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
-                              Expired
-                            </span>
-                          )}
-                        </div>
-                        <p
-                          className={
-                            "text-xs mt-0.5 line-clamp-2 " +
-                            (expired ? "text-slate-400" : "text-slate-500")
-                          }
-                        >
-                          {a.description}
-                        </p>
+                        {[...announcements]
+                          .sort((a, b) => {
+                            const aExpired = isAnnouncementExpired(a);
+                            const bExpired = isAnnouncementExpired(b);
+                            if (aExpired !== bExpired) return aExpired ? 1 : -1;
+                            return (b.end_date || "").localeCompare(
+                              a.end_date || "",
+                            );
+                          })
+                          .slice(0, 3)
+                          .map((a) => {
+                            const expired = isAnnouncementExpired(a);
+                            return (
+                              <div
+                                key={a.id}
+                                className={
+                                  "rounded-lg p-2.5 border " +
+                                  (expired
+                                    ? "bg-slate-50 border-slate-200 opacity-60"
+                                    : "bg-orange-50 border-orange-100")
+                                }
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <p
+                                    className={
+                                      "text-sm font-medium truncate " +
+                                      (expired
+                                        ? "text-slate-500"
+                                        : "text-slate-800")
+                                    }
+                                  >
+                                    {a.title}
+                                  </p>
+                                  {expired && (
+                                    <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
+                                      Expired
+                                    </span>
+                                  )}
+                                </div>
+                                <p
+                                  className={
+                                    "text-xs mt-0.5 line-clamp-2 " +
+                                    (expired
+                                      ? "text-slate-400"
+                                      : "text-slate-500")
+                                  }
+                                >
+                                  {a.description}
+                                </p>
+                              </div>
+                            );
+                          })}
                       </div>
-                    );
-                  })}
-              </div>
-            )}
-          </div>
-
-          {/* ---------- Upcoming Birthdays ---------- */}
-          <div className="h-60 sm:h-72">
-            <BirthdaysCard />
-          </div>
-
-          {/* ---------- Upcoming Holidays ---------- */}
-          <div className="h-60 sm:h-72">
-            <HolidaysCalendarCard />
-          </div>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: "birthdays",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <BirthdaysCard />
+                  </div>
+                ),
+              },
+              {
+                key: "holidays",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <HolidaysCalendarCard />
+                  </div>
+                ),
+              },
+            ],
+            rankCounts,
+          ).map(({ key, node }) => (
+            <Fragment key={key}>{node}</Fragment>
+          ))}
 
           {/* ---------- Top Performance ---------- */}
           <div className="h-60 sm:h-72">

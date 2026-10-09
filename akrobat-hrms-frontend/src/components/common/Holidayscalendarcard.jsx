@@ -174,6 +174,14 @@ function actualDateNote(h) {
   return `Observed — falls on ${short}`;
 }
 
+// Number of upcoming (today or later) holidays after merging duplicates --
+// the same list the card renders. Used by the dashboards to rank cards.
+export function countUpcomingHolidays(rows) {
+  const today = toLocalISODate();
+  return dedupeHolidays((rows || []).filter((h) => h.holiday_date >= today))
+    .length;
+}
+
 export default function HolidaysCalendarCard({ onCount } = {}) {
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);

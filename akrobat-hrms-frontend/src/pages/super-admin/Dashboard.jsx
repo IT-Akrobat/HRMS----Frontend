@@ -3,6 +3,9 @@ import {
   AlertTriangle,
   ArrowRight,
   Building2,
+  Cake,
+  CalendarDays,
+  ChevronRight,
   LayoutGrid,
   Loader2,
   LogIn,
@@ -10,15 +13,16 @@ import {
   MapPin,
   Megaphone,
   Pencil,
+  PlaneTakeoff,
   Plus,
   ShieldCheck,
   Trash2,
   UserCheck,
   UserPlus,
   Users,
-  X
+  X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import AttendanceTrendChart from "../../components/common/AttendanceTrendChart";
@@ -26,7 +30,9 @@ import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 
-import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
+import HolidaysCalendarCard, {
+  countUpcomingHolidays,
+} from "../../components/common/Holidayscalendarcard";
 import PageHeader from "../../components/common/PageHeader";
 import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
 import StatCard from "../../components/common/StatCard";
@@ -34,8 +40,13 @@ import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import UserFormModal from "../../components/common/UserformModal";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
-import { parseServerDate } from "../../utils/date";
+import {
+  parseLocalISODate,
+  parseServerDate,
+  toLocalISODate,
+} from "../../utils/date";
 import { geocodeQueue, placeKey } from "../../utils/Geocode";
+import { rankByCount } from "../../utils/rankCards";
 import { LocationFormModal } from "../shared/OrganizationLocations";
 
 // -----------------------------------------------------------------------
@@ -726,32 +737,124 @@ export default function SuperAdminDashboard() {
     setStatPage(Math.max(0, Math.min(statItems.length - 1, idx)));
   }
 
-  // ---- Mobile "Today" strip: cards that have content come first ----
-  // Each card reports how many rows it has; empty ones drop to the end.
-  const [todayCounts, setTodayCounts] = useState({});
-  const reportCount = (key) => (n) =>
-    setTodayCounts((c) => (c[key] === n ? c : { ...c, [key]: n }));
+  // ---- Mobile "Today" list: one compact card, one slim row per topic ----
+  // Rows with content come first; empty rows are greyed out at the end.
+  const [onLeaveList, setOnLeaveList] = useState(null);
+  const [celebs, setCelebs] = useState(null);
+  const [holidayRows, setHolidayRows] = useState(null);
 
-  const todayCards = [
-    { key: "announcements", count: activeAnnouncementCount },
-    { key: "onleave", count: todayCounts.onleave },
-    { key: "birthdays", count: todayCounts.birthdays },
-    { key: "holidays", count: todayCounts.holidays },
-  ]
-    .map((c, i) => ({
-      ...c,
-      i,
-      // Still loading (undefined) counts as "has content" so cards don't
-      // jump around before their data arrives.
-      has: c.count === undefined || c.count > 0,
-    }))
-    .sort((a, b) => (a.has === b.has ? a.i - b.i : a.has ? -1 : 1));
+  useEffect(() => {
+    apiClient
+      .get("/dashboard/on-leave-today")
+      .then((r) => setOnLeaveList(r?.employees || []))
+      .catch(() => setOnLeaveList([]));
+    apiClient
+      .get("/dashboard/celebrations?days=30")
+      .then((r) =>
+        setCelebs({
+          birthdays: r?.birthdays || [],
+          anniversaries: r?.anniversaries || [],
+        }),
+      )
+      .catch(() => setCelebs({ birthdays: [], anniversaries: [] }));
+    apiClient
+      .get("/holidays/")
+      .then((r) => setHolidayRows(r?.data || []))
+      .catch(() => setHolidayRows([]));
+  }, []);
+
+  const shortDate = (d) =>
+    d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
+  const relLabel = (n) =>
+    n === 0
+      ? "Today"
+      : n === 1
+        ? "Tomorrow"
+        : shortDate(new Date(Date.now() + n * 86400000));
+
+  const activeAnn = announcements.filter((a) => !isAnnouncementExpired(a));
+  const celebItems = celebs
+    ? [...celebs.birthdays, ...celebs.anniversaries]
+    : [];
+  const todayIso = toLocalISODate();
+  const nextHoliday = (holidayRows || [])
+    .filter((h) => h.holiday_date >= todayIso)
+    .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date))[0];
+
+  const todayRowsRaw = [
+    {
+      key: "announcements",
+      label: "Announcements",
+      icon: Megaphone,
+      tint: "bg-orange-50 text-orange-600",
+      badge: "bg-orange-100 text-orange-800",
+      loading: false,
+      count: activeAnn.length,
+      preview: activeAnn[0]?.title,
+      empty: "None",
+      alwaysTap: true, // empty is still tappable so you can add one
+    },
+    {
+      key: "onleave",
+      label: "On leave",
+      icon: PlaneTakeoff,
+      tint: "bg-blue-50 text-blue-600",
+      badge: "bg-blue-100 text-blue-800",
+      loading: onLeaveList === null,
+      count: onLeaveList?.length ?? 0,
+      preview: (onLeaveList || [])
+        .slice(0, 2)
+        .map((p) => p.full_name)
+        .join(", "),
+      empty: "No one",
+    },
+    {
+      key: "birthdays",
+      label: "Birthdays",
+      icon: Cake,
+      tint: "bg-pink-50 text-pink-600",
+      badge: "bg-pink-100 text-pink-800",
+      loading: celebs === null,
+      count: celebItems.length,
+      preview: celebItems[0]
+        ? `${celebItems[0].full_name} · ${relLabel(celebItems[0].days_away)}`
+        : "",
+      empty: "None",
+    },
+    {
+      key: "holidays",
+      label: "Holidays",
+      icon: CalendarDays,
+      tint: "bg-orange-50 text-orange-600",
+      badge: "",
+      loading: holidayRows === null,
+      count: countUpcomingHolidays(holidayRows),
+      noBadge: true,
+      preview: nextHoliday
+        ? `${nextHoliday.holiday_name} · ${shortDate(
+            parseLocalISODate(nextHoliday.holiday_date),
+          )}`
+        : "",
+      empty: "None",
+    },
+  ];
+
+  // Cards with content first (fewest items first), empty cards last --
+  // shared by the mobile "Today" list and the desktop right column.
+  const rankCounts = Object.fromEntries(
+    todayRowsRaw.map((r) => [r.key, r.loading ? null : r.count]),
+  );
+  const todayRows = rankByCount(todayRowsRaw, rankCounts).map((r) => ({
+    ...r,
+    has: r.loading || r.count > 0,
+  }));
 
   const sheetTitles = {
     activity: "Recent Activity",
     onleave: "On Leave Today",
     announcements: "Announcements",
     birthdays: "Upcoming Birthdays",
+    holidays: "Upcoming Holidays",
   };
 
   return (
@@ -915,112 +1018,60 @@ export default function SuperAdminDashboard() {
                 Today
               </h2>
             </div>
-            <div className="flex gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory scroll-px-4 no-scrollbar -mx-4 px-4 [&_ul]:[touch-action:pan-x_pan-y]">
-              {todayCards.map(({ key }) => (
-                <div key={key} className="snap-start shrink-0 w-[86%] h-48">
-                  {key === "announcements" && (
-                    <div className="bg-white rounded-xl border border-slate-200 p-5 h-full flex flex-col">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                          <Megaphone size={17} className="text-orange-500" />
-                          Announcements
-                        </h3>
-                        <button
-                          type="button"
-                          onClick={openAnnounce}
-                          title="Create announcement"
-                          aria-label="Create announcement"
-                          className="w-7 h-7 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center shrink-0"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                      {announcements.length === 0 ? (
-                        <p className="text-sm text-slate-400">
-                          No announcements yet.
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+              {todayRows.map((r) => {
+                const Icon = r.icon;
+                const tappable = r.has || r.alwaysTap;
+                return (
+                  <button
+                    key={r.key}
+                    type="button"
+                    disabled={!tappable}
+                    onClick={() => setOpenSheet(r.key)}
+                    className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:bg-slate-50 disabled:active:bg-white"
+                  >
+                    <span
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                        r.has ? r.tint : "bg-slate-100 text-slate-400"
+                      }`}
+                    >
+                      <Icon size={16} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`text-sm font-medium ${
+                          r.has ? "text-slate-800" : "text-slate-400"
+                        }`}
+                      >
+                        {r.label}
+                      </p>
+                      {r.has && (
+                        <p className="text-xs text-slate-500 truncate">
+                          {r.loading ? "Loading…" : r.preview}
                         </p>
-                      ) : (
-                        <ul className="space-y-2 overflow-y-auto min-h-0 flex-1 no-scrollbar">
-                          {[...announcements]
-                            .sort((a, b) => {
-                              const aExp = isAnnouncementExpired(a);
-                              const bExp = isAnnouncementExpired(b);
-                              if (aExp !== bExp) return aExp ? 1 : -1;
-                              return (b.end_date || "").localeCompare(
-                                a.end_date || "",
-                              );
-                            })
-                            .map((a) => {
-                              const expired = isAnnouncementExpired(a);
-                              return (
-                                <li
-                                  key={a.id}
-                                  className={
-                                    "relative rounded-lg p-2.5 pr-16 border " +
-                                    (expired
-                                      ? "bg-slate-50 border-slate-200 opacity-60"
-                                      : "bg-orange-50 border-orange-100")
-                                  }
-                                >
-                                  <div className="flex items-center gap-1.5">
-                                    <p
-                                      className={
-                                        "text-sm font-medium truncate " +
-                                        (expired
-                                          ? "text-slate-500"
-                                          : "text-slate-800")
-                                      }
-                                    >
-                                      {a.title}
-                                    </p>
-                                    {expired && (
-                                      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
-                                        Expired
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-xs mt-0.5 text-slate-500 line-clamp-2">
-                                    {a.description}
-                                  </p>
-                                  <div className="absolute top-2 right-2 flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => openEditAnnounce(a)}
-                                      title="Edit announcement"
-                                      aria-label="Edit announcement"
-                                      className="w-6 h-6 rounded-md bg-white border border-orange-200 text-orange-500 flex items-center justify-center shrink-0"
-                                    >
-                                      <Pencil size={11} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => deleteAnnounceItem(a)}
-                                      disabled={deletingAnnounceId === a.id}
-                                      title="Delete announcement"
-                                      aria-label="Delete announcement"
-                                      className="w-6 h-6 rounded-md bg-white border border-red-200 text-red-500 flex items-center justify-center shrink-0 disabled:opacity-50"
-                                    >
-                                      <Trash2 size={11} />
-                                    </button>
-                                  </div>
-                                </li>
-                              );
-                            })}
-                        </ul>
                       )}
                     </div>
-                  )}
-                  {key === "onleave" && (
-                    <OnLeaveTodayCard onCount={reportCount("onleave")} />
-                  )}
-                  {key === "birthdays" && (
-                    <BirthdaysCard onCount={reportCount("birthdays")} />
-                  )}
-                  {key === "holidays" && (
-                    <HolidaysCalendarCard onCount={reportCount("holidays")} />
-                  )}
-                </div>
-              ))}
+                    {!r.has && (
+                      <span className="text-xs text-slate-400 shrink-0">
+                        {r.empty}
+                      </span>
+                    )}
+                    {r.has && !r.loading && !r.noBadge && (
+                      <span
+                        className={`text-[11px] font-medium rounded-full px-2 py-0.5 shrink-0 ${r.badge}`}
+                      >
+                        {r.count}
+                      </span>
+                    )}
+                    {tappable && (
+                      <ChevronRight
+                        size={16}
+                        className="text-slate-400 shrink-0"
+                      />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -1459,6 +1510,12 @@ export default function SuperAdminDashboard() {
                   <BirthdaysCard />
                 </div>
               )}
+
+              {openSheet === "holidays" && (
+                <div className="h-72">
+                  <HolidaysCalendarCard />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1653,119 +1710,149 @@ export default function SuperAdminDashboard() {
             grows taller than the viewport / left column — it scrolls
             independently instead of pushing the page down. */}
         <div className="flex flex-col gap-4 sm:gap-6 min-w-0 lg:h-[calc(100vh-6rem)] lg:sticky lg:top-4 lg:overflow-y-auto lg:pr-1 no-scrollbar">
-          {/* ---------- On Leave Today ---------- */}
-          <div className="h-60 sm:h-72">
-            <OnLeaveTodayCard />
-          </div>
-
-          {/* ---------- Announcements ---------- */}
-          <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 h-60 sm:h-72 flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                <Megaphone size={17} className="text-orange-500" />{" "}
-                Announcements
-              </h3>
-              {/* Create — Super Admin only; this dashboard file is
+          {/* Ranked: cards with content first (fewest items first),
+              empty cards last -- see utils/rankCards.js */}
+          {rankByCount(
+            [
+              {
+                key: "onleave",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <OnLeaveTodayCard />
+                  </div>
+                ),
+              },
+              {
+                key: "announcements",
+                node: (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 h-60 sm:h-72 flex flex-col">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                        <Megaphone size={17} className="text-orange-500" />{" "}
+                        Announcements
+                      </h3>
+                      {/* Create — Super Admin only; this dashboard file is
                   Super Admin only, so no extra role check is needed here. */}
-              <button
-                onClick={openAnnounce}
-                title="Create announcement"
-                aria-label="Create announcement"
-                className="w-7 h-7 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
-              >
-                <Plus size={14} />
-              </button>
-            </div>
-            {announcements.length === 0 ? (
-              <p className="text-sm text-slate-400">No announcements yet.</p>
-            ) : (
-              <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
-                {/* Active announcements first, then expired ones (most
+                      <button
+                        onClick={openAnnounce}
+                        title="Create announcement"
+                        aria-label="Create announcement"
+                        className="w-7 h-7 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                    {announcements.length === 0 ? (
+                      <p className="text-sm text-slate-400">
+                        No announcements yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
+                        {/* Active announcements first, then expired ones (most
                     recently ended first) — expired stay visible, just
                     styled differently, instead of disappearing. */}
-                {[...announcements]
-                  .sort((a, b) => {
-                    const aExpired = isAnnouncementExpired(a);
-                    const bExpired = isAnnouncementExpired(b);
-                    if (aExpired !== bExpired) return aExpired ? 1 : -1;
-                    return (b.end_date || "").localeCompare(a.end_date || "");
-                  })
-                  .map((a) => {
-                    const expired = isAnnouncementExpired(a);
-                    return (
-                      <div
-                        key={a.id}
-                        className={
-                          "group relative rounded-lg p-2.5 pr-16 border " +
-                          (expired
-                            ? "bg-slate-50 border-slate-200 opacity-60"
-                            : "bg-orange-50 border-orange-100")
-                        }
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <p
-                            className={
-                              "text-sm font-medium truncate " +
-                              (expired ? "text-slate-500" : "text-slate-800")
-                            }
-                          >
-                            {a.title}
-                          </p>
-                          {expired && (
-                            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
-                              Expired
-                            </span>
-                          )}
-                        </div>
-                        <p
-                          className={
-                            "text-xs mt-0.5 line-clamp-2 " +
-                            (expired ? "text-slate-400" : "text-slate-500")
-                          }
-                        >
-                          {a.description}
-                        </p>
+                        {[...announcements]
+                          .sort((a, b) => {
+                            const aExpired = isAnnouncementExpired(a);
+                            const bExpired = isAnnouncementExpired(b);
+                            if (aExpired !== bExpired) return aExpired ? 1 : -1;
+                            return (b.end_date || "").localeCompare(
+                              a.end_date || "",
+                            );
+                          })
+                          .map((a) => {
+                            const expired = isAnnouncementExpired(a);
+                            return (
+                              <div
+                                key={a.id}
+                                className={
+                                  "group relative rounded-lg p-2.5 pr-16 border " +
+                                  (expired
+                                    ? "bg-slate-50 border-slate-200 opacity-60"
+                                    : "bg-orange-50 border-orange-100")
+                                }
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <p
+                                    className={
+                                      "text-sm font-medium truncate " +
+                                      (expired
+                                        ? "text-slate-500"
+                                        : "text-slate-800")
+                                    }
+                                  >
+                                    {a.title}
+                                  </p>
+                                  {expired && (
+                                    <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
+                                      Expired
+                                    </span>
+                                  )}
+                                </div>
+                                <p
+                                  className={
+                                    "text-xs mt-0.5 line-clamp-2 " +
+                                    (expired
+                                      ? "text-slate-400"
+                                      : "text-slate-500")
+                                  }
+                                >
+                                  {a.description}
+                                </p>
 
-                        {/* Edit / Delete — only appear on hover, Super Admin
+                                {/* Edit / Delete — only appear on hover, Super Admin
                             only (this whole dashboard file is Super Admin
                             only). */}
-                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() => openEditAnnounce(a)}
-                            title="Edit announcement"
-                            aria-label="Edit announcement"
-                            className="w-6 h-6 rounded-md bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteAnnounceItem(a)}
-                            disabled={deletingAnnounceId === a.id}
-                            title="Delete announcement"
-                            aria-label="Delete announcement"
-                            className="w-6 h-6 rounded-md bg-white border border-red-200 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors shrink-0 disabled:opacity-50"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
+                                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditAnnounce(a)}
+                                    title="Edit announcement"
+                                    aria-label="Edit announcement"
+                                    className="w-6 h-6 rounded-md bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+                                  >
+                                    <Pencil size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteAnnounceItem(a)}
+                                    disabled={deletingAnnounceId === a.id}
+                                    title="Delete announcement"
+                                    aria-label="Delete announcement"
+                                    className="w-6 h-6 rounded-md bg-white border border-red-200 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors shrink-0 disabled:opacity-50"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
                       </div>
-                    );
-                  })}
-              </div>
-            )}
-          </div>
-
-          {/* ---------- Upcoming Birthdays ---------- */}
-          <div className="h-60 sm:h-72">
-            <BirthdaysCard />
-          </div>
-
-          {/* ---------- Upcoming Holidays ---------- */}
-          <div className="h-60 sm:h-72">
-            <HolidaysCalendarCard />
-          </div>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: "birthdays",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <BirthdaysCard />
+                  </div>
+                ),
+              },
+              {
+                key: "holidays",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <HolidaysCalendarCard />
+                  </div>
+                ),
+              },
+            ],
+            rankCounts,
+          ).map(({ key, node }) => (
+            <Fragment key={key}>{node}</Fragment>
+          ))}
 
           {/* ---------- Top Performance ---------- */}
           <div className="h-60 sm:h-72">
