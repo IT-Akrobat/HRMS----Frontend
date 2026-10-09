@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Building2,
-  Clock,
   LayoutGrid,
   Loader2,
   LogIn,
@@ -17,8 +16,7 @@ import {
   UserCheck,
   UserPlus,
   Users,
-  Users2,
-  X,
+  X
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -728,6 +726,27 @@ export default function SuperAdminDashboard() {
     setStatPage(Math.max(0, Math.min(statItems.length - 1, idx)));
   }
 
+  // ---- Mobile "Today" strip: cards that have content come first ----
+  // Each card reports how many rows it has; empty ones drop to the end.
+  const [todayCounts, setTodayCounts] = useState({});
+  const reportCount = (key) => (n) =>
+    setTodayCounts((c) => (c[key] === n ? c : { ...c, [key]: n }));
+
+  const todayCards = [
+    { key: "announcements", count: activeAnnouncementCount },
+    { key: "onleave", count: todayCounts.onleave },
+    { key: "birthdays", count: todayCounts.birthdays },
+    { key: "holidays", count: todayCounts.holidays },
+  ]
+    .map((c, i) => ({
+      ...c,
+      i,
+      // Still loading (undefined) counts as "has content" so cards don't
+      // jump around before their data arrives.
+      has: c.count === undefined || c.count > 0,
+    }))
+    .sort((a, b) => (a.has === b.has ? a.i - b.i : a.has ? -1 : 1));
+
   const sheetTitles = {
     activity: "Recent Activity",
     onleave: "On Leave Today",
@@ -784,64 +803,8 @@ export default function SuperAdminDashboard() {
         />
       </div>
 
-      {/* ---------- Mobile header (below lg) ----------
-          Same dark-navy banner treatment as desktop, scaled down —
-          this is what's in the "System Dashboard" screenshot: a solid
-          navy card with the Shield badge, "SUPER ADMIN" eyebrow, title
-          and quick actions, instead of sitting directly on the white
-          page background like HR Admin's mobile header does. ---------- */}
-      <div className="lg:hidden mb-4">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0B1830] via-[#0F2242] to-[#16305A] px-4 pt-4 pb-4 mb-3 shadow-lg shadow-[#0B1830]/20">
-          <div className="pointer-events-none absolute -top-14 -right-10 w-40 h-40 rounded-full bg-orange-500/20 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-16 left-1/4 w-48 h-48 rounded-full bg-sky-500/10 blur-3xl" />
-
-          <div className="relative flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
-                <ShieldCheck size={17} className="text-orange-400" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider">
-                  Super Admin
-                </p>
-                <h1 className="text-xl font-bold text-white leading-tight truncate">
-                  System Dashboard
-                </h1>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {/* <button
-                type="button"
-                onClick={openAddUser}
-                title="Create User"
-                aria-label="Create User"
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-orange-500 text-white flex items-center justify-center transition-colors shrink-0 border border-white/10"
-              >
-                <UserPlus size={15} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setAddSiteOpen(true)}
-                title="Create Site"
-                aria-label="Create Site"
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-orange-500 text-white flex items-center justify-center transition-colors shrink-0 border border-white/10"
-              >
-                <Building2 size={15} />
-              </button> */}
-            </div>
-          </div>
-          <div className="relative flex items-center justify-between gap-2 mt-2">
-            <p className="text-xs text-slate-300/80"></p>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Clock size={12} className="text-orange-400 shrink-0" />
-              <p className="text-[11px] font-medium text-slate-200 whitespace-nowrap tabular-nums">
-                {headerDateLabel} · {headerTimeLabel}
-              </p>
-            </div>
-          </div>
-        </div>
-        {/* <QuoteOfDayCard compact /> */}
-      </div>
+      {/* Mobile header removed -- the mobile dashboard starts directly
+          with the stat cards below. */}
 
       {/* =================================================================
           MOBILE-ONLY DASHBOARD (below lg)
@@ -855,7 +818,7 @@ export default function SuperAdminDashboard() {
         {/* ---------- Stat carousel: compact light-orange cards, ~2.3 visible at a time ---------- */}
         <div
           onScroll={handleStatScroll}
-          className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory no-scrollbar -mx-4 px-4 pb-1 mb-2"
+          className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory scroll-px-4 no-scrollbar -mx-4 px-4 pb-1 mb-2"
         >
           {statItems.map(({ key, icon: Icon, label, value }) => (
             <div
@@ -892,11 +855,10 @@ export default function SuperAdminDashboard() {
         </div>
 
         {/* ---------- Segmented tab switcher ---------- */}
-        <div className="grid grid-cols-3 gap-1 bg-slate-100 rounded-full p-1 mb-4">
+        <div className="grid grid-cols-2 gap-1 bg-slate-100 rounded-full p-1 mb-4">
           {[
             { key: "overview", label: "Overview", icon: LayoutGrid },
             { key: "activity", label: "Activity", icon: Activity },
-            { key: "team", label: "Team", icon: Users2 },
           ].map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -953,16 +915,112 @@ export default function SuperAdminDashboard() {
                 Today
               </h2>
             </div>
-            <div className="flex gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory no-scrollbar -mx-4 px-4">
-              <div className="snap-start shrink-0 w-[86%] h-48">
-                <OnLeaveTodayCard />
-              </div>
-              <div className="snap-start shrink-0 w-[86%] h-48">
-                <BirthdaysCard />
-              </div>
-              <div className="snap-start shrink-0 w-[86%] h-48">
-                <HolidaysCalendarCard />
-              </div>
+            <div className="flex gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory scroll-px-4 no-scrollbar -mx-4 px-4 [&_ul]:[touch-action:pan-x_pan-y]">
+              {todayCards.map(({ key }) => (
+                <div key={key} className="snap-start shrink-0 w-[86%] h-48">
+                  {key === "announcements" && (
+                    <div className="bg-white rounded-xl border border-slate-200 p-5 h-full flex flex-col">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                          <Megaphone size={17} className="text-orange-500" />
+                          Announcements
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={openAnnounce}
+                          title="Create announcement"
+                          aria-label="Create announcement"
+                          className="w-7 h-7 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center shrink-0"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                      {announcements.length === 0 ? (
+                        <p className="text-sm text-slate-400">
+                          No announcements yet.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2 overflow-y-auto min-h-0 flex-1 no-scrollbar">
+                          {[...announcements]
+                            .sort((a, b) => {
+                              const aExp = isAnnouncementExpired(a);
+                              const bExp = isAnnouncementExpired(b);
+                              if (aExp !== bExp) return aExp ? 1 : -1;
+                              return (b.end_date || "").localeCompare(
+                                a.end_date || "",
+                              );
+                            })
+                            .map((a) => {
+                              const expired = isAnnouncementExpired(a);
+                              return (
+                                <li
+                                  key={a.id}
+                                  className={
+                                    "relative rounded-lg p-2.5 pr-16 border " +
+                                    (expired
+                                      ? "bg-slate-50 border-slate-200 opacity-60"
+                                      : "bg-orange-50 border-orange-100")
+                                  }
+                                >
+                                  <div className="flex items-center gap-1.5">
+                                    <p
+                                      className={
+                                        "text-sm font-medium truncate " +
+                                        (expired
+                                          ? "text-slate-500"
+                                          : "text-slate-800")
+                                      }
+                                    >
+                                      {a.title}
+                                    </p>
+                                    {expired && (
+                                      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
+                                        Expired
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs mt-0.5 text-slate-500 line-clamp-2">
+                                    {a.description}
+                                  </p>
+                                  <div className="absolute top-2 right-2 flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditAnnounce(a)}
+                                      title="Edit announcement"
+                                      aria-label="Edit announcement"
+                                      className="w-6 h-6 rounded-md bg-white border border-orange-200 text-orange-500 flex items-center justify-center shrink-0"
+                                    >
+                                      <Pencil size={11} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteAnnounceItem(a)}
+                                      disabled={deletingAnnounceId === a.id}
+                                      title="Delete announcement"
+                                      aria-label="Delete announcement"
+                                      className="w-6 h-6 rounded-md bg-white border border-red-200 text-red-500 flex items-center justify-center shrink-0 disabled:opacity-50"
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  {key === "onleave" && (
+                    <OnLeaveTodayCard onCount={reportCount("onleave")} />
+                  )}
+                  {key === "birthdays" && (
+                    <BirthdaysCard onCount={reportCount("birthdays")} />
+                  )}
+                  {key === "holidays" && (
+                    <HolidaysCalendarCard onCount={reportCount("holidays")} />
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -1052,59 +1110,6 @@ export default function SuperAdminDashboard() {
                   );
                 })}
               </ul>
-            )}
-          </div>
-        )}
-
-        {/* ---------- Team tab: Announcements management ----------
-            On Leave Today and Birthdays used to live here too, as tap
-            tiles behind a bottom sheet — they now render as real,
-            always-visible cards on the Overview tab instead (see
-            above), since "who's out" / "who's celebrating" is info
-            people should see at a glance, not have to tap into. Only
-            Announcements stays as a tap-through tile here, since
-            creating/editing/deleting needs the extra room a sheet
-            gives it. ---------- */}
-        {mobileTab === "team" && (
-          <div
-            className={`grid gap-3 mb-6 ${commandTiles.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
-          >
-            {commandTiles.map(
-              ({
-                key,
-                label,
-                icon: Icon,
-                bg,
-                iconFg,
-                labelFg,
-                previewFg,
-                preview,
-                badge,
-              }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setOpenSheet(key)}
-                  className={`text-left rounded-2xl ${bg} p-4 active:scale-[0.97] transition-transform`}
-                >
-                  <div className="flex items-center justify-between mb-2.5">
-                    <span
-                      className={`w-9 h-9 rounded-xl bg-white flex items-center justify-center ${iconFg}`}
-                    >
-                      <Icon size={17} />
-                    </span>
-                    {badge ? (
-                      <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                        {badge}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className={`text-xs font-semibold ${labelFg}`}>{label}</p>
-                  <p className={`text-[11px] mt-0.5 line-clamp-1 ${previewFg}`}>
-                    {preview}
-                  </p>
-                </button>
-              ),
             )}
           </div>
         )}

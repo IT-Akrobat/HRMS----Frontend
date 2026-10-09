@@ -47,7 +47,7 @@ function Avatar({ person }) {
 
 // "Who's out today" — backed by GET /dashboard/on-leave-today (see
 // app/dashboard/services.py -> get_on_leave_today).
-export function OnLeaveTodayCard() {
+export function OnLeaveTodayCard({ onCount } = {}) {
   const [data, setData] = useState(null);
 
   useEffect(() => {
@@ -58,6 +58,13 @@ export function OnLeaveTodayCard() {
   }, []);
 
   const employees = data?.employees || [];
+
+  // Optional: tell the parent how many rows this card has (used by the
+  // mobile "Today" strip to put cards with content first).
+  useEffect(() => {
+    if (data) onCount?.(employees.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 h-full flex flex-col">
@@ -143,7 +150,7 @@ function CelebrationRow({ person, icon, sublabel }) {
 // Birthdays + work anniversaries, next 30 days — backed by
 // GET /dashboard/celebrations (see app/dashboard/services.py ->
 // get_celebrations).
-export default function BirthdaysCard() {
+export default function BirthdaysCard({ onCount } = {}) {
   const [data, setData] = useState(null);
 
   useEffect(() => {
@@ -156,6 +163,12 @@ export default function BirthdaysCard() {
   const birthdays = data?.birthdays || [];
   const anniversaries = data?.anniversaries || [];
   const items = [...birthdays, ...anniversaries];
+
+  // Optional: report the row count to the parent (see OnLeaveTodayCard).
+  useEffect(() => {
+    if (data) onCount?.(items.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 h-full flex flex-col">

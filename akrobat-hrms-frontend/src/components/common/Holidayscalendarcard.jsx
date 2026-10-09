@@ -174,7 +174,7 @@ function actualDateNote(h) {
   return `Observed — falls on ${short}`;
 }
 
-export default function HolidaysCalendarCard() {
+export default function HolidaysCalendarCard({ onCount } = {}) {
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
   // Only exists to force a re-render so `today` below is recalculated.
@@ -226,6 +226,12 @@ export default function HolidaysCalendarCard() {
       .filter((h) => h.holiday_date >= today)
       .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)),
   );
+
+  // Optional: report the row count to the parent (see OnLeaveTodayCard).
+  useEffect(() => {
+    if (!loading) onCount?.(list.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, list.length]);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 h-full flex flex-col">
