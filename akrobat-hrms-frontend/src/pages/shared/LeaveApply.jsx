@@ -270,10 +270,44 @@ export default function LeaveApply() {
       .flatMap((l) => expandDateRange(l.start_date, l.end_date));
   }, [allLeaves]);
 
-  // A half-day request is a single date counted as 0.5 day.
-  const totalDays = useMemo(() => {
-    const days = toDays(form.from_date, form.to_date);
-    return form.half_day && days === 1 ? 0.5 : days;
+  // Working days for the chosen range, calculated by the server so the
+  // number shown is exactly what gets deducted: Sundays and public
+  // holidays are skipped, and Saturdays count 0 / 0.5 / 1 depending on
+  // this employee's own Saturday schedule.
+  const [totalDays, setTotalDays] = useState(null);
+  const [daysError, setDaysError] = useState("");
+
+  useEffect(() => {
+    if (
+      !form.from_date ||
+      !form.to_date ||
+      toDays(form.from_date, form.to_date) === null
+    ) {
+      setTotalDays(null);
+      setDaysError("");
+      return undefined;
+    }
+    let cancelled = false;
+    const qs = new URLSearchParams({
+      from_date: form.from_date,
+      to_date: form.to_date,
+      half_day: String(!!form.half_day && form.from_date === form.to_date),
+    });
+    apiClient
+      .get(`/leaves/preview-days?${qs.toString()}`)
+      .then((res) => {
+        if (cancelled) return;
+        setTotalDays(res.data?.total_days ?? null);
+        setDaysError("");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setTotalDays(null);
+        setDaysError(err?.message || "Unable to calculate leave days.");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [form.from_date, form.to_date, form.half_day]);
 
   const canHalfDay = !!form.from_date && form.from_date === form.to_date;
@@ -560,6 +594,9 @@ export default function LeaveApply() {
                       />
                       Half day (0.5 day)
                     </label>
+                  )}
+                  {daysError && (
+                    <p className="mt-2 text-xs text-red-500">{daysError}</p>
                   )}
                   {totalDays !== null && (
                     <div className="mt-2 inline-flex items-center gap-2 bg-orange-50 text-orange-700 text-xs font-medium rounded-lg px-3 py-1.5">
@@ -892,6 +929,9 @@ export default function LeaveApply() {
                   />
                   Half day (0.5 day)
                 </label>
+              )}
+              {daysError && (
+                <p className="mt-2 text-xs text-red-500">{daysError}</p>
               )}
               {totalDays !== null && (
                 <div className="mt-3 inline-flex items-center gap-2 bg-orange-50 text-orange-700 text-xs font-medium rounded-lg px-3 py-1.5">
