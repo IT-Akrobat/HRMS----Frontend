@@ -1,12 +1,9 @@
 import {
   CalendarDays,
-  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
-  Loader2,
-  X,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -15,7 +12,6 @@ import CreateLeaveTypeButton from "../../components/common/CreateLeaveTypeButton
 import HrManagedLeaveForm from "../../components/common/HrManagedLeaveForm";
 import McCertificate from "../../components/common/McCertificate";
 import McValidationQueue from "../../components/common/McValidationQueue";
-import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
 import SearchInput from "../../components/common/SearchInput";
 import { apiClient } from "../../services/apiClient";
@@ -25,9 +21,8 @@ import { apiClient } from "../../services/apiClient";
 //   GET /leaves/?page&limit&status  (requires VIEW_LEAVE_REQUESTS, which
 //     SUPER ADMIN always has) -> { success: true, data: { records, total,
 //     page, limit } }
-//   PUT /leaves/{id} { status, comments } -> approve/reject. Gated at the
-//     route to SUPER ADMIN only (see app/leaves/routes.py) — company
-//     policy is that no other role can approve or reject leave.
+// VIEW ONLY: Super Admin sees every request but does not approve/reject.
+// The employee's reporting manager decides (Team Leave Requests page).
 // ---------------------------------------------------------------------
 
 const STATUS_STYLES = {
@@ -80,10 +75,31 @@ export default function LeaveRequests() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("Pending");
   const [search, setSearch] = useState("");
-  const [actingOn, setActingOn] = useState(null);
-  const [rejectTarget, setRejectTarget] = useState(null);
-  const [rejectComment, setRejectComment] = useState("");
-  const [error, setError] = useState("");
+  // Leaves THIS logged-in Super Admin is the assigned reporting manager for
+  // (from GET /leaves/team -> can_decide). Only those get Approve / Reject.
+  const [decidableIds, setDecidableIds] = useState(() => new Set());
+  const [actingId, setActingId] = useState(null);
+  const [actionError, setActionError] = useState("");
+
+  async function decide(leave, nextStatus) {
+    let comments;
+    if (nextStatus === "Rejected") {
+      comments = window.prompt("Reason for rejecting (optional):") ?? undefined;
+    }
+    setActingId(leave.id);
+    setActionError("");
+    try {
+      await apiClient.put(`/leaves/${leave.id}`, {
+        status: nextStatus,
+        comments,
+      });
+      load();
+    } catch (e) {
+      setActionError(e.message || "Unable to update this request.");
+    } finally {
+      setActingId(null);
+    }
+  }
 
   function load() {
     setRecords(null);
@@ -103,6 +119,20 @@ export default function LeaveRequests() {
         setRecords([]);
         setTotal(0);
       });
+
+    apiClient
+      .get("/leaves/team")
+      .then((res) => {
+        const rows = Array.isArray(res?.data) ? res.data : [];
+        setDecidableIds(
+          new Set(
+            rows
+              .filter((r) => r.can_decide && r.status === "Pending")
+              .map((r) => r.id),
+          ),
+        );
+      })
+      .catch(() => setDecidableIds(new Set()));
   }
 
   useEffect(load, [page, status]);
@@ -120,49 +150,13 @@ export default function LeaveRequests() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  async function approve(leave) {
-    setError("");
-    setActingOn(leave.id);
-    try {
-      await apiClient.put(`/leaves/${leave.id}`, { status: "Approved" });
-      load();
-    } catch (err) {
-      setError(err.message || "Unable to approve this request.");
-    } finally {
-      setActingOn(null);
-    }
-  }
-
-  function openReject(leave) {
-    setRejectTarget(leave);
-    setRejectComment("");
-  }
-
-  async function confirmReject() {
-    if (!rejectTarget) return;
-    setError("");
-    setActingOn(rejectTarget.id);
-    try {
-      await apiClient.put(`/leaves/${rejectTarget.id}`, {
-        status: "Rejected",
-        comments: rejectComment.trim() || undefined,
-      });
-      setRejectTarget(null);
-      load();
-    } catch (err) {
-      setError(err.message || "Unable to reject this request.");
-    } finally {
-      setActingOn(null);
-    }
-  }
-
   return (
     <div>
       {/* Desktop: title + description on the left, button at the right. */}
       <div className="hidden sm:block">
         <PageHeader
           title="Leave Requests"
-          subtitle="Company-wide leave requests. You can approve or reject any request; leave managers handle their own team's."
+          subtitle="Company-wide leave requests. Each employee's reporting manager approves or rejects their leave (you can decide only the ones where you are the reporting manager)."
           actions={
             <>
               <CreateLeaveTypeButton />
@@ -184,12 +178,6 @@ export default function LeaveRequests() {
       </div>
 
       <McValidationQueue onChanged={load} />
-
-      {error && (
-        <div className="mb-4 text-sm text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-4 py-2.5">
-          {error}
-        </div>
-      )}
 
       <div className="bg-white rounded-xl border border-slate-200">
         {/* Tabs + search */}
@@ -245,85 +233,87 @@ export default function LeaveRequests() {
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-slate-100">
-            {filtered.map((leave) => {
-              const st = statusStyle(leave.status);
-              const StatusIcon = st.icon;
-              const isPending = leave.status === "Pending";
-              const isActing = actingOn === leave.id;
+          <>
+            {actionError && (
+              <p className="px-5 py-2 text-xs text-red-600 bg-red-50">
+                {actionError}
+              </p>
+            )}
+            <ul className="divide-y divide-slate-100">
+              {filtered.map((leave) => {
+                const st = statusStyle(leave.status);
+                const StatusIcon = st.icon;
+                const isPending = leave.status === "Pending";
 
-              return (
-                <li
-                  key={leave.id}
-                  className="flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-4"
-                >
-                  <div className="flex items-center gap-3 sm:w-48 shrink-0">
-                    <Avatar
-                      name={leave.employees?.full_name}
-                      photo={leave.employees?.profile_photo}
-                    />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-800 truncate">
-                        {leave.employees?.full_name || "—"}
-                      </p>
-                      <p className="text-xs text-slate-400 truncate">
-                        {leave.employees?.employee_id}
-                      </p>
+                return (
+                  <li
+                    key={leave.id}
+                    className="flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-4"
+                  >
+                    <div className="flex items-center gap-3 sm:w-48 shrink-0">
+                      <Avatar
+                        name={leave.employees?.full_name}
+                        photo={leave.employees?.profile_photo}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">
+                          {leave.employees?.full_name || "—"}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate">
+                          {leave.employees?.employee_id}
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-700">
-                      {leave.leave_types?.leave_name || "Leave"}{" "}
-                      <span className="text-slate-400 font-normal">
-                        · {leave.total_days}{" "}
-                        {leave.total_days === 1 ? "day" : "days"}
-                      </span>
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      {formatShort(leave.start_date)} →{" "}
-                      {formatShort(leave.end_date)}
-                    </p>
-                    <McCertificate leave={leave} mode="hr" onChanged={load} />
-                  </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-700">
+                        {leave.leave_types?.leave_name || "Leave"}{" "}
+                        <span className="text-slate-400 font-normal">
+                          · {leave.total_days}{" "}
+                          {leave.total_days === 1 ? "day" : "days"}
+                        </span>
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {formatShort(leave.start_date)} →{" "}
+                        {formatShort(leave.end_date)}
+                      </p>
+                      <McCertificate leave={leave} mode="hr" onChanged={load} />
+                    </div>
 
-                  <div className="flex items-center justify-end gap-2 sm:w-56 shrink-0">
-                    {isPending ? (
-                      <>
-                        <button
-                          onClick={() => approve(leave)}
-                          disabled={isActing}
-                          className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors"
+                    <div className="flex items-center justify-end gap-2 sm:w-56 shrink-0">
+                      {isPending && decidableIds.has(leave.id) ? (
+                        <>
+                          <button
+                            onClick={() => decide(leave, "Approved")}
+                            disabled={actingId === leave.id}
+                            className="px-3.5 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => decide(leave, "Rejected")}
+                            disabled={actingId === leave.id}
+                            className="px-3.5 py-1.5 text-xs font-medium text-orange-600 border border-orange-200 hover:bg-orange-50 disabled:opacity-50 rounded-lg"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      ) : (
+                        <span
+                          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${st.bg} ${st.text}`}
                         >
-                          {isActing ? (
-                            <Loader2 size={13} className="animate-spin" />
-                          ) : (
-                            <Check size={13} />
-                          )}
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => openReject(leave)}
-                          disabled={isActing}
-                          className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-orange-600 border border-orange-200 hover:bg-orange-50 disabled:opacity-50 rounded-lg transition-colors"
-                        >
-                          <X size={13} />
-                          Reject
-                        </button>
-                      </>
-                    ) : (
-                      <span
-                        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${st.bg} ${st.text}`}
-                      >
-                        <StatusIcon size={13} />
-                        {leave.status}
-                      </span>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                          <StatusIcon size={13} />
+                          {isPending
+                            ? "Awaiting reporting manager"
+                            : leave.status}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
 
         {/* Pagination */}
@@ -351,50 +341,6 @@ export default function LeaveRequests() {
           </div>
         )}
       </div>
-
-      {/* Reject reason modal */}
-      <Modal
-        open={!!rejectTarget}
-        onClose={() => setRejectTarget(null)}
-        title="Reject Leave Request"
-        subtitle={
-          rejectTarget
-            ? `${rejectTarget.employees?.full_name} · ${rejectTarget.leave_types?.leave_name}`
-            : ""
-        }
-        footer={
-          <>
-            <button
-              onClick={() => setRejectTarget(null)}
-              className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={confirmReject}
-              disabled={actingOn === rejectTarget?.id}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 rounded-lg"
-            >
-              {actingOn === rejectTarget?.id && (
-                <Loader2 size={14} className="animate-spin" />
-              )}
-              Confirm Reject
-            </button>
-          </>
-        }
-      >
-        <label className="block text-xs font-medium text-slate-500 mb-1.5">
-          Reason for rejection (optional — shared with the employee)
-        </label>
-        <textarea
-          rows={3}
-          maxLength={300}
-          value={rejectComment}
-          onChange={(e) => setRejectComment(e.target.value)}
-          placeholder="e.g. Team is short-staffed that week, please pick alternate dates."
-          className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
-        />
-      </Modal>
     </div>
   );
 }

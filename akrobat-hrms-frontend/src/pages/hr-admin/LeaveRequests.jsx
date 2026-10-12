@@ -124,7 +124,7 @@ export default function LeaveRequests() {
       <div className="hidden sm:block">
         <PageHeader
           title="Leave Requests"
-          subtitle="Company-wide leave visibility. Each leave is approved by the employee's leave manager (or Super Admin)."
+          subtitle="Company-wide leave visibility (view only). Each leave is approved by the employee's reporting manager."
           actions={
             <>
               <CreateLeaveTypeButton />

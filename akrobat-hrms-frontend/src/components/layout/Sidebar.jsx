@@ -4,6 +4,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ClipboardCheck,
   User,
   X,
 } from "lucide-react";
@@ -14,7 +15,12 @@ import {
   NAVIGATION_CONFIG,
   SELF_NAVIGATION_BY_ROLE,
 } from "../../config/navigationConfig";
-import { isSelfSpacePath, SELF_SPACE_BY_ROLE } from "../../config/roles";
+import {
+  isSelfSpacePath,
+  ROLE_BASE_PATH,
+  ROLES,
+  SELF_SPACE_BY_ROLE,
+} from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
 import { isFieldEmployee } from "../../utils/employeeType";
 import { isSiteEmployee } from "../../utils/workingLocation";
@@ -48,6 +54,7 @@ export default function Sidebar({
   // Items flagged `hideForSite` (the Attendance tab) are hidden for
   // employees whose Working Location is exactly "Site".
   const siteEmployee = isSiteEmployee(user);
+  const isReportingManager = !!user?.profile?.is_reporting_manager;
   // Memoised so `items` keeps a stable identity between renders. Previously
   // it was rebuilt on every render, which re-triggered the effect below each
   // time a group was clicked and snapped the menu back to the active group.
@@ -62,13 +69,50 @@ export default function Sidebar({
           item.children
             ? {
                 ...item,
-                children: item.children.filter(
-                  (c) => !c.fieldOnly || showFieldOnly,
-                ),
+                children: [
+                  ...item.children.filter((c) => !c.fieldOnly || showFieldOnly),
+                  // Employee-role person who is somebody's reporting manager:
+                  // put "Team Leave Requests" right inside their Leave group.
+                  ...(role === ROLES.EMPLOYEE &&
+                  isReportingManager &&
+                  item.label === "Leave"
+                    ? [
+                        {
+                          label: "Team Leave Requests",
+                          path: `${ROLE_BASE_PATH[role]}/team-leave-requests`,
+                        },
+                      ]
+                    : []),
+                ],
               }
             : item,
+        )
+        // Anyone who is somebody's reporting manager approves their leave,
+        // whatever their role. Managers already have "Team Leave Requests"
+        // in their Company menu, so they don't get a second copy there.
+        .concat(
+          isReportingManager &&
+            role !== ROLES.EMPLOYEE && // Employees get it inside the Leave group above
+            !(role === ROLES.MANAGER && !inMySpace)
+            ? [
+                {
+                  label: "Team Leave Requests",
+                  icon: ClipboardCheck,
+                  path: inMySpace
+                    ? `${selfSpace.base}/team-leave-requests`
+                    : `${ROLE_BASE_PATH[role]}/team-leave-requests`,
+                },
+              ]
+            : [],
         ),
-    [role, inMySpace, showFieldOnly, siteEmployee],
+    [
+      role,
+      inMySpace,
+      showFieldOnly,
+      siteEmployee,
+      isReportingManager,
+      selfSpace,
+    ],
   );
 
   const [openGroups, setOpenGroups] = useState(() => {

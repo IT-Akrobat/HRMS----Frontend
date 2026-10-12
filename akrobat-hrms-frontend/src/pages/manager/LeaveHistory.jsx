@@ -304,7 +304,7 @@ export default function LeaveHistory() {
     <div>
       <PageHeader
         title="Team Leave History"
-        subtitle="Browse leave history by team member. Approval is handled by Super Admin — this is a read-only history view."
+        subtitle="Browse leave history by team member — this is a read-only history view."
         actions={
           <button
             onClick={() => exportCsv(leaves || [])}

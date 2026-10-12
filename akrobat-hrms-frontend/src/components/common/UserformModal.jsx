@@ -79,9 +79,17 @@ export function FilterDropdown({
   onChange,
   fullWidth = false,
   showAllOption = true,
+  searchable = false,
+  searchOptions = null, // optional bigger pool, used ONLY while the user is typing
+  labelOptions = null, // optional full list, only used to show the selected value's label
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
 
   useEffect(() => {
     function onDocClick(e) {
@@ -91,7 +99,9 @@ export function FilterDropdown({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
-  const selected = options.find((o) => getKey(o) === value);
+  const selected = (labelOptions || searchOptions || options).find(
+    (o) => getKey(o) === value,
+  );
 
   return (
     <div className="relative" ref={ref}>
@@ -120,6 +130,22 @@ export function FilterDropdown({
         // screens. sm:min-w-[200px] keeps the old behavior for the
         // narrower fixed-width (non-fullWidth) selects on desktop.
         <div className="absolute z-20 mt-1 w-full sm:min-w-[200px] rounded-lg border border-slate-200 bg-white shadow-lg">
+          {searchable && (
+            <div className="p-2 border-b border-slate-100">
+              <input
+                autoFocus
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={
+                  searchOptions
+                    ? "Search all employees..."
+                    : "Search name or ID..."
+                }
+                className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100"
+              />
+            </div>
+          )}
           <div className="max-h-56 overflow-y-auto py-1 scrollbar-hide">
             {showAllOption && (
               <button
@@ -135,7 +161,14 @@ export function FilterDropdown({
                 {allLabel}
               </button>
             )}
-            {options.map((o) => (
+            {(searchable && query.trim()
+              ? (searchOptions || options).filter((o) =>
+                  getLabel(o)
+                    .toLowerCase()
+                    .includes(query.trim().toLowerCase()),
+                )
+              : options
+            ).map((o) => (
               <button
                 type="button"
                 key={getKey(o)}
@@ -389,6 +422,13 @@ export const COUNTRIES = [
 // only managerial/admin-type roles belong there (see managerCandidates
 // below). Matches the role_name values seeded in sql/001_schema.sql.
 const NON_MANAGER_ROLES = ["EMPLOYEE", "VIEWER"];
+// Employee-role people are hidden from the default Reporting Manager list
+// but still found (and selectable) when you type in the search box.
+const NEVER_MANAGER_ROLES = ["VIEWER"];
+// HR roles (HR ADMIN, HR EXECUTIVE, ...) are never offered as a Reporting
+// Manager -- neither in the default list nor in search.
+const isHrRole = (roleName) =>
+  (roleName || "").trim().toUpperCase().startsWith("HR");
 
 // ==========================================================================
 // Add / Edit modal
@@ -568,7 +608,22 @@ export default function UserFormModal({
       users.filter(
         (u) =>
           u.id !== user?.id &&
+          !isHrRole(u.role_name) &&
           !NON_MANAGER_ROLES.includes((u.role_name || "").trim().toUpperCase()),
+      ),
+    [users, user?.id],
+  );
+
+  // Bigger pool used only while searching: everyone except VIEWER accounts.
+  const managerSearchPool = useMemo(
+    () =>
+      users.filter(
+        (u) =>
+          u.id !== user?.id &&
+          !isHrRole(u.role_name) &&
+          !NEVER_MANAGER_ROLES.includes(
+            (u.role_name || "").trim().toUpperCase(),
+          ),
       ),
     [users, user?.id],
   );
@@ -1227,6 +1282,9 @@ export default function UserFormModal({
                 <FilterDropdown
                   fullWidth
                   allLabel="None"
+                  searchable
+                  searchOptions={managerSearchPool}
+                  labelOptions={users}
                   value={form.manager_id}
                   onChange={(v) => set("manager_id", v)}
                   options={managerCandidates}
@@ -1339,6 +1397,9 @@ export default function UserFormModal({
                 <FilterDropdown
                   fullWidth
                   allLabel="None"
+                  searchable
+                  searchOptions={managerSearchPool}
+                  labelOptions={users}
                   value={form.leave_manager_id}
                   onChange={(v) => set("leave_manager_id", v)}
                   options={managerCandidates}
