@@ -7,11 +7,11 @@ import { apiClient } from "../services/apiClient";
 // real names/dates on a tile WITHOUT mounting the cards themselves -- on
 // mobile the cards live inside closed sheets / accordions.
 //
-// Returns { onleave, birthdays, holidays, details }.
+// Returns { onleave, birthdays, anniversaries, holidays, details }.
 //   - the three counts are null until their request finishes
 //   - details.onleave   -> [{ full_name, ... }]
-//   - details.birthdays -> [{ full_name, days_away, ... }] (birthdays first,
-//                          then anniversaries, same order as the card)
+//   - details.birthdays -> [{ full_name, days_away, ... }] upcoming birthdays
+//   - details.anniversaries -> [{ full_name, days_away, years, ... }]
 //   - details.holidays  -> [{ holiday_name, holiday_date, ... }] upcoming
 //
 // Announcements are not fetched here: every dashboard already has them
@@ -20,8 +20,9 @@ export default function useOfficeFeedCounts() {
   const [state, setState] = useState({
     onleave: null,
     birthdays: null,
+    anniversaries: null,
     holidays: null,
-    details: { onleave: [], birthdays: [], holidays: [] },
+    details: { onleave: [], birthdays: [], anniversaries: [], holidays: [] },
   });
 
   useEffect(() => {
@@ -42,13 +43,14 @@ export default function useOfficeFeedCounts() {
         .catch(() => set("onleave", []));
       apiClient
         .get("/dashboard/celebrations?days=30")
-        .then((res) =>
-          set("birthdays", [
-            ...(res?.birthdays || []),
-            ...(res?.anniversaries || []),
-          ]),
-        )
-        .catch(() => set("birthdays", []));
+        .then((res) => {
+          set("birthdays", res?.birthdays || []);
+          set("anniversaries", res?.anniversaries || []);
+        })
+        .catch(() => {
+          set("birthdays", []);
+          set("anniversaries", []);
+        });
       apiClient
         .get("/holidays/")
         .then((res) => set("holidays", getUpcomingHolidays(res?.data)))

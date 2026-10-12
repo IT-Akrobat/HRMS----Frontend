@@ -10,6 +10,7 @@ import {
   MapPin,
   Megaphone,
   MoreHorizontal,
+  PartyPopper,
   PlaneTakeoff,
   Settings,
   User,
@@ -19,6 +20,7 @@ import {
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import BirthdaysCard, {
+  AnniversariesCard,
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
@@ -377,6 +379,22 @@ export default function EmployeeDashboard() {
         badge: feedCounts.birthdays || null,
       },
       {
+        key: "anniversaries",
+        label: "Anniversaries",
+        icon: PartyPopper,
+        accent: "from-purple-50 to-white border-purple-100 text-purple-500",
+        preview: "No work anniversaries in the next 30 days",
+        primary: details.anniversaries[0]?.full_name,
+        avatar: initialsOf(details.anniversaries[0]?.full_name),
+        secondary: details.anniversaries[0]
+          ? moreLabel(
+              details.anniversaries,
+              `${details.anniversaries[0].years} yr · ${daysAwayLabel(details.anniversaries[0].days_away)}`,
+            )
+          : null,
+        badge: feedCounts.anniversaries || null,
+      },
+      {
         key: "holidays",
         label: "Holidays",
         icon: CalendarDays,
@@ -416,6 +434,7 @@ export default function EmployeeDashboard() {
   const sheetTitles = {
     announcements: "Announcements",
     birthdays: "Upcoming Birthdays",
+    anniversaries: "Work Anniversaries",
     holidays: "Upcoming Holidays",
     onleave: "On Leave Today",
     recentleave: "Applied Leave Requests",
@@ -715,6 +734,12 @@ export default function EmployeeDashboard() {
               </div>
             )}
 
+            {openSheet === "anniversaries" && (
+              <div className="h-72">
+                <AnniversariesCard />
+              </div>
+            )}
+
             {openSheet === "holidays" && (
               <div className="h-72">
                 <HolidaysCalendarCard />
@@ -920,6 +945,14 @@ export default function EmployeeDashboard() {
                 node: (
                   <div className="h-60 sm:h-72">
                     <BirthdaysCard />
+                  </div>
+                ),
+              },
+              {
+                key: "anniversaries",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <AnniversariesCard />
                   </div>
                 ),
               },

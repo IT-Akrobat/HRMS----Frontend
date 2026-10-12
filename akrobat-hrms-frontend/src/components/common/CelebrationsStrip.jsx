@@ -7,8 +7,8 @@ import { apiClient } from "../../services/apiClient";
 // chip strip. Meant to sit side by side in a
 // `grid grid-cols-1 lg:grid-cols-2 gap-6` row, OnLeaveTodayCard first:
 //   OnLeaveTodayCard   — GET /dashboard/on-leave-today
-//   BirthdaysCard      — GET /dashboard/celebrations (birthdays +
-//                         work anniversaries, next 30 days)
+//   BirthdaysCard      — GET /dashboard/celebrations (birthdays, next 30 days)
+//   AnniversariesCard  — same endpoint (work anniversaries, next 30 days)
 
 function initials(name) {
   if (!name) return "?";
@@ -147,10 +147,18 @@ function CelebrationRow({ person, icon, sublabel }) {
   );
 }
 
-// Birthdays + work anniversaries, next 30 days — backed by
+// Shared shell for the two celebration cards below. Both read the same
 // GET /dashboard/celebrations (see app/dashboard/services.py ->
-// get_celebrations).
-export default function BirthdaysCard({ onCount } = {}) {
+// get_celebrations); each card shows only its own list.
+function CelebrationsListCard({
+  kind, // "birthdays" | "anniversaries"
+  title,
+  icon,
+  emptyText,
+  rowIcon,
+  sublabelOf,
+  onCount,
+}) {
   const [data, setData] = useState(null);
 
   useEffect(() => {
@@ -160,9 +168,7 @@ export default function BirthdaysCard({ onCount } = {}) {
       .catch(() => setData({ birthdays: [], anniversaries: [] }));
   }, []);
 
-  const birthdays = data?.birthdays || [];
-  const anniversaries = data?.anniversaries || [];
-  const items = [...birthdays, ...anniversaries];
+  const items = data?.[kind] || [];
 
   // Optional: report the row count to the parent (see OnLeaveTodayCard).
   useEffect(() => {
@@ -174,8 +180,13 @@ export default function BirthdaysCard({ onCount } = {}) {
     <div className="bg-white rounded-xl border border-slate-200 p-5 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-          <Cake size={17} className="text-pink-500" /> Upcoming Birthdays
+          {icon} {title}
         </h3>
+        {data && items.length > 0 && (
+          <span className="text-xs text-slate-400 shrink-0">
+            {items.length} {items.length === 1 ? "person" : "people"}
+          </span>
+        )}
       </div>
 
       {!data ? (
@@ -188,30 +199,49 @@ export default function BirthdaysCard({ onCount } = {}) {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <p className="text-sm text-slate-400">
-          No birthdays or anniversaries in the next 30 days.
-        </p>
+        <p className="text-sm text-slate-400">{emptyText}</p>
       ) : (
         <ul className="divide-y divide-slate-100 overflow-y-auto overscroll-y-auto min-h-0 flex-1 max-h-64 touch-pan-y">
-          {birthdays.map((p) => (
+          {items.map((p) => (
             <CelebrationRow
-              key={`bday-${p.employee_id}`}
+              key={`${kind}-${p.employee_id}`}
               person={p}
-              icon={<Cake size={12} className="text-pink-500" />}
-              sublabel="Birthday"
-            />
-          ))}
-
-          {anniversaries.map((p) => (
-            <CelebrationRow
-              key={`anniv-${p.employee_id}`}
-              person={p}
-              icon={<PartyPopper size={12} className="text-purple-500" />}
-              sublabel={`${p.years} yr${p.years === 1 ? "" : "s"} anniversary`}
+              icon={rowIcon}
+              sublabel={sublabelOf(p)}
             />
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+// Upcoming birthdays, next 30 days.
+export default function BirthdaysCard({ onCount } = {}) {
+  return (
+    <CelebrationsListCard
+      kind="birthdays"
+      title="Upcoming Birthdays"
+      icon={<Cake size={17} className="text-pink-500" />}
+      emptyText="No birthdays in the next 30 days."
+      rowIcon={<Cake size={12} className="text-pink-500" />}
+      sublabelOf={() => "Birthday"}
+      onCount={onCount}
+    />
+  );
+}
+
+// Upcoming work (joining-date) anniversaries, next 30 days.
+export function AnniversariesCard({ onCount } = {}) {
+  return (
+    <CelebrationsListCard
+      kind="anniversaries"
+      title="Work Anniversaries"
+      icon={<PartyPopper size={17} className="text-purple-500" />}
+      emptyText="No work anniversaries in the next 30 days."
+      rowIcon={<PartyPopper size={12} className="text-purple-500" />}
+      sublabelOf={(p) => `${p.years} yr${p.years === 1 ? "" : "s"} anniversary`}
+      onCount={onCount}
+    />
   );
 }

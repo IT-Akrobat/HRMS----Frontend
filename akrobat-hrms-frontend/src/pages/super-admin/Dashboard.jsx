@@ -13,6 +13,7 @@ import {
   LogOut,
   MapPin,
   Megaphone,
+  PartyPopper,
   Pencil,
   PlaneTakeoff,
   Plus,
@@ -28,6 +29,7 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import AttendanceTrendChart from "../../components/common/AttendanceTrendChart";
 import BirthdaysCard, {
+  AnniversariesCard,
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 
@@ -774,9 +776,8 @@ export default function SuperAdminDashboard() {
         : shortDate(new Date(Date.now() + n * 86400000));
 
   const activeAnn = announcements.filter((a) => !isAnnouncementExpired(a));
-  const celebItems = celebs
-    ? [...celebs.birthdays, ...celebs.anniversaries]
-    : [];
+  const birthdayItems = celebs?.birthdays || [];
+  const anniversaryItems = celebs?.anniversaries || [];
   const todayIso = toLocalISODate();
   const nextHoliday = (holidayRows || [])
     .filter((h) => h.holiday_date >= todayIso)
@@ -816,9 +817,22 @@ export default function SuperAdminDashboard() {
       tint: "bg-pink-50 text-pink-600",
       badge: "bg-pink-100 text-pink-800",
       loading: celebs === null,
-      count: celebItems.length,
-      preview: celebItems[0]
-        ? `${celebItems[0].full_name} · ${relLabel(celebItems[0].days_away)}`
+      count: birthdayItems.length,
+      preview: birthdayItems[0]
+        ? `${birthdayItems[0].full_name} · ${relLabel(birthdayItems[0].days_away)}`
+        : "",
+      empty: "None",
+    },
+    {
+      key: "anniversaries",
+      label: "Anniversaries",
+      icon: PartyPopper,
+      tint: "bg-purple-50 text-purple-600",
+      badge: "bg-purple-100 text-purple-800",
+      loading: celebs === null,
+      count: anniversaryItems.length,
+      preview: anniversaryItems[0]
+        ? `${anniversaryItems[0].full_name} · ${anniversaryItems[0].years} yr · ${relLabel(anniversaryItems[0].days_away)}`
         : "",
       empty: "None",
     },
@@ -855,6 +869,7 @@ export default function SuperAdminDashboard() {
     onleave: "On Leave Today",
     announcements: "Announcements",
     birthdays: "Upcoming Birthdays",
+    anniversaries: "Work Anniversaries",
     holidays: "Upcoming Holidays",
   };
 
@@ -1536,6 +1551,12 @@ export default function SuperAdminDashboard() {
                 </div>
               )}
 
+              {openSheet === "anniversaries" && (
+                <div className="h-72">
+                  <AnniversariesCard />
+                </div>
+              )}
+
               {openSheet === "holidays" && (
                 <div className="h-72">
                   <HolidaysCalendarCard />
@@ -1862,6 +1883,14 @@ export default function SuperAdminDashboard() {
                 node: (
                   <div className="h-60 sm:h-72">
                     <BirthdaysCard />
+                  </div>
+                ),
+              },
+              {
+                key: "anniversaries",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <AnniversariesCard />
                   </div>
                 ),
               },

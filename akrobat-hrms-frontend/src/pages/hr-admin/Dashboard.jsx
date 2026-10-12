@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Building2,
-  Cake,
   CalendarDays,
   CalendarRange,
   ChevronDown,
@@ -13,8 +12,6 @@ import {
   LogIn,
   LogOut,
   MapPin,
-  Megaphone,
-  PlaneTakeoff,
   Plus,
   Radar,
   ScrollText,
@@ -27,9 +24,6 @@ import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import AttendanceTrendChart from "../../components/common/AttendanceTrendChart";
-import BirthdaysCard, {
-  OnLeaveTodayCard,
-} from "../../components/common/CelebrationsStrip";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import OutdoorCheckinAccessModal from "../../components/common/Outdoorcheckinaccessmodal";
 import PageHeader from "../../components/common/PageHeader";
@@ -226,11 +220,6 @@ function formatTime(value) {
 // An announcement is "expired" once today is past its end_date. Kept
 // visible (greyed out) instead of disappearing, same as Super Admin's
 // dashboard.
-function isAnnouncementExpired(a) {
-  if (!a?.end_date) return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return a.end_date < today;
-}
 
 // Colored-circle icon per activity type: check-in = light green,
 // check-out = dark blue, login = blue, logout = orange.
@@ -318,16 +307,10 @@ export default function HrAdminDashboard() {
   const [logsLoading, setLogsLoading] = useState(true);
   const [logsError, setLogsError] = useState(null);
 
-  const [announcements, setAnnouncements] = useState([]);
-
   // Cards with content first (fewest items first), empty cards last --
   // drives both the mobile accordion and the desktop right column.
   const feedCounts = useOfficeFeedCounts();
-  const rankCounts = {
-    ...feedCounts,
-    announcements: announcements.filter((a) => !isAnnouncementExpired(a))
-      .length,
-  };
+  const rankCounts = { ...feedCounts };
 
   const [trend, setTrend] = useState(null);
   const [trendLoading, setTrendLoading] = useState(true);
@@ -428,7 +411,7 @@ export default function HrAdminDashboard() {
   const [mobileTab, setMobileTab] = useState("overview");
   // Team accordion cards open/close independently — tapping a card
   // toggles just that one; opening one no longer closes the others.
-  const [mobileTeamOpen, setMobileTeamOpen] = useState(["onleave"]);
+  const [mobileTeamOpen, setMobileTeamOpen] = useState(["holidays"]);
 
   // Pulled out of the mount effect so it can also be called right after a
   // check-in/out/break action (via CheckInOutCard's onActivityChange) —
@@ -484,36 +467,17 @@ export default function HrAdminDashboard() {
       .finally(() => setStatsLoading(false));
   }
 
-  function loadAnnouncements() {
-    // All announcements, not just /active — same as Super Admin's
-    // dashboard — so expired ones still show here (greyed out) instead
-    // of just vanishing. Falls back to /active if this HR Admin's role
-    // isn't permitted the full list.
-    apiClient
-      .get("/announcements/")
-      .then((res) => setAnnouncements(res.data || []))
-      .catch(() =>
-        apiClient
-          .get("/announcements/active")
-          .then((res) => setAnnouncements(res.data || []))
-          .catch(() => setAnnouncements([])),
-      );
-  }
-
-  // Refetches stats + Recent Activity + Announcements the instant any
-  // employee checks in/out or starts/ends a break, applies for/has a
-  // leave decided on, or an announcement changes, anywhere in the
-  // company — not just from this admin's own actions.
+  // Refetches stats + Recent Activity the instant any
+  // employee checks in/out or starts/ends a break, or applies for/has a
+  // leave decided on, anywhere in the company — not just from this admin's own actions.
   useAttendanceLiveUpdates(() => {
     loadStats();
     loadLogs();
-    loadAnnouncements();
   });
 
   useEffect(() => {
     loadStats();
     loadLogs();
-    loadAnnouncements();
 
     apiClient
       .get("/dashboard/department-distribution")
@@ -757,92 +721,6 @@ export default function HrAdminDashboard() {
             {rankByCount(
               [
                 {
-                  key: "onleave",
-                  label: "On Leave Today",
-                  icon: PlaneTakeoff,
-                  accent: "text-violet-500 bg-violet-50",
-                  badge: feedCounts.onleave || null,
-                  render: () => <OnLeaveTodayCard />,
-                },
-                {
-                  key: "announcements",
-                  label: "Announcements",
-                  icon: Megaphone,
-                  accent: "text-orange-500 bg-orange-50",
-                  badge:
-                    announcements.filter((a) => !isAnnouncementExpired(a))
-                      .length || null,
-                  render: () =>
-                    announcements.length === 0 ? (
-                      <p className="text-sm text-slate-400 px-0.5">
-                        No announcements yet.
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {[...announcements]
-                          .sort((a, b) => {
-                            const aExpired = isAnnouncementExpired(a);
-                            const bExpired = isAnnouncementExpired(b);
-                            if (aExpired !== bExpired) return aExpired ? 1 : -1;
-                            return (b.end_date || "").localeCompare(
-                              a.end_date || "",
-                            );
-                          })
-                          .slice(0, 4)
-                          .map((a) => {
-                            const expired = isAnnouncementExpired(a);
-                            return (
-                              <div
-                                key={a.id}
-                                className={
-                                  "rounded-lg p-2.5 border " +
-                                  (expired
-                                    ? "bg-slate-50 border-slate-200 opacity-60"
-                                    : "bg-orange-50 border-orange-100")
-                                }
-                              >
-                                <div className="flex items-center gap-1.5">
-                                  <p
-                                    className={
-                                      "text-sm font-medium truncate " +
-                                      (expired
-                                        ? "text-slate-500"
-                                        : "text-slate-800")
-                                    }
-                                  >
-                                    {a.title}
-                                  </p>
-                                  {expired && (
-                                    <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
-                                      Expired
-                                    </span>
-                                  )}
-                                </div>
-                                <p
-                                  className={
-                                    "text-xs mt-0.5 " +
-                                    (expired
-                                      ? "text-slate-400"
-                                      : "text-slate-500")
-                                  }
-                                >
-                                  {a.description}
-                                </p>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    ),
-                },
-                {
-                  key: "birthdays",
-                  label: "Upcoming Birthdays",
-                  icon: Cake,
-                  accent: "text-pink-500 bg-pink-50",
-                  badge: feedCounts.birthdays || null,
-                  render: () => <BirthdaysCard />,
-                },
-                {
                   key: "holidays",
                   label: "Upcoming Holidays",
                   icon: CalendarDays,
@@ -1054,8 +932,7 @@ export default function HrAdminDashboard() {
       {/* ---------- Two-column body ----------
           Left:  Check-in/out -> Recent Activity -> Attendance Trend (+ Dept
                  Distribution, same "chart" grouping)
-          Right: On Leave Today -> Announcements -> Upcoming Birthdays ->
-                 Top Performance
+          Right: Upcoming Holidays -> Top Performance
       ---------------------------------------------------------------- */}
       <div className="hidden lg:grid lg:grid-cols-[65%_1fr] gap-4 sm:gap-6 items-start min-w-0">
         {/* ================= Left column (65%) ================= */}
@@ -1178,95 +1055,6 @@ export default function HrAdminDashboard() {
               empty cards last -- see utils/rankCards.js */}
           {rankByCount(
             [
-              {
-                key: "onleave",
-                node: (
-                  <div className="h-60 sm:h-72">
-                    <OnLeaveTodayCard />
-                  </div>
-                ),
-              },
-              {
-                key: "announcements",
-                node: (
-                  <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 h-60 sm:h-72 flex flex-col">
-                    <h3 className="font-semibold text-slate-800 flex items-center gap-2 mb-3">
-                      <Megaphone size={17} className="text-orange-500" />{" "}
-                      Announcements
-                    </h3>
-                    {announcements.length === 0 ? (
-                      <p className="text-sm text-slate-400">
-                        No announcements yet.
-                      </p>
-                    ) : (
-                      <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
-                        {/* Active first, then expired (most recently ended first) —
-                    expired stay visible, just greyed out. */}
-                        {[...announcements]
-                          .sort((a, b) => {
-                            const aExpired = isAnnouncementExpired(a);
-                            const bExpired = isAnnouncementExpired(b);
-                            if (aExpired !== bExpired) return aExpired ? 1 : -1;
-                            return (b.end_date || "").localeCompare(
-                              a.end_date || "",
-                            );
-                          })
-                          .slice(0, 3)
-                          .map((a) => {
-                            const expired = isAnnouncementExpired(a);
-                            return (
-                              <div
-                                key={a.id}
-                                className={
-                                  "rounded-lg p-2.5 border " +
-                                  (expired
-                                    ? "bg-slate-50 border-slate-200 opacity-60"
-                                    : "bg-orange-50 border-orange-100")
-                                }
-                              >
-                                <div className="flex items-center gap-1.5">
-                                  <p
-                                    className={
-                                      "text-sm font-medium truncate " +
-                                      (expired
-                                        ? "text-slate-500"
-                                        : "text-slate-800")
-                                    }
-                                  >
-                                    {a.title}
-                                  </p>
-                                  {expired && (
-                                    <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">
-                                      Expired
-                                    </span>
-                                  )}
-                                </div>
-                                <p
-                                  className={
-                                    "text-xs mt-0.5 line-clamp-2 " +
-                                    (expired
-                                      ? "text-slate-400"
-                                      : "text-slate-500")
-                                  }
-                                >
-                                  {a.description}
-                                </p>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    )}
-                  </div>
-                ),
-              },
-              {
-                key: "birthdays",
-                node: (
-                  <div className="h-60 sm:h-72">
-                    <BirthdaysCard />
-                  </div>
-                ),
-              },
               {
                 key: "holidays",
                 node: (
