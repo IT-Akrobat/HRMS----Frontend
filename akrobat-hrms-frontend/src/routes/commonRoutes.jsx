@@ -13,14 +13,19 @@
 // smaller scale.
 import { lazy } from "react";
 import { Navigate } from "react-router-dom";
-import { DEFAULT_ROUTE_BY_ROLE, ROLES } from "../config/roles";
+import {
+  DEFAULT_ROUTE_BY_ROLE,
+  LEAVE_REQUEST_VIEWER_ROLES,
+} from "../config/roles";
 import { useAuth } from "../context/AuthContext";
 
-// "Team Leave Requests" is only for people who are somebody's reporting
-// manager (profile.is_reporting_manager, from GET /auth/me). Everyone else
-// who types the URL by hand is sent back to their own dashboard. MANAGER
-// role keeps access (they also have their own /manager/leave/pending page).
-function RequireReportingManager({ children }) {
+// "Leave Requests" page: reporting managers (profile.is_reporting_manager,
+// from GET /auth/me, any role) plus Manager / HR Admin / Super Admin, who
+// get it as viewers. Approve/Reject is NOT decided here -- the page only
+// shows those buttons where the backend says can_decide, i.e. the user is
+// that employee's reporting manager. Anyone else who types the URL by hand
+// is sent back to their own dashboard.
+export function RequireReportingManager({ children }) {
   const { user, role, loading } = useAuth();
 
   if (loading) {
@@ -31,9 +36,10 @@ function RequireReportingManager({ children }) {
     );
   }
 
-  const allowed =
-    !!user?.profile?.is_reporting_manager || role === ROLES.MANAGER;
-  if (!allowed) {
+  if (
+    !user?.profile?.is_reporting_manager &&
+    !LEAVE_REQUEST_VIEWER_ROLES.includes(role)
+  ) {
     return <Navigate to={DEFAULT_ROUTE_BY_ROLE[role] ?? "/login"} replace />;
   }
   return children;
@@ -63,8 +69,7 @@ export const commonRoutes = [
   { path: "settings", element: <Settings /> },
   { path: "notifications", element: <Notifications /> },
   { path: "leave/apply", element: <LeaveApply /> },
-  // Anyone who is somebody's reporting manager approves their leave here,
-  // whatever their role (sidebar link shows via profile.is_reporting_manager).
+  // "Leave Requests": reporting managers only.
   {
     path: "team-leave-requests",
     element: (

@@ -220,8 +220,8 @@ export default function LeavePending() {
   return (
     <div>
       <PageHeader
-        title="Team Leave Requests"
-        subtitle="View leave requests from your team — you'll see status update here as decisions are made."
+        title="Leave Requests"
+        subtitle="View leave requests from your team. Approval is handled by Super Admin — you'll see status update here as decisions are made."
         hideSubtitleOnMobile
       />
 

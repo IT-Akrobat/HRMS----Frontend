@@ -4,7 +4,6 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  ClipboardCheck,
   User,
   X,
 } from "lucide-react";
@@ -17,6 +16,7 @@ import {
 } from "../../config/navigationConfig";
 import {
   isSelfSpacePath,
+  LEAVE_REQUEST_VIEWER_ROLES,
   ROLE_BASE_PATH,
   ROLES,
   SELF_SPACE_BY_ROLE,
@@ -54,10 +54,19 @@ export default function Sidebar({
   // Items flagged `hideForSite` (the Attendance tab) are hidden for
   // employees whose Working Location is exactly "Site".
   const siteEmployee = isSiteEmployee(user);
-  const isReportingManager = !!user?.profile?.is_reporting_manager;
   // Memoised so `items` keeps a stable identity between renders. Previously
   // it was rebuilt on every render, which re-triggered the effect below each
   // time a group was clicked and snapped the menu back to the active group.
+  // "Leave Requests" menu:
+  //  - reporting managers (profile.is_reporting_manager, any role) see it
+  //    AND can approve/reject their team's requests;
+  //  - Manager / HR Admin / Super Admin always see it, but only as a
+  //    viewer -- Approve/Reject buttons appear per request only where the
+  //    backend sends can_decide = true (they are that employee's reporting
+  //    manager), and update_leave_status enforces the same server-side.
+  const isReportingManager = !!user?.profile?.is_reporting_manager;
+  const canSeeLeaveRequests =
+    isReportingManager || LEAVE_REQUEST_VIEWER_ROLES.includes(role);
   const items = useMemo(
     () =>
       (inMySpace
@@ -65,52 +74,45 @@ export default function Sidebar({
         : (NAVIGATION_CONFIG[role] ?? [])
       )
         .filter((item) => !(item.hideForSite && siteEmployee))
-        .map((item) =>
-          item.children
-            ? {
-                ...item,
-                children: [
-                  ...item.children.filter((c) => !c.fieldOnly || showFieldOnly),
-                  // Employee-role person who is somebody's reporting manager:
-                  // put "Team Leave Requests" right inside their Leave group.
-                  ...(role === ROLES.EMPLOYEE &&
-                  isReportingManager &&
-                  item.label === "Leave"
-                    ? [
-                        {
-                          label: "Team Leave Requests",
-                          path: `${ROLE_BASE_PATH[role]}/team-leave-requests`,
-                        },
-                      ]
-                    : []),
-                ],
-              }
-            : item,
-        )
-        // Anyone who is somebody's reporting manager approves their leave,
-        // whatever their role. Managers already have "Team Leave Requests"
-        // in their Company menu, so they don't get a second copy there.
-        .concat(
-          isReportingManager &&
-            role !== ROLES.EMPLOYEE && // Employees get it inside the Leave group above
-            !(role === ROLES.MANAGER && !inMySpace)
-            ? [
-                {
-                  label: "Team Leave Requests",
-                  icon: ClipboardCheck,
-                  path: inMySpace
-                    ? `${selfSpace.base}/team-leave-requests`
-                    : `${ROLE_BASE_PATH[role]}/team-leave-requests`,
-                },
-              ]
-            : [],
-        ),
+        .map((item) => {
+          if (!item.children) return item;
+          const children = item.children.filter(
+            (c) => !c.fieldOnly || showFieldOnly,
+          );
+          // "Leave Requests" lives INSIDE the leave group (only when
+          // canSeeLeaveRequests, see above):
+          //  - Manager / HR Admin / Super Admin: first entry of "Leave
+          //    Management", Company view only (never in My Space).
+          //  - Employee: last entry of their own "Leave" group.
+          const isCompanyLeaveGroup =
+            !inMySpace &&
+            role !== ROLES.EMPLOYEE &&
+            item.label === "Leave Management";
+          const isEmployeeLeaveGroup =
+            role === ROLES.EMPLOYEE && item.label === "Leave";
+          const leaveRequests = {
+            label: "Leave Requests",
+            path:
+              role === ROLES.MANAGER
+                ? "/manager/leave/pending"
+                : `${ROLE_BASE_PATH[role]}/team-leave-requests`,
+          };
+          if (!canSeeLeaveRequests) return { ...item, children };
+          return {
+            ...item,
+            children: isCompanyLeaveGroup
+              ? [leaveRequests, ...children]
+              : isEmployeeLeaveGroup
+                ? [...children, leaveRequests]
+                : children,
+          };
+        }),
     [
       role,
       inMySpace,
       showFieldOnly,
       siteEmployee,
-      isReportingManager,
+      canSeeLeaveRequests,
       selfSpace,
     ],
   );

@@ -18,6 +18,16 @@ export const ROLES = {
   SUPER_ADMIN: "super_admin",
 };
 
+// Roles that can always OPEN the "Leave Requests" page. They only get
+// Approve/Reject on requests where they are the employee's reporting
+// manager (backend can_decide). Any other role needs
+// profile.is_reporting_manager to see the page.
+export const LEAVE_REQUEST_VIEWER_ROLES = [
+  ROLES.MANAGER,
+  ROLES.HR_ADMIN,
+  ROLES.SUPER_ADMIN,
+];
+
 // Fallback / default landing route per role after login
 export const DEFAULT_ROUTE_BY_ROLE = {
   [ROLES.EMPLOYEE]: "/employee/dashboard",

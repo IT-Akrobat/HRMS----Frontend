@@ -5,7 +5,11 @@
 // when a manager actually navigates to them, not upfront on login.
 import { lazy } from "react";
 import { Navigate } from "react-router-dom";
-import { commonRoutes, selfCommonRoutes } from "./commonRoutes.jsx";
+import {
+  commonRoutes,
+  RequireReportingManager,
+  selfCommonRoutes,
+} from "./commonRoutes.jsx";
 
 const Attendance = lazy(() => import("../pages/manager/Attendance.jsx"));
 const AttendanceReports = lazy(
@@ -59,7 +63,14 @@ export const managerRoutes = [
   { path: "team/locations", element: <OrganizationLocations /> },
   { path: "attendance", element: <Attendance /> },
   { path: "attendance/reports", element: <AttendanceReports /> },
-  { path: "leave/pending", element: <LeavePending /> },
+  {
+    path: "leave/pending",
+    element: (
+      <RequireReportingManager>
+        <LeavePending />
+      </RequireReportingManager>
+    ),
+  },
   { path: "leave/history", element: <LeaveHistory /> },
   // { path: "projects", element: <Projects /> },
   // { path: "projects/assign-tasks", element: <ProjectsAssignTasks /> },
