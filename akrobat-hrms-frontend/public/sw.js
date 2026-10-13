@@ -82,10 +82,21 @@ self.addEventListener("push", (event) => {
     icon: "/akrobat-logo.png",
     badge: "/akrobat-logo.png",
     data: { url: payload.url || "/" },
-    // Notifications with the same tag replace each other instead of
-    // stacking -- prevents a burst of the same alert (e.g. several
-    // celebration notifications) from flooding the tray at once.
-    tag: payload.tag || "akrobat-notification",
+    // IMPORTANT: each push must get its OWN tag unless the backend sends a
+    // stable one (tag/id). With the app/tab fully closed this push handler
+    // is the ONLY delivery path, and notifications sharing a tag replace
+    // each other in the OS tray -- so a single hard-coded tag meant every
+    // new notification silently overwrote the previous one and you only
+    // ever saw the latest ("push doesn't work when the app is closed"). A
+    // unique tag lets each distinct notification stack; a backend-provided
+    // tag/id still collapses genuine duplicates.
+    tag:
+      payload.tag ||
+      payload.id ||
+      `akrobat-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    // Re-show the OS heads-up/sound even if a same-tag notification is
+    // replaced, so a repeat never goes silently unnoticed.
+    renotify: true,
   };
 
   event.waitUntil(self.registration.showNotification(payload.title, options));

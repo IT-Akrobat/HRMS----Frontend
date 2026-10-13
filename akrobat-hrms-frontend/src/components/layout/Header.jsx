@@ -16,6 +16,7 @@ import { useBasePath } from "../../hooks/useBasePath";
 import { useNotificationLiveUpdates } from "../../hooks/useNotificationLiveUpdates";
 import { apiClient } from "../../services/apiClient";
 import { initNotificationFallback } from "../../services/Notificationfallback";
+import { parseServerDate } from "../../utils/date";
 
 // Notification bell now backed by the real API (see app/notifications —
 // GET /notifications/my, PUT /:id/read, PUT /my/read-all). The leaves
@@ -128,6 +129,18 @@ function NotificationBell({ overHero = false }) {
   // notification twice.
   const seenIdsRef = useRef(new Set());
 
+  // Wall-clock moment this bell mounted. Used to tell a genuinely-new
+  // arrival apart from backfill: the /ws/notifications socket can replay
+  // recently-written rows when it (re)connects, and the API-activity
+  // fallback can surface a row before the initial load() below has had a
+  // chance to record it. Both otherwise re-toast / re-sound / re-popup
+  // notifications that were already sitting in the inbox before this
+  // session ("opening the app blasts me with old notifications"). The
+  // small grace window absorbs server/client clock skew and a row that
+  // lands in the same instant the app opens.
+  const sessionStartRef = useRef(Date.now());
+  const ALERT_GRACE_MS = 15000;
+
   // One-time fetch to populate the list + badge on mount/login. After
   // this, new arrivals come from the /ws/notifications push below, not
   // from calling this again — see useNotificationLiveUpdates.
@@ -160,6 +173,20 @@ function NotificationBell({ overHero = false }) {
     seenIdsRef.current.add(n.id);
 
     setNotifications((prev) => [n, ...prev]);
+
+    // Only alert (sound + toast + OS popup) for a genuinely-new arrival
+    // created during this session. Older rows -- replayed by the socket on
+    // (re)connect or surfaced by the fallback before load() finished --
+    // still update the list/badge above, but must stay silent. Without
+    // this, reopening the app re-fires every unread notification as if it
+    // had just arrived. A row with no/unparseable created_at is treated as
+    // new so a real arrival is never silently dropped.
+    const createdAt = parseServerDate(n.created_at);
+    const isNew =
+      createdAt === null ||
+      createdAt.getTime() >= sessionStartRef.current - ALERT_GRACE_MS;
+    if (!isNew) return;
+
     playNotificationSound();
 
     const { icon: Icon, className } = typeStyle(n.notification_type);
