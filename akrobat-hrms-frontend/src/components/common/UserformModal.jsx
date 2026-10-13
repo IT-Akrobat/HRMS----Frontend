@@ -783,12 +783,10 @@ export default function UserFormModal({
 
   // If the currently-picked designation no longer belongs to the newly-picked
   // department, clear it (and its shift) rather than leaving a stale mismatch.
-  const didMountDept = useRef(false);
+  const prevDeptRef = useRef(form.department_id);
   useEffect(() => {
-    if (!didMountDept.current) {
-      didMountDept.current = true;
-      return;
-    }
+    if (prevDeptRef.current === form.department_id) return;
+    prevDeptRef.current = form.department_id;
     setForm((f) => {
       const stillValid =
         !f.designation_id ||
@@ -823,12 +821,12 @@ export default function UserFormModal({
 
   // Auto-fill the shift/timing from the designation's own default whenever the
   // designation changes (HR can still override it via the Shift dropdown).
-  const didMountDesig = useRef(false);
+  const prevDesigRef = useRef(form.designation_id);
   useEffect(() => {
-    if (!didMountDesig.current) {
-      didMountDesig.current = true;
-      return;
-    }
+    // Only when HR actually changes the designation (not on modal open /
+    // StrictMode's double-run), so a saved shift is never overwritten.
+    if (prevDesigRef.current === form.designation_id) return;
+    prevDesigRef.current = form.designation_id;
     if (selectedDesignation) {
       const dept = departments.find((d) => d.id === form.department_id);
       const shiftId = pickDefaultShiftId(
@@ -847,12 +845,10 @@ export default function UserFormModal({
   // otherwise Operation Site), so re-pick the default shift when the role
   // changes — only for that designation, so a hand-picked shift on every
   // other designation is never overwritten.
-  const didMountRole = useRef(false);
+  const prevRoleRef = useRef(form.role_id);
   useEffect(() => {
-    if (!didMountRole.current) {
-      didMountRole.current = true;
-      return;
-    }
+    if (prevRoleRef.current === form.role_id) return;
+    prevRoleRef.current = form.role_id;
     if (!selectedDesignation) return;
     const dept = departments.find((d) => d.id === form.department_id);
     const isOpsPM =
