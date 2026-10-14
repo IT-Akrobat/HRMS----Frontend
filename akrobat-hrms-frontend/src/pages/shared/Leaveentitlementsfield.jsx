@@ -1,5 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ROLES } from "../../config/roles";
+import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
@@ -51,6 +53,8 @@ const SCHEME_TYPES = {
     "PATERNITY LEAVE",
   ],
 };
+// Maternity / Paternity days are Super Admin only -- HR never sees them.
+const SUPER_ADMIN_ONLY = new Set(["MATERNITY LEAVE", "PATERNITY LEAVE"]);
 const BUILT_IN = new Set([
   "ANNUAL LEAVE",
   "SICK LEAVE",
@@ -77,6 +81,8 @@ export default function LeaveEntitlementsField({
   leaveScheme,
   onChange,
 }) {
+  const { role } = useAuth();
+  const isSuperAdmin = role === ROLES.SUPER_ADMIN;
   const [types, setTypes] = useState([]);
   const [initial, setInitial] = useState({}); // { leave_type_id: "14" } as loaded
   const [values, setValues] = useState({}); // { leave_type_id: "12" } as typed
@@ -166,6 +172,11 @@ export default function LeaveEntitlementsField({
     const waiting = new Set();
     const shown = types.filter((t) => {
       if (!inScheme(t.leave_name, leaveScheme)) return false;
+      if (
+        !isSuperAdmin &&
+        SUPER_ADMIN_ONLY.has(String(t.leave_name).toUpperCase())
+      )
+        return false;
       const rules = t.excluded_when || [];
       for (const rule of rules) {
         const mine = fields[rule.field];
@@ -179,7 +190,7 @@ export default function LeaveEntitlementsField({
       return true;
     });
     return { visible: shown, waitingOn: [...waiting] };
-  }, [types, gender, maritalStatus, leaveScheme]);
+  }, [types, gender, maritalStatus, leaveScheme, isSuperAdmin]);
 
   // Report only what HR typed / changed.
   useEffect(() => {
@@ -247,7 +258,8 @@ export default function LeaveEntitlementsField({
 
       {!loading && waitingOn.length > 0 && (
         <p className="mt-2 text-xs text-slate-400">
-          Select {waitingOn.join(" and ")} above to see Maternity / Paternity /
+          Select {waitingOn.join(" and ")} above to see{" "}
+          {isSuperAdmin ? "Maternity / Paternity / " : ""}
           Childcare days.
         </p>
       )}

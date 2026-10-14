@@ -97,7 +97,15 @@ export default function Sidebar({
                 ? "/manager/leave/pending"
                 : `${ROLE_BASE_PATH[role]}/team-leave-requests`,
           };
-          if (!canSeeLeaveRequests) return { ...item, children };
+          // HR and Super Admin already have "All Leave Requests" (company-wide,
+          // with the MC tab) in their own nav, so the team-only link is not
+          // added for them.
+          if (
+            !canSeeLeaveRequests ||
+            role === ROLES.HR_ADMIN ||
+            role === ROLES.SUPER_ADMIN
+          )
+            return { ...item, children };
           return {
             ...item,
             children: isCompanyLeaveGroup

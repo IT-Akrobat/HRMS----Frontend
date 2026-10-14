@@ -1,11 +1,14 @@
 import { Calendar, ClipboardPlus, Loader2, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ROLES } from "../../config/roles";
+import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../services/apiClient";
 import DatePicker from "../layout/DatePicker";
 import Modal from "./Modal";
 import SelectDropdown from "./SelectDropdown";
 
-// HR / Super Admin only: record Hospitalisation or Maternity leave.
+// HR / Super Admin: record Hospitalisation leave.
+// Super Admin only: also Maternity (female employees) and Paternity (male employees).
 // Renders a button (meant for the page header's `actions` slot) that opens
 // a popup -- a centred dialog on desktop and a bottom sheet on mobile
 // (the shared Modal handles both). Employees can't apply for or see these
@@ -14,7 +17,8 @@ import SelectDropdown from "./SelectDropdown";
 
 const TYPES = [
   { value: "HOSPITALISATION LEAVE", label: "Hospitalisation Leave" },
-  { value: "MATERNITY LEAVE", label: "Maternity Leave" },
+  { value: "MATERNITY LEAVE", label: "Maternity Leave", gender: "female" },
+  { value: "PATERNITY LEAVE", label: "Paternity Leave", gender: "male" },
 ];
 
 const EMPTY = {
@@ -63,11 +67,23 @@ function Label({ children, required }) {
 
 export default function HrManagedLeaveForm({
   onChanged,
-  label = "Hospitalisation / Maternity",
+  label,
   className = "",
   // Mobile header: show just a symbol (no text) so both header buttons fit.
   iconOnly = false,
 }) {
+  const { role } = useAuth();
+  const isSuperAdmin = role === ROLES.SUPER_ADMIN;
+  // Maternity / Paternity: Super Admin only. HR gets Hospitalisation alone.
+  const types = useMemo(
+    () => (isSuperAdmin ? TYPES : TYPES.filter((t) => !t.gender)),
+    [isSuperAdmin],
+  );
+  label =
+    label ??
+    (isSuperAdmin
+      ? "Hospitalisation / Maternity / Paternity"
+      : "Hospitalisation");
   const [open, setOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [form, setForm] = useState(EMPTY);
@@ -94,12 +110,22 @@ export default function HrManagedLeaveForm({
       .catch(() => setError("Could not load employees."));
   }, [open, employees.length]);
 
+  // Maternity -> female employees only, Paternity -> male employees only.
+  const neededGender = types.find((t) => t.value === form.leave_type)?.gender;
+
   const employeeOptions = useMemo(
     () =>
       [...employees]
+        .filter(
+          (e) =>
+            !neededGender ||
+            String(e.gender || "")
+              .trim()
+              .toLowerCase() === neededGender,
+        )
         .sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""))
         .map((e) => ({ value: e.id, label: e.full_name })),
-    [employees],
+    [employees, neededGender],
   );
 
   const days =
@@ -123,6 +149,10 @@ export default function HrManagedLeaveForm({
   }
 
   async function submit() {
+    if (!types.some((t) => t.value === form.leave_type)) {
+      setError("You are not allowed to record this leave type.");
+      return;
+    }
     if (!form.employee_id || !form.from_date || !form.to_date) {
       setError("Choose an employee and both dates.");
       return;
@@ -169,7 +199,7 @@ export default function HrManagedLeaveForm({
         open={open}
         onClose={close}
         title="Record leave"
-        subtitle="Hospitalisation and Maternity are managed by HR and Super Admin only. Saved as approved."
+        subtitle="Hospitalisation / Maternity / Paternity by Super Admin only. Saved as approved."
         icon={
           <div className="w-10 h-10 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center">
             <ClipboardPlus size={18} />
@@ -213,12 +243,17 @@ export default function HrManagedLeaveForm({
 
           <div>
             <Label required>Leave type</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {TYPES.map((t) => (
+            <div
+              className={`grid gap-2 ${types.length > 2 ? "grid-cols-3" : types.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
+            >
+              {types.map((t) => (
                 <button
                   key={t.value}
                   type="button"
-                  onClick={() => set("leave_type", t.value)}
+                  onClick={() => {
+                    set("leave_type", t.value);
+                    set("employee_id", "");
+                  }}
                   className={`text-sm px-3 py-2.5 rounded-lg border transition-colors ${
                     form.leave_type === t.value
                       ? "border-orange-500 bg-orange-50 text-orange-700 font-medium"

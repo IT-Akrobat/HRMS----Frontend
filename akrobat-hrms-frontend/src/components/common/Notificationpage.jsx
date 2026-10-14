@@ -1,12 +1,14 @@
 import {
-    Bell,
-    CalendarClock,
-    CheckCheck,
-    ChevronLeft,
-    ChevronRight,
-    Clock,
-    Megaphone,
-    Trash2,
+  Bell,
+  CalendarClock,
+  Check,
+  CheckCheck,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Megaphone,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -79,6 +81,15 @@ function formatDate(dateStr) {
   });
 }
 
+// Auto-delete options. Picking one deletes this user's notifications older
+// than that period (and keeps doing so automatically). Backed by
+// GET/PUT /notifications/retention.
+const RETENTION_OPTIONS = [
+  { days: 7, label: "1 week" },
+  { days: 14, label: "2 weeks" },
+  { days: 30, label: "1 month" },
+];
+
 const FILTERS = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },
@@ -100,6 +111,52 @@ export default function NotificationsPage({
   const [filter, setFilter] = useState("all");
   const [busyId, setBusyId] = useState(null);
   const [page, setPage] = useState(1);
+  const [retentionDays, setRetentionDays] = useState(null);
+  const [retentionBusy, setRetentionBusy] = useState(false);
+  const [retentionOpen, setRetentionOpen] = useState(false);
+  const retentionRef = useRef(null);
+
+  // Close the custom dropdown when tapping anywhere outside it.
+  useEffect(() => {
+    if (!retentionOpen) return;
+    function onDown(e) {
+      if (retentionRef.current && !retentionRef.current.contains(e.target)) {
+        setRetentionOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+    };
+  }, [retentionOpen]);
+
+  useEffect(() => {
+    apiClient
+      .get("/notifications/retention")
+      .then((res) => setRetentionDays(res?.data?.days ?? null))
+      .catch(() => {});
+  }, []);
+
+  async function chooseRetention(option) {
+    if (retentionBusy || option.days === retentionDays) return;
+    const ok = window.confirm(
+      `Delete all notifications older than ${option.label}? ` +
+        `Older notifications will also be removed automatically from now on.`,
+    );
+    if (!ok) return;
+    setRetentionBusy(true);
+    try {
+      await apiClient.put("/notifications/retention", { days: option.days });
+      setRetentionDays(option.days);
+      load();
+    } catch {
+      // keep previous selection if the request failed
+    } finally {
+      setRetentionBusy(false);
+    }
+  }
 
   function load() {
     apiClient
@@ -241,22 +298,109 @@ export default function NotificationsPage({
         }
       />
 
-      {reviewLink && (
-        <div className="mb-6">
+      {/* Auto-delete options (left) + compact review tile (right) */}
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5 text-[11px] sm:text-xs font-medium text-slate-500 mb-2">
+            <Trash2 size={13} className="shrink-0" /> Auto-delete notifications
+            older than:
+          </span>
+          {/* Mobile: custom dropdown */}
+          <div ref={retentionRef} className="sm:hidden relative w-40">
+            <button
+              type="button"
+              onClick={() => setRetentionOpen((o) => !o)}
+              disabled={retentionBusy}
+              aria-haspopup="listbox"
+              aria-expanded={retentionOpen}
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-medium border bg-white transition-colors disabled:opacity-60 ${
+                retentionOpen
+                  ? "border-orange-400 ring-2 ring-orange-100"
+                  : "border-slate-200"
+              } ${retentionDays ? "text-slate-800" : "text-slate-400"}`}
+            >
+              <span className="truncate">
+                {RETENTION_OPTIONS.find((o) => o.days === retentionDays)
+                  ?.label || "Select period"}
+              </span>
+              <ChevronDown
+                size={14}
+                className={`shrink-0 text-slate-400 transition-transform ${
+                  retentionOpen ? "rotate-180 text-orange-500" : ""
+                }`}
+              />
+            </button>
+
+            {retentionOpen && (
+              <ul
+                role="listbox"
+                className="absolute left-0 top-full mt-1.5 w-full z-30 bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden py-1"
+              >
+                {RETENTION_OPTIONS.map((o) => {
+                  const active = retentionDays === o.days;
+                  return (
+                    <li key={o.days} role="option" aria-selected={active}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRetentionOpen(false);
+                          chooseRetention(o);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left transition-colors ${
+                          active
+                            ? "bg-orange-50 text-orange-600 font-semibold"
+                            : "text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {o.label}
+                        {active && <Check size={13} />}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* Larger screens: buttons */}
+          <div className="hidden sm:flex flex-wrap items-center gap-2">
+            {RETENTION_OPTIONS.map((o) => {
+              const active = retentionDays === o.days;
+              return (
+                <button
+                  key={o.days}
+                  onClick={() => chooseRetention(o)}
+                  disabled={retentionBusy}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors disabled:opacity-60 ${
+                    active
+                      ? "bg-orange-500 border-orange-500 text-white"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {reviewLink && (
           <Link
             to={reviewLink}
-            className="bg-orange-500 hover:bg-orange-600 transition-colors rounded-xl p-4 flex items-center justify-between text-white max-w-sm"
+            className="shrink-0 w-[132px] sm:w-auto sm:min-w-[170px] bg-orange-500 hover:bg-orange-600 transition-colors rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 text-white"
           >
-            <div>
-              <span className="text-sm text-orange-50">{reviewLabel}</span>
-              <div className="text-2xl font-bold">
+            <div className="min-w-0">
+              <span className="block text-xs leading-tight text-orange-50">
+                {reviewLabel}
+              </span>
+              <div className="text-2xl font-bold leading-tight mt-0.5">
                 {leaveUnreadCount > 0 ? leaveUnreadCount : "—"}
               </div>
             </div>
-            <CalendarClock size={22} />
+            <CalendarClock size={20} className="shrink-0" />
           </Link>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Filters */}
       <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">

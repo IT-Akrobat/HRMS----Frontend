@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Stethoscope,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -60,14 +61,30 @@ function initials(name) {
     .toUpperCase();
 }
 
+// "MC" is a client-side view, not a leave status: it lists every medical
+// leave (any leave with an mc_status) with its certificate for validation.
+const MC_TAB = "MC";
+
 const TABS = [
   { value: "Pending", label: "Pending" },
   { value: "Approved", label: "Approved" },
   { value: "Rejected", label: "Rejected" },
   { value: "", label: "All" },
+  { value: MC_TAB, label: "Medical (MC)", icon: Stethoscope },
+];
+
+const MC_FILTERS = [
+  { value: "", label: "All MC" },
+  { value: "CERTIFICATE_UPLOADED", label: "To validate" },
+  { value: "AWAITING_CERTIFICATE", label: "No certificate yet" },
+  { value: "VALIDATED", label: "Validated" },
 ];
 
 const PAGE_SIZE = 20;
+// The endpoint has no MC filter, so the MC tab pulls bigger pages and keeps
+// the medical ones, stopping after a safe number of pages.
+const MC_FETCH_LIMIT = 100;
+const MC_MAX_PAGES = 20;
 
 export default function LeaveRequests() {
   const [records, setRecords] = useState(null); // null = loading
@@ -75,6 +92,8 @@ export default function LeaveRequests() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("Pending");
   const [search, setSearch] = useState("");
+  const [mcFilter, setMcFilter] = useState("");
+  const isMc = status === MC_TAB;
   // Leaves THIS logged-in Super Admin is the assigned reporting manager for
   // (from GET /leaves/team -> can_decide). Only those get Approve / Reject.
   const [decidableIds, setDecidableIds] = useState(() => new Set());
@@ -101,8 +120,40 @@ export default function LeaveRequests() {
     }
   }
 
+  async function loadMcRecords() {
+    const all = [];
+    let p = 1;
+    let serverTotal = Infinity;
+    while (all.length < serverTotal && p <= MC_MAX_PAGES) {
+      const res = await apiClient.get(
+        `/leaves/?page=${p}&limit=${MC_FETCH_LIMIT}`,
+      );
+      const batch = res?.data?.records || [];
+      serverTotal = res?.data?.total ?? batch.length;
+      all.push(...batch);
+      if (batch.length === 0) break;
+      p += 1;
+    }
+    return all.filter((l) => l.mc_status);
+  }
+
   function load() {
     setRecords(null);
+
+    if (isMc) {
+      loadMcRecords()
+        .then((rows) => {
+          setRecords(rows);
+          setTotal(rows.length);
+        })
+        .catch(() => {
+          setRecords([]);
+          setTotal(0);
+        });
+      loadDecidable();
+      return;
+    }
+
     const params = new URLSearchParams({
       page: String(page),
       limit: String(PAGE_SIZE),
@@ -120,6 +171,10 @@ export default function LeaveRequests() {
         setTotal(0);
       });
 
+    loadDecidable();
+  }
+
+  function loadDecidable() {
     apiClient
       .get("/leaves/team")
       .then((res) => {
@@ -135,20 +190,46 @@ export default function LeaveRequests() {
       .catch(() => setDecidableIds(new Set()));
   }
 
-  useEffect(load, [page, status]);
+  // The MC tab pages client-side, so a page change must not refetch it.
+  useEffect(load, [isMc ? 0 : page, status]);
+
+  const mcCounts = useMemo(() => {
+    const c = {
+      "": 0,
+      CERTIFICATE_UPLOADED: 0,
+      AWAITING_CERTIFICATE: 0,
+      VALIDATED: 0,
+    };
+    if (isMc && records) {
+      c[""] = records.length;
+      records.forEach((l) => {
+        if (c[l.mc_status] !== undefined) c[l.mc_status] += 1;
+      });
+    }
+    return c;
+  }, [records, isMc]);
 
   const filtered = useMemo(() => {
     if (!records) return null;
-    if (!search.trim()) return records;
+    let rows = records;
+    if (isMc && mcFilter) rows = rows.filter((l) => l.mc_status === mcFilter);
+    if (!search.trim()) return rows;
     const q = search.trim().toLowerCase();
-    return records.filter((l) => {
+    return rows.filter((l) => {
       const name = l.employees?.full_name?.toLowerCase() || "";
       const type = l.leave_types?.leave_name?.toLowerCase() || "";
       return name.includes(q) || type.includes(q);
     });
-  }, [records, search]);
+  }, [records, search, isMc, mcFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Normal tabs page on the server; the MC tab pages the filtered list here.
+  const listTotal = isMc ? filtered?.length || 0 : total;
+  const totalPages = Math.max(1, Math.ceil(listTotal / PAGE_SIZE));
+  const visible = useMemo(() => {
+    if (!filtered) return null;
+    if (!isMc) return filtered;
+    return filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [filtered, isMc, page]);
 
   return (
     <div>
@@ -177,7 +258,7 @@ export default function LeaveRequests() {
         </div>
       </div>
 
-      <McValidationQueue onChanged={load} />
+      {!isMc && <McValidationQueue onChanged={load} />}
 
       <div className="bg-white rounded-xl border border-slate-200">
         {/* Tabs + search */}
@@ -188,14 +269,16 @@ export default function LeaveRequests() {
                 key={t.value}
                 onClick={() => {
                   setStatus(t.value);
+                  setMcFilter("");
                   setPage(1);
                 }}
-                className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                   status === t.value
                     ? "bg-orange-500 border-orange-500 text-white"
                     : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
               >
+                {t.icon && <t.icon size={13} />}
                 {t.label}
               </button>
             ))}
@@ -211,8 +294,33 @@ export default function LeaveRequests() {
           />
         </div>
 
+        {/* MC sub-filters */}
+        {isMc && (
+          <div className="flex items-center gap-1.5 overflow-x-auto px-5 py-3 border-b border-slate-100 bg-slate-50/60">
+            {MC_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => {
+                  setMcFilter(f.value);
+                  setPage(1);
+                }}
+                className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  mcFilter === f.value
+                    ? "bg-slate-800 border-slate-800 text-white"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {f.label}
+                {records && (
+                  <span className="ml-1.5 opacity-70">{mcCounts[f.value]}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* List */}
-        {filtered === null ? (
+        {visible === null ? (
           <div className="p-5 space-y-3">
             {[1, 2, 3, 4].map((i) => (
               <div
@@ -221,15 +329,17 @@ export default function LeaveRequests() {
               />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : visible.length === 0 ? (
           <div className="h-56 flex flex-col items-center justify-center text-center px-6">
             <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3">
               <CalendarDays size={20} className="text-slate-300" />
             </div>
             <p className="text-sm font-medium text-slate-600">
-              {status === "Pending"
-                ? "No pending requests. You're all caught up."
-                : "No requests match here."}
+              {isMc
+                ? "No medical leave with a certificate matches here."
+                : status === "Pending"
+                  ? "No pending requests. You're all caught up."
+                  : "No requests match here."}
             </p>
           </div>
         ) : (
@@ -240,7 +350,7 @@ export default function LeaveRequests() {
               </p>
             )}
             <ul className="divide-y divide-slate-100">
-              {filtered.map((leave) => {
+              {visible.map((leave) => {
                 const st = statusStyle(leave.status);
                 const StatusIcon = st.icon;
                 const isPending = leave.status === "Pending";
@@ -317,10 +427,10 @@ export default function LeaveRequests() {
         )}
 
         {/* Pagination */}
-        {total > PAGE_SIZE && (
+        {listTotal > PAGE_SIZE && (
           <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
             <p className="text-xs text-slate-400">
-              Page {page} of {totalPages} · {total} total
+              Page {page} of {totalPages} · {listTotal} total
             </p>
             <div className="flex items-center gap-2">
               <button
