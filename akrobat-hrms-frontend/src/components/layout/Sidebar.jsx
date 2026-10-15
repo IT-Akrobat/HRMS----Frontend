@@ -1,9 +1,9 @@
 import {
   Building2,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
+  Search,
   User,
   X,
 } from "lucide-react";
@@ -39,6 +39,9 @@ export default function Sidebar({
   onCloseMobile = () => {},
 }) {
   const { role, user } = useAuth();
+  // Navy sidebar theme for every role. To limit it to some roles, use e.g.
+  // `const blue = role === ROLES.SUPER_ADMIN;`
+  const blue = true;
   const location = useLocation();
   const navigate = useNavigate();
   // HR and Managers have two workspaces: "My Space" (employee-style menu
@@ -181,10 +184,53 @@ export default function Sidebar({
     });
   };
 
+  // Sidebar search: filters the menu by label (parent or sub-item).
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const visibleItems = useMemo(() => {
+    if (!q) return items;
+    return items.flatMap((item) => {
+      if (item.label.toLowerCase().includes(q)) return [item];
+      if (!item.children) return [];
+      const kids = item.children.filter((c) =>
+        c.label.toLowerCase().includes(q),
+      );
+      return kids.length ? [{ ...item, children: kids }] : [];
+    });
+  }, [items, q]);
+
   // The desktop icon-rail "collapsed" toggle has no meaning inside the
   // mobile drawer (it's always full-width there) — whenever the drawer
   // is actually open, force labels on regardless of the desktop state.
   const effectiveCollapsed = mobileOpen ? false : collapsed;
+
+  // Clicking a group (My Profile, Attendance, Leave, Team...):
+  //  - it opens the group's FIRST page straight away and opens its submenu,
+  //    so one click is enough (no extra click on the sub-item);
+  //  - if the group is already open and you're on one of its pages, the
+  //    click just collapses it, so it can still be closed;
+  //  - on the collapsed icon rail it also expands the sidebar.
+  const handleGroupClick = (item) => {
+    const first = item.children?.[0];
+    const isOpenNow = !!openGroups[item.label];
+    const onOwnPage = isChildActive(item.children, location.pathname);
+
+    if (!effectiveCollapsed && isOpenNow && onOwnPage) {
+      toggleGroup(item.label);
+      return;
+    }
+
+    if (first?.path) navigate(first.path);
+    setOpenGroups(() => {
+      const next = {};
+      items.forEach((i) => {
+        if (i.children) next[i.label] = i.label === item.label;
+      });
+      return next;
+    });
+    if (effectiveCollapsed && collapsed) onToggleCollapse?.();
+    onCloseMobile?.();
+  };
 
   // EXACT match - only ONE child will match
   const isExactChildActive = (childPath) => {
@@ -192,6 +238,16 @@ export default function Sidebar({
       location.pathname === childPath || location.pathname === childPath + "/"
     );
   };
+
+  const itemBase = `flex items-center gap-3.5 py-2.5 my-1 rounded-r-full hrms-sidebar-item transition-colors ${
+    effectiveCollapsed ? "justify-center px-0" : "pl-6 pr-4"
+  }`;
+  const itemActive = blue
+    ? "bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-[0_6px_16px_rgba(0,0,0,0.25)]"
+    : "bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-[0_6px_14px_rgba(245,115,11,0.35)]";
+  const itemIdle = blue
+    ? "text-blue-100/90 hover:bg-white/10 hover:text-white"
+    : "text-slate-500 hover:bg-orange-50 hover:text-orange-600";
 
   return (
     <>
@@ -204,39 +260,63 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`h-screen flex flex-col bg-sidebar text-slate-200 transition-all duration-200 fixed inset-y-0 left-0 z-40 w-[240px] ${
+        className={`h-screen flex flex-col ${
+          blue
+            ? "bg-[#0b1f45] text-blue-100 shadow-[6px_0_30px_rgba(11,31,69,0.35)]"
+            : "bg-white text-slate-500 shadow-[6px_0_30px_rgba(11,24,48,0.10)]"
+        } rounded-r-[2.5rem] transition-all duration-200 fixed inset-y-0 left-0 z-40 w-[240px] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:translate-x-0 lg:sticky lg:top-0 lg:z-auto ${
-          collapsed ? "lg:w-[64px]" : "lg:w-[212px]"
+        } lg:translate-x-0 lg:sticky lg:top-0 lg:z-30 ${
+          collapsed ? "lg:w-[72px]" : "lg:w-[240px]"
         }`}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between gap-2 px-3 h-14 border-b border-white/10 shrink-0">
-          <div className="flex items-center gap-3">
+        <div
+          className={`flex items-center justify-between gap-2 shrink-0 ${
+            effectiveCollapsed
+              ? "justify-center px-2 pt-6 pb-4"
+              : "px-6 pt-6 pb-4"
+          }`}
+        >
+          <span className="contents">
             <img
               src={logo}
               alt="Akrobat"
               className={`object-contain shrink-0 transition-all ${
-                effectiveCollapsed ? "w-9 h-8" : "w-9 h-9"
+                effectiveCollapsed
+                  ? "w-10 h-10"
+                  : blue
+                    ? "h-20 w-auto max-w-[170px]"
+                    : "h-12 w-auto max-w-[150px]"
               }`}
             />
-          </div>
+          </span>
           <button
             type="button"
             onClick={onCloseMobile}
-            className="lg:hidden text-slate-300 hover:text-white p-1"
+            className={`lg:hidden p-1 ${blue ? "text-blue-100 hover:text-white" : "text-slate-400 hover:text-slate-700"}`}
             aria-label="Close menu"
           >
             <X size={18} />
           </button>
         </div>
 
+        {/* Collapse toggle -- round orange button sitting on the right edge */}
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="hidden lg:flex absolute -right-3.5 top-24 h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-white shadow-md hover:bg-orange-600 transition-colors"
+        >
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
+
         {/* HR + Manager: switch between My Space (own employee-style menu)
             and Company (HR admin / manager menu). Collapsed rail shows just
             the icons. */}
         {hasSwitch && (
           <div
-            className={`shrink-0 border-b border-white/10 p-2 ${
+            className={`shrink-0 mx-4 mb-2 p-1 rounded-full ${blue ? "bg-white/10" : "bg-slate-100"} ${
               effectiveCollapsed ? "flex flex-col gap-1" : "flex gap-1"
             }`}
           >
@@ -265,10 +345,10 @@ export default function Sidebar({
                   if (!active) navigate(to);
                   onCloseMobile();
                 }}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-medium transition-colors ${
                   active
-                    ? "bg-orange-500/20 text-orange-400"
-                    : "text-slate-400 hover:bg-white/5 hover:text-white"
+                    ? "bg-white text-orange-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
                 }`}
               >
                 <SwitchIcon size={14} className="shrink-0" />
@@ -278,9 +358,52 @@ export default function Sidebar({
           </div>
         )}
 
+        {/* Search */}
+        <div className={effectiveCollapsed ? "px-0" : "px-6"}>
+          {effectiveCollapsed ? (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              aria-label="Search menu"
+              className={`w-full flex justify-center py-2.5 ${blue ? "text-blue-100 hover:text-white" : "text-slate-400 hover:text-orange-600"}`}
+            >
+              <Search size={20} strokeWidth={1.75} />
+            </button>
+          ) : (
+            <label className="flex items-center gap-3.5 py-2.5 cursor-text">
+              <Search
+                size={20}
+                strokeWidth={1.75}
+                className={`shrink-0 ${blue ? "text-blue-100" : "text-slate-400"}`}
+              />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search"
+                className={`w-full min-w-0 bg-transparent border-0 p-0 text-sm outline-none focus:outline-none focus:ring-0 ${
+                  blue
+                    ? "text-white placeholder-blue-200/80"
+                    : "text-slate-600 placeholder-slate-400"
+                }`}
+              />
+            </label>
+          )}
+          <div
+            className={`border-b ${blue ? "border-white/15" : "border-slate-100"}`}
+          />
+        </div>
+
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto sidebar-scroll py-2 px-1.5">
-          {items.map((item) => {
+        <nav className="flex-1 overflow-y-auto sidebar-scroll py-2 pr-3">
+          {visibleItems.length === 0 && !effectiveCollapsed && (
+            <p
+              className={`px-6 py-3 text-xs ${blue ? "text-blue-200" : "text-slate-400"}`}
+            >
+              No results
+            </p>
+          )}
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             const hasChildren = !!item.children;
             const isChildActiveNow =
@@ -289,23 +412,20 @@ export default function Sidebar({
               ? isChildActiveNow
               : location.pathname === item.path ||
                 location.pathname === item.path + "/";
-            const isOpen = openGroups[item.label];
+            const isOpen = q ? true : openGroups[item.label];
 
             if (!hasChildren) {
               return (
                 <NavLink
                   key={item.label}
                   to={item.path}
+                  title={effectiveCollapsed ? item.label : undefined}
                   onClick={onCloseMobile}
                   className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-2.5 py-2 my-0.5 rounded-md hrms-sidebar-item ${
-                      isActive
-                        ? "bg-orange-500/20 text-orange-400"
-                        : "text-slate-300 hover:bg-white/5 hover:text-white"
-                    }`
+                    `${itemBase} ${isActive ? itemActive : itemIdle}`
                   }
                 >
-                  <Icon size={16} className="shrink-0" />
+                  <Icon size={20} strokeWidth={1.75} className="shrink-0" />
                   {!effectiveCollapsed && (
                     <span className="truncate">{item.label}</span>
                   )}
@@ -314,17 +434,16 @@ export default function Sidebar({
             }
 
             return (
-              <div key={item.label} className="my-0.5">
+              <div key={item.label}>
                 <button
                   type="button"
-                  onClick={() => toggleGroup(item.label)}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md hrms-sidebar-item ${
-                    isParentActive
-                      ? "bg-orange-500/10 text-orange-400"
-                      : "text-slate-300 hover:bg-white/5 hover:text-white"
+                  title={effectiveCollapsed ? item.label : undefined}
+                  onClick={() => handleGroupClick(item)}
+                  className={`w-full ${itemBase} ${
+                    isParentActive ? itemActive : itemIdle
                   }`}
                 >
-                  <Icon size={16} className="shrink-0" />
+                  <Icon size={20} strokeWidth={1.75} className="shrink-0" />
                   {!effectiveCollapsed && (
                     <>
                       <span className="flex-1 text-left truncate">
@@ -340,7 +459,9 @@ export default function Sidebar({
                 </button>
 
                 {!effectiveCollapsed && isOpen && (
-                  <div className="ml-5 mt-0.5 border-l border-white/10 pl-0 flex flex-col gap-0.5">
+                  <div
+                    className={`ml-[2.1rem] mt-0.5 mb-1 border-l pl-0 flex flex-col gap-0.5 ${blue ? "border-white/25" : "border-slate-200"}`}
+                  >
                     {item.children.map((child) => {
                       // EXACT match - this is the key fix!
                       const isChildActive = isExactChildActive(child.path);
@@ -352,15 +473,19 @@ export default function Sidebar({
                           onClick={onCloseMobile}
                           // DON'T use the isActive from NavLink for styling
                           // Use our own exact match check
-                          className={`relative px-3 py-1.5 rounded-md hrms-sidebar-subitem truncate transition-colors flex items-center ${
+                          className={`relative px-4 py-1.5 rounded-md hrms-sidebar-subitem truncate transition-colors flex items-center ${
                             isChildActive
-                              ? "text-orange-400 font-medium"
-                              : "text-slate-400 hover:text-white"
+                              ? blue
+                                ? "text-orange-300 font-semibold"
+                                : "text-orange-600 font-medium"
+                              : blue
+                                ? "text-blue-100/80 hover:text-white"
+                                : "text-slate-500 hover:text-orange-600"
                           }`}
                         >
                           {/* Vertical line indicator - only for exact match */}
                           <span
-                            className={`absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3 rounded-full transition-all ${
+                            className={`absolute -left-px top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full transition-all ${
                               isChildActive ? "bg-orange-500" : "bg-transparent"
                             }`}
                           />
@@ -375,15 +500,7 @@ export default function Sidebar({
           })}
         </nav>
 
-        {/* Collapse toggle */}
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          className="hidden lg:flex items-center gap-2 px-3 h-10 border-t border-white/10 text-slate-400 hover:text-white hrms-sidebar-item shrink-0"
-        >
-          {collapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
-          {!collapsed && <span>Collapse</span>}
-        </button>
+        <div className="h-4 shrink-0" />
       </aside>
     </>
   );

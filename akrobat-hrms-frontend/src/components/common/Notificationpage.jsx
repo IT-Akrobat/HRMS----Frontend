@@ -285,109 +285,121 @@ export default function NotificationsPage({
         title="Notifications"
         subtitle={subtitle}
         actions={
-          unreadCount > 0 && (
-            <button
-              onClick={markAllRead}
-              title="Mark All Read"
-              className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 text-sm font-medium text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 transition-colors"
-            >
-              <CheckCheck size={15} />{" "}
-              <span className="hidden sm:inline">Mark All Read</span>
-            </button>
-          )
+          <>
+            {/* Auto-delete dropdown, kept next to Mark All Read */}
+            <div ref={retentionRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setRetentionOpen((o) => !o)}
+                disabled={retentionBusy}
+                aria-haspopup="listbox"
+                aria-expanded={retentionOpen}
+                title="Auto-delete old notifications"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 text-sm font-medium bg-white border rounded-lg transition-colors disabled:opacity-60 ${
+                  retentionOpen
+                    ? "border-orange-400 ring-2 ring-orange-100"
+                    : "border-slate-200 hover:bg-slate-50"
+                } ${retentionDays ? "text-slate-800" : "text-slate-600"}`}
+              >
+                <Trash2 size={15} className="shrink-0 text-slate-500" />
+                <span className="hidden sm:inline">
+                  Auto-delete:{" "}
+                  {RETENTION_OPTIONS.find((o) => o.days === retentionDays)
+                    ?.label || "Off"}
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={`shrink-0 text-slate-400 transition-transform ${
+                    retentionOpen ? "rotate-180 text-orange-500" : ""
+                  }`}
+                />
+              </button>
+
+              {retentionOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-56 z-30 bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden">
+                  <div className="px-3 pt-2.5 pb-1 text-[11px] font-medium text-slate-400">
+                    Delete notifications older than
+                  </div>
+                  <ul role="listbox" className="py-1">
+                    {RETENTION_OPTIONS.map((o) => {
+                      const active = retentionDays === o.days;
+                      return (
+                        <li key={o.days} role="option" aria-selected={active}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRetentionOpen(false);
+                              chooseRetention(o);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 text-sm text-left transition-colors ${
+                              active
+                                ? "bg-orange-50 text-orange-600 font-semibold"
+                                : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                          >
+                            {o.label}
+                            {active && <Check size={14} />}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllRead}
+                title="Mark All Read"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 text-sm font-medium text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 transition-colors"
+              >
+                <CheckCheck size={15} />{" "}
+                <span className="hidden sm:inline">Mark All Read</span>
+              </button>
+            )}
+          </>
         }
       />
 
-      {/* Auto-delete options (left) + compact review tile (right) */}
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5 text-[11px] sm:text-xs font-medium text-slate-500 mb-2">
-            <Trash2 size={13} className="shrink-0" /> Auto-delete notifications
-            older than:
-          </span>
-          {/* Mobile: custom dropdown */}
-          <div ref={retentionRef} className="sm:hidden relative w-40">
-            <button
-              type="button"
-              onClick={() => setRetentionOpen((o) => !o)}
-              disabled={retentionBusy}
-              aria-haspopup="listbox"
-              aria-expanded={retentionOpen}
-              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-medium border bg-white transition-colors disabled:opacity-60 ${
-                retentionOpen
-                  ? "border-orange-400 ring-2 ring-orange-100"
-                  : "border-slate-200"
-              } ${retentionDays ? "text-slate-800" : "text-slate-400"}`}
-            >
-              <span className="truncate">
-                {RETENTION_OPTIONS.find((o) => o.days === retentionDays)
-                  ?.label || "Select period"}
-              </span>
-              <ChevronDown
-                size={14}
-                className={`shrink-0 text-slate-400 transition-transform ${
-                  retentionOpen ? "rotate-180 text-orange-500" : ""
+      {/* Filters (left) + review tile (right) on the same line.
+          On phones they stack: tile first, filters below. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        {/* Filters */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 min-w-0">
+          {FILTERS.map((f) => {
+            const count = filterCounts[f.value] || 0;
+            const active = filter === f.value;
+            return (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                  active
+                    ? "bg-orange-500 border-orange-500 text-white"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
-              />
-            </button>
-
-            {retentionOpen && (
-              <ul
-                role="listbox"
-                className="absolute left-0 top-full mt-1.5 w-full z-30 bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden py-1"
               >
-                {RETENTION_OPTIONS.map((o) => {
-                  const active = retentionDays === o.days;
-                  return (
-                    <li key={o.days} role="option" aria-selected={active}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRetentionOpen(false);
-                          chooseRetention(o);
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left transition-colors ${
-                          active
-                            ? "bg-orange-50 text-orange-600 font-semibold"
-                            : "text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {o.label}
-                        {active && <Check size={13} />}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-
-          {/* Larger screens: buttons */}
-          <div className="hidden sm:flex flex-wrap items-center gap-2">
-            {RETENTION_OPTIONS.map((o) => {
-              const active = retentionDays === o.days;
-              return (
-                <button
-                  key={o.days}
-                  onClick={() => chooseRetention(o)}
-                  disabled={retentionBusy}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors disabled:opacity-60 ${
-                    active
-                      ? "bg-orange-500 border-orange-500 text-white"
-                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {o.label}
-                </button>
-              );
-            })}
-          </div>
+                {f.label}
+                {count > 0 && (
+                  <span
+                    className={`min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold flex items-center justify-center ${
+                      active
+                        ? "bg-white/25 text-white"
+                        : "bg-orange-500 text-white"
+                    }`}
+                  >
+                    {count > 9 ? "9+" : count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
-
         {reviewLink && (
           <Link
             to={reviewLink}
-            className="shrink-0 w-[132px] sm:w-auto sm:min-w-[170px] bg-orange-500 hover:bg-orange-600 transition-colors rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 text-white"
+            className="shrink-0 order-first sm:order-last self-end sm:self-auto w-[132px] sm:w-auto sm:min-w-[170px] bg-orange-500 hover:bg-orange-600 transition-colors rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 text-white"
           >
             <div className="min-w-0">
               <span className="block text-xs leading-tight text-orange-50">
@@ -400,38 +412,6 @@ export default function NotificationsPage({
             <CalendarClock size={20} className="shrink-0" />
           </Link>
         )}
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
-        {FILTERS.map((f) => {
-          const count = filterCounts[f.value] || 0;
-          const active = filter === f.value;
-          return (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                active
-                  ? "bg-orange-500 border-orange-500 text-white"
-                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {f.label}
-              {count > 0 && (
-                <span
-                  className={`min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold flex items-center justify-center ${
-                    active
-                      ? "bg-white/25 text-white"
-                      : "bg-orange-500 text-white"
-                  }`}
-                >
-                  {count > 9 ? "9+" : count}
-                </span>
-              )}
-            </button>
-          );
-        })}
       </div>
 
       {/* List */}

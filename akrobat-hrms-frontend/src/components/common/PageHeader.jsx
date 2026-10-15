@@ -1,5 +1,25 @@
-
-export default function PageHeader({ title, subtitle, actions }) {
+export default function PageHeader({
+  title,
+  subtitle,
+  actions,
+  // actionsInline: keep the action buttons on the SAME first line as the
+  // title, pushed to the right end (the subtitle goes underneath). Without
+  // it, the buttons wrap onto their own row below the subtitle on phones.
+  actionsInline = false,
+}) {
+  if (actionsInline) {
+    return (
+      <div className="mb-6">
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="min-w-0 text-2xl font-bold text-slate-800">{title}</h1>
+          {actions && (
+            <div className="flex items-center gap-2 shrink-0">{actions}</div>
+          )}
+        </div>
+        {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
+      </div>
+    );
+  }
   return (
     // flex-wrap + min-w-0: a long subtitle can never push the action buttons
     // past the page edge. If they don't fit beside the title they drop below it.

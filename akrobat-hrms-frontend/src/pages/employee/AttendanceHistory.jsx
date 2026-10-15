@@ -68,6 +68,8 @@ const STATUS_STYLES = {
   Absent: { text: "text-orange-500", bg: "bg-orange-50", icon: XCircle },
   "Half Day": { text: "text-orange-600", bg: "bg-orange-50", icon: Clock },
   Late: { text: "text-orange-600", bg: "bg-orange-50", icon: AlertTriangle },
+  "Early Checkout": { text: "text-amber-600", bg: "bg-amber-50", icon: Clock },
+  Holiday: { text: "text-purple-600", bg: "bg-purple-50", icon: Moon },
   "On Leave": { text: "text-blue-600", bg: "bg-blue-50", icon: Umbrella },
   "Weekly Off": { text: "text-slate-500", bg: "bg-slate-100", icon: Moon },
 };
@@ -198,6 +200,7 @@ const STATUS_OPTIONS = [
   "Absent",
   "Half Day",
   "Late",
+  "Early Checkout",
   "On Leave",
   "Weekly Off",
 ];
@@ -463,13 +466,20 @@ export default function AttendanceHistory() {
       absent: 0,
       late: 0,
       halfDay: 0,
+      earlyCheckout: 0,
       workingMinutes: 0,
     };
     filtered.forEach((r) => {
-      if (r.status === "Present") s.present += 1;
+      // A late arrival is still a present day (same as the Calendar and the
+      // backend reports: "late" is an overlay on present), so Late rows count
+      // under Present too — previously they were dropped from Present and the
+      // two screens disagreed (8 vs 9).
+      if (r.status === "Present" || r.status === "Late") s.present += 1;
       if (r.status === "Absent") s.absent += 1;
-      if (r.status === "Late") s.late += 1;
+      if ((r.late_minutes || 0) > 0 && r.status !== "Half Day") s.late += 1;
       if (r.status === "Half Day") s.halfDay += 1;
+      // Early checkout is its own category — never counted as absent.
+      if (r.status === "Early Checkout") s.earlyCheckout += 1;
       s.workingMinutes += r.working_minutes || 0;
     });
     return s;
@@ -560,6 +570,7 @@ export default function AttendanceHistory() {
   return (
     <div>
       <PageHeader
+        actionsInline
         title="Attendance History"
         subtitle="View your daily attendance records and working hours."
         actions={
@@ -1296,6 +1307,22 @@ export default function AttendanceHistory() {
                   (
                   {stats.total
                     ? Math.round((stats.halfDay / stats.total) * 100)
+                    : 0}
+                  %)
+                </span>
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-3">
+              <span className="text-sm text-slate-500">
+                Early Checkout Days
+              </span>
+              <span className="text-sm font-semibold text-slate-800">
+                {stats.earlyCheckout}{" "}
+                <span className="text-xs font-normal text-slate-400">
+                  (
+                  {stats.total
+                    ? Math.round((stats.earlyCheckout / stats.total) * 100)
                     : 0}
                   %)
                 </span>

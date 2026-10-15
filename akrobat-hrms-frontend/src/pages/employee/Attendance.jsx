@@ -72,6 +72,54 @@ const DOT_COLOR = {
   "Half Day": "bg-amber-500",
   "Weekly Off": "bg-slate-300",
   "On Leave": "bg-blue-500",
+  Holiday: "bg-purple-500",
+  "Early Checkout": "bg-orange-400",
+};
+
+// Option B calendar cards: label + colours per attendance status.
+const HOLIDAY_CARD = {
+  box: "bg-purple-50 border-purple-200",
+  text: "text-purple-700",
+};
+const DAY_CARD = {
+  Present: {
+    label: "Present",
+    box: "bg-green-50 border-green-200",
+    text: "text-green-700",
+  },
+  Absent: {
+    label: "Absent",
+    box: "bg-red-50 border-red-200",
+    text: "text-red-600",
+  },
+  "Half Day": {
+    label: "Half Day",
+    box: "bg-amber-50 border-amber-200",
+    text: "text-amber-600",
+  },
+  "Weekly Off": {
+    label: "Off",
+    box: "bg-slate-100 border-slate-100",
+    text: "text-slate-400",
+  },
+  // Checked in but left early — its own status, NOT absent.
+  "Early Checkout": {
+    label: "Early Out",
+    box: "bg-orange-50 border-orange-200",
+    text: "text-orange-600",
+  },
+  // Backend marks holiday gap days "Holiday"; the festival name replaces
+  // this label when /holidays/ has loaded.
+  Holiday: {
+    label: "Holiday",
+    box: "bg-purple-50 border-purple-200",
+    text: "text-purple-700",
+  },
+  "On Leave": {
+    label: "Leave",
+    box: "bg-blue-50 border-blue-200",
+    text: "text-blue-600",
+  },
 };
 
 function todayIso() {
@@ -122,12 +170,23 @@ export default function Attendance() {
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [monthRows, setMonthRows] = useState([]);
+  // Company holidays (GET /holidays/ — same endpoint as the dashboard's
+  // Upcoming Holidays card). Used to show the festival name on calendar days.
+  const [holidays, setHolidays] = useState([]);
   const [monthEndpointMissing, setMonthEndpointMissing] = useState(false);
 
   // Mobile-only: "This week" strip is the default, "Full calendar" swaps
   // it for the same month grid used on desktop. Desktop is unaffected —
   // this state only drives the <div className="lg:hidden"> block below.
   const [mobileCalendarExpanded, setMobileCalendarExpanded] = useState(false);
+
+  // Ticks every 30s so the live "working now" time keeps counting up while
+  // the employee is checked in and hasn't checked out yet.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   function loadDay(dateStr) {
     setLoading(true);
@@ -162,6 +221,13 @@ export default function Attendance() {
   }
 
   useEffect(() => {
+    apiClient
+      .get("/holidays/")
+      .then((res) => setHolidays(res.data || []))
+      .catch(() => setHolidays([]));
+  }, []);
+
+  useEffect(() => {
     loadDay(selectedDate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
@@ -193,13 +259,32 @@ export default function Attendance() {
   const checkedIn = !!dayData?.check_in_time;
   const checkedOut = !!dayData?.check_out_time;
 
+  // Live working time: while checked in and not yet checked out today, the
+  // backend's working_minutes is still 0, so count from check-in until now
+  // and subtract breaks (including a break that is still running). After
+  // check-out, or when viewing another day, use the backend's own figure.
+  const isLive = selectedDate === todayIso() && checkedIn && !checkedOut;
+  let workedMinutes = dayData?.working_minutes ?? 0;
+  if (isLive) {
+    const inAt = parseServerDate(dayData.check_in_time);
+    if (inAt && !Number.isNaN(inAt.getTime())) {
+      const brk = (dayData.breaks || []).reduce((sum, bk) => {
+        const st = parseServerDate(bk.break_start);
+        if (!st || Number.isNaN(st.getTime())) return sum;
+        const en = bk.break_end ? parseServerDate(bk.break_end) : new Date(now);
+        return sum + Math.max(0, (en.getTime() - st.getTime()) / 60000);
+      }, 0);
+      workedMinutes = Math.max(0, (now - inAt.getTime()) / 60000 - brk);
+    }
+  }
+
   const shiftStartLabel =
     formatShiftTime(dayData?.shift?.start_time) || SHIFT_START_LABEL;
   const shiftEndLabel =
     formatShiftTime(dayData?.shift?.end_time) || SHIFT_END_LABEL;
   const shiftHoursLabel =
     formatShiftHours(dayData?.shift?.working_hours) || SHIFT_HOURS_LABEL;
-  const shiftNameLabel = dayData?.shift?.shift_name || "General Shift";
+  // const shiftNameLabel = dayData?.shift?.shift_name || "General Shift";
   const onBreak =
     (dayData?.breaks || []).length > 0 &&
     !dayData.breaks[dayData.breaks.length - 1]?.break_end;
@@ -218,6 +303,19 @@ export default function Attendance() {
     });
     return map;
   }, [monthRows]);
+
+  // date (YYYY-MM-DD) -> holiday name. India and Singapore calendars are
+  // merged, so if two names share a date keep the longer/more descriptive one.
+  const holidayByDate = useMemo(() => {
+    const map = {};
+    holidays.forEach((h) => {
+      const d = String(h.holiday_date || "").slice(0, 10);
+      const name = (h.holiday_name || "").trim();
+      if (!d || !name) return;
+      if (!map[d] || name.length > map[d].length) map[d] = name;
+    });
+    return map;
+  }, [holidays]);
 
   const year = monthCursor.getFullYear();
   const month = monthCursor.getMonth();
@@ -238,6 +336,26 @@ export default function Attendance() {
     });
   }, [selectedDate]);
   const WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
+
+  // ---------- Option B: progress ring + month counters ----------
+  // Falls back to an 8h shift when the timeline response has no shift hours
+  // (otherwise the ring would stay empty even after a full day).
+  const shiftMinutes = (dayData?.shift?.working_hours || 8) * 60;
+  const progress =
+    shiftMinutes > 0
+      ? Math.min(1, Math.max(0, workedMinutes / shiftMinutes))
+      : 0;
+  // Full shift worked -> the ring turns blue.
+  const ringDone = progress >= 1;
+  const presentCount = monthRows.filter((r) => r.status === "Present").length;
+  // A holiday is never an absence, even if the API still labels the day
+  // "Absent" (older backend) — the festival name on that date wins.
+  const absentCount = monthRows.filter(
+    (r) => r.status === "Absent" && !holidayByDate[r.date],
+  ).length;
+  const earlyCount = monthRows.filter(
+    (r) => r.status === "Early Checkout",
+  ).length;
 
   return (
     <div>
@@ -378,7 +496,10 @@ export default function Attendance() {
                       className={`block w-1.5 h-1.5 rounded-full mx-auto ${
                         isSelected
                           ? "bg-orange-400"
-                          : DOT_COLOR[status] || "bg-transparent"
+                          : DOT_COLOR[status] ||
+                            (holidayByDate[dateStr]
+                              ? DOT_COLOR.Holiday
+                              : "bg-transparent")
                       }`}
                     />
                   </button>
@@ -447,7 +568,7 @@ export default function Attendance() {
                           {day}
                         </span>
                         <span
-                          className={`w-1 h-1 rounded-full ${DOT_COLOR[status] || "bg-transparent"}`}
+                          className={`w-1 h-1 rounded-full ${DOT_COLOR[status] || (holidayByDate[dateStr] ? DOT_COLOR.Holiday : "bg-transparent")}`}
                         />
                       </button>
                     );
@@ -474,7 +595,7 @@ export default function Attendance() {
             <div className="bg-white rounded-xl border border-slate-200 p-3">
               <Clock size={16} className="text-blue-500" />
               <div className="text-sm font-semibold text-slate-800 mt-2">
-                {formatDuration(dayData?.working_minutes)}
+                {formatDuration(workedMinutes)}
               </div>
               <div className="text-[11px] text-slate-400">
                 of {shiftHoursLabel} working
@@ -606,154 +727,124 @@ export default function Attendance() {
       </div>
 
       {/* ==================================================================
-          DESKTOP layout (lg and up) — unchanged from before, just scoped
-          with `hidden lg:grid` so it no longer renders on mobile.
+          DESKTOP layout (lg and up) — "Option B": left panel with the
+          progress ring, check-in/out button and timeline; right side with
+          the summary tiles and a card-style month calendar. Reads the same
+          selectedDate / dayData / monthRows state as before.
       ================================================================== */}
-      <div className="hidden lg:grid lg:grid-cols-3 gap-6">
-        {/* CheckInOutCard keeps its own "today" state for the check-in/out
-            button widget, but the Summary panel and calendar below read from
-            this page's own dayData/monthRows state. Without this callback,
-            checking out here updated the card itself but left the Summary
-            panel (Working Hours, Early Checkout, etc.) showing stale data
-            until a manual page refresh. onActivityChange fires right after
-            every check-in/break/check-out call succeeds, so we just reload
-            whatever this page is currently showing. */}
-        {/* <CheckInOutCard
-          onActivityChange={() => {
-            if (isViewingToday) {
-              loadDay(todayIso());
-            }
-            loadMonth(monthCursor);
-          }}
-        /> */}
-
-        {/* Only for Inspection/Operation field staff — office employees
-            have one fixed workplace, so a "which site am I at" card isn't
-            relevant and the page reverts to the plain 2-column layout
-            above instead of leaving an empty third slot. */}
-        {/* {isFieldStaff && isViewingToday && (
-          <SiteVisitCard
-            checkedIn={checkedIn}
-            checkedOut={checkedOut}
-            onActivityChange={() => loadDay(todayIso())}
-          />
-        )} */}
-
-        {/* ---------- Attendance Calendar ---------- */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-800">
-              Attendance Calendar
-            </h3>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setMonthCursor(new Date(year, month - 1, 1))}
-                className="p-1 rounded-md hover:bg-orange-50 text-slate-600"
-              >
-                <ChevronLeft size={15} />
-              </button>
-              <span className="text-xs font-medium text-slate-600 w-20 text-center">
-                {monthCursor.toLocaleDateString("en-US", {
-                  month: "long",
-                  year: "numeric",
-                })}
-              </span>
-              <button
-                onClick={() => setMonthCursor(new Date(year, month + 1, 1))}
-                className="p-1 rounded-md hover:bg-orange-50 text-slate-600"
-              >
-                <ChevronRight size={15} />
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-7 mb-2 text-[10px] font-bold text-blue-900 text-center">
-            {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-              <span key={i}>{d}</span>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-y-2 text-center">
-            {Array.from({ length: firstDay }).map((_, i) => (
-              <span key={`pad-${i}`} />
-            ))}
-            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-              const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-              const status = rowsByDate[dateStr];
-              const isToday = dateStr === todayIso();
-              const isSelected = dateStr === selectedDate;
-              const isFuture = dateStr > todayIso();
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() => !isFuture && selectDate(dateStr)}
-                  disabled={isFuture}
-                  title={isFuture ? undefined : `View summary for ${dateStr}`}
-                  className="flex flex-col items-center gap-0.5 group disabled:cursor-not-allowed"
-                >
-                  <span
-                    className={`w-6 h-6 flex items-center justify-center rounded-full text-xs transition-colors ${
-                      isToday
-                        ? "bg-blue-600 text-white font-semibold"
-                        : isFuture
-                          ? "text-slate-300"
-                          : "text-slate-600 group-hover:bg-orange-50"
-                    } ${
-                      isSelected && !isToday
-                        ? "ring-2 ring-orange-400 ring-offset-1"
-                        : ""
-                    } ${isSelected && isToday ? "ring-2 ring-blue-300 ring-offset-1" : ""}`}
-                  >
-                    {day}
-                  </span>
-                  <span
-                    className={`w-1 h-1 rounded-full ${
-                      DOT_COLOR[status] || "bg-transparent"
-                    }`}
-                  />
-                </button>
-              );
+      <div className="hidden lg:flex gap-6 items-stretch">
+        {/* ---------- Left panel: ring + action + timeline ---------- */}
+        <div className="w-[290px] shrink-0 bg-white rounded-2xl border border-slate-200 p-4 flex flex-col items-center">
+          <div className="text-xs font-bold tracking-wide text-slate-500 uppercase">
+            {new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-US", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
             })}
           </div>
 
-          {monthEndpointMissing && (
-            <p className="text-xs text-slate-400 mt-3">
-              Attendance history for this month isn't available yet.
-            </p>
+          {loading ? (
+            <div className="w-[140px] h-[140px] my-3 rounded-full bg-slate-100 animate-pulse" />
+          ) : (
+            <svg
+              width="140"
+              height="140"
+              viewBox="0 0 220 220"
+              className="my-3"
+              role="img"
+              aria-label="Working hours progress"
+            >
+              <circle
+                cx="110"
+                cy="110"
+                r="94"
+                fill="none"
+                stroke="#eef1f8"
+                strokeWidth="16"
+              />
+              <circle
+                cx="110"
+                cy="110"
+                r="94"
+                fill="none"
+                stroke={ringDone ? "#2563eb" : "#f26a1b"}
+                strokeWidth="16"
+                strokeLinecap="round"
+                strokeDasharray="590.6"
+                strokeDashoffset={590.6 * (1 - progress)}
+                transform="rotate(-90 110 110)"
+              />
+              <text
+                x="110"
+                y="108"
+                textAnchor="middle"
+                fontWeight="800"
+                fontSize="30"
+                fill="#0b1d45"
+              >
+                {formatDuration(workedMinutes)}
+              </text>
+              <text
+                x="110"
+                y="134"
+                textAnchor="middle"
+                fontWeight="600"
+                fontSize="12"
+                fill="#64708a"
+              >
+                {isLive
+                  ? "working now"
+                  : isViewingToday
+                    ? "worked today"
+                    : "worked"}
+              </text>
+            </svg>
           )}
 
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-green-500" /> Present
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-red-500" /> Absent
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-amber-500" /> Half Day
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-slate-300" /> Weekly Off
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-500" /> On Leave
-            </span>
-          </div>
-        </div>
+          <span
+            className={`text-xs font-bold px-3.5 py-1.5 rounded-full ${
+              checkedOut
+                ? "bg-slate-100 text-slate-600"
+                : checkedIn
+                  ? dayData?.late_minutes
+                    ? "bg-amber-50 text-amber-600"
+                    : "bg-green-50 text-green-700"
+                  : "bg-orange-50 text-orange-600"
+            }`}
+          >
+            ●{" "}
+            {checkedOut
+              ? "Checked out"
+              : checkedIn
+                ? `Checked in · ${dayData?.late_minutes ? "Late" : "On Time"}`
+                : statusLabel}
+          </span>
 
-        {/* ---------- Summary (today, or whichever date is selected) ---------- */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-800">
-              {isViewingToday ? "Today's Summary" : "Summary"}
-            </h3>
-            <div className="flex items-center gap-2">
-              {!isViewingToday && (
-                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                  {formatShortDate(selectedDate)}
-                </span>
-              )}
+          {isViewingToday && !checkedOut && (
+            <button
+              type="button"
+              disabled={busy || loading}
+              onClick={() =>
+                runAction(
+                  checkedIn ? "/attendance/check-out" : "/attendance/check-in",
+                )
+              }
+              className={`w-full h-10 mt-3 text-sm rounded-xl text-white font-bold disabled:opacity-60 ${
+                checkedIn
+                  ? "bg-[#0B1D45] hover:bg-[#13295e]"
+                  : "bg-orange-500 hover:bg-orange-600"
+              }`}
+            >
+              {busy ? "Please wait..." : checkedIn ? "Check Out" : "Check In"}
+            </button>
+          )}
+
+          {/* Timeline */}
+          <div className="w-full mt-4 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-extrabold text-slate-800">
+                {isViewingToday ? "Today's Timeline" : "Timeline"}
+              </h3>
               {!isViewingToday && (
                 <button
                   onClick={() => selectDate(todayIso())}
@@ -763,255 +854,315 @@ export default function Attendance() {
                 </button>
               )}
             </div>
-          </div>
 
-          {loading ? (
-            <div className="space-y-3 animate-pulse">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="h-4 bg-slate-100 rounded" />
-              ))}
-            </div>
-          ) : !dayData && !isViewingToday ? (
-            <div className="text-sm text-slate-400 py-6 text-center">
-              No attendance record for {formatShortDate(selectedDate)}.
-            </div>
-          ) : (
-            <>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-sm text-slate-600">
-                    <Clock size={15} className="text-blue-500" /> Working Hours
-                  </span>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-slate-800">
-                      {formatDuration(dayData?.working_minutes)}
-                    </div>
-                    <div className="text-[11px] text-slate-400">
-                      of {shiftHoursLabel}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-sm text-slate-600">
-                    <Coffee size={15} className="text-purple-500" /> Break Time
-                  </span>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-slate-800">
-                      {formatDuration(dayData?.break_minutes)}
-                    </div>
-                    <div className="text-[11px] text-slate-400">of 01h 00m</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-sm text-slate-600">
-                    <TimerReset size={15} className="text-orange-500" />{" "}
-                    Expected Check Out
-                  </span>
-                  <div className="text-sm font-semibold text-slate-800">
-                    {shiftEndLabel}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-sm text-slate-600">
-                    <AlertTriangle size={15} className="text-amber-500" /> Late
-                    Arrival
-                  </span>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-slate-800">
-                      {dayData?.late_minutes
-                        ? formatDuration(dayData.late_minutes)
-                        : "00h 00m"}
-                    </div>
-                    <div className="text-[11px] text-slate-400">
-                      {dayData?.late_minutes
-                        ? `checked in after ${shiftStartLabel}`
-                        : "on time"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-sm text-slate-600">
-                    <TimerReset size={15} className="text-red-500" /> Early
-                    Checkout
-                  </span>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-slate-800">
-                      {dayData?.early_checkout_minutes
-                        ? formatDuration(dayData.early_checkout_minutes)
-                        : "00h 00m"}
-                    </div>
-                    <div className="text-[11px] text-slate-400">
-                      {dayData?.early_checkout_minutes
-                        ? checkedOut
-                          ? `checked out before ${shiftEndLabel}`
-                          : "short so far"
-                        : checkedOut
-                          ? "on time"
-                          : "--"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-sm text-slate-600">
-                    <Clock size={15} className="text-slate-400" /> Overtime
-                  </span>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-slate-400">
-                      {dayData?.overtime_minutes
-                        ? formatDuration(dayData.overtime_minutes)
-                        : "--"}
-                    </div>
-                    <div className="text-[11px] text-slate-400">
-                      {dayData?.overtime_minutes
-                        ? `checked out after ${shiftEndLabel}`
-                        : "No overtime"}
-                    </div>
-                  </div>
-                </div>
+            {loading ? (
+              <div className="space-y-3 animate-pulse">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-4 bg-slate-100 rounded" />
+                ))}
               </div>
-
-              <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5 mt-4">
-                <Info size={14} className="shrink-0 mt-0.5" />
+            ) : !dayData ? (
+              <div className="text-sm text-slate-400 py-3 text-center">
                 {isViewingToday
-                  ? checkedOut
-                    ? "Day complete. See you tomorrow!"
-                    : checkedIn
-                      ? "You are on time. Great going!"
-                      : "Don't forget to check in for today."
-                  : checkedOut
-                    ? "Day complete."
-                    : checkedIn
-                      ? "Checked in, no check-out recorded."
-                      : `Status: ${dayData?.status || "No record"}.`}
+                  ? "No check-in recorded yet today."
+                  : `No attendance record for ${formatShortDate(selectedDate)}.`}
               </div>
-            </>
-          )}
-        </div>
-
-        {/* ---------- Timeline (today, or whichever date is selected) ---------- */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-800">
-              {isViewingToday ? "Today's Timeline" : "Timeline"}
-            </h3>
-            {!isViewingToday && (
-              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {formatShortDate(selectedDate)}
-              </span>
-            )}
-          </div>
-
-          {loading ? (
-            <div className="space-y-4 animate-pulse">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-4 bg-slate-100 rounded" />
-              ))}
-            </div>
-          ) : !dayData ? (
-            <div className="text-sm text-slate-400 py-6 text-center">
-              {isViewingToday
-                ? "No check-in recorded yet today."
-                : `No attendance record for ${formatShortDate(selectedDate)}.`}
-            </div>
-          ) : (
-            <>
-              <ul className="space-y-4">
-                <li className="flex items-center gap-3">
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full ${
-                      checkedIn ? "bg-green-500" : "bg-slate-200"
-                    }`}
-                  />
-                  <div className="flex-1 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium text-slate-700">
-                        {checkedIn
-                          ? `${formatTime(dayData?.check_in_time)} Checked In`
-                          : "Not Checked In"}
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        Office - Main Entrance
-                      </div>
+            ) : (
+              <ul className="space-y-2.5">
+                <li className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-sm text-slate-700">
+                      {checkedIn ? (
+                        <>
+                          <b>{formatTime(dayData?.check_in_time)}</b> Checked in
+                        </>
+                      ) : (
+                        "Not checked in"
+                      )}
                     </div>
-                    {checkedIn && (
-                      <span
-                        className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
-                          dayData?.late_minutes
-                            ? "bg-amber-50 text-amber-600"
-                            : "bg-green-50 text-green-600"
-                        }`}
-                      >
-                        {dayData?.late_minutes ? "Late" : "On Time"}
-                      </span>
-                    )}
+                    <div className="text-xs text-slate-400">
+                      Office - Main Entrance
+                    </div>
                   </div>
+                  {checkedIn && (
+                    <span
+                      className={`text-xs font-bold ${
+                        dayData?.late_minutes
+                          ? "text-amber-600"
+                          : "text-green-700"
+                      }`}
+                    >
+                      {dayData?.late_minutes ? "Late" : "On Time"}
+                    </span>
+                  )}
                 </li>
 
                 {(dayData?.breaks || []).map((b, i) => (
-                  <li key={i} className="flex items-center gap-3">
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                    <div className="flex-1 flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-medium text-slate-700">
-                          {formatTime(b.break_start)} Break Started
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          {b.break_end
-                            ? `Ended ${formatTime(b.break_end)}`
-                            : "In progress"}
-                        </div>
+                  <li
+                    key={i}
+                    className="flex items-start justify-between gap-2"
+                  >
+                    <div>
+                      <div className="text-sm text-slate-700">
+                        <b>{formatTime(b.break_start)}</b> Break started
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {b.break_end
+                          ? `Ended ${formatTime(b.break_end)}`
+                          : "In progress"}
                       </div>
                     </div>
                   </li>
                 ))}
 
-                <li className="flex items-center gap-3">
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full ${
-                      checkedOut ? "bg-slate-500" : "bg-slate-200"
-                    }`}
-                  />
-                  <div className="flex-1 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium text-slate-700">
-                        Check Out
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        {checkedOut
-                          ? formatTime(dayData?.check_out_time)
-                          : "Yet to Check Out"}
-                      </div>
-                    </div>
-                    <span
-                      className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
-                        checkedOut
-                          ? "bg-slate-100 text-slate-500"
-                          : "bg-orange-50 text-orange-500"
-                      }`}
-                    >
-                      {checkedOut ? "Done" : "Pending"}
-                    </span>
+                <li className="flex items-start justify-between gap-2">
+                  <div className="text-sm text-slate-700">
+                    <b>
+                      {checkedOut
+                        ? formatTime(dayData?.check_out_time)
+                        : "--:--"}
+                    </b>{" "}
+                    Check out
                   </div>
+                  <span
+                    className={`text-xs font-bold ${
+                      checkedOut ? "text-slate-500" : "text-amber-600"
+                    }`}
+                  >
+                    {checkedOut ? "Done" : "Pending"}
+                  </span>
                 </li>
               </ul>
+            )}
+          </div>
 
-              {isViewingToday && !checkedOut && checkedIn && (
-                <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5 mt-4">
-                  <Info size={14} className="shrink-0 mt-0.5" />
-                  Please remember to check out at the end of your working hours.
-                </div>
-              )}
-            </>
+          {isViewingToday && checkedIn && !checkedOut && (
+            <div className="mt-auto pt-3 w-full">
+              <div className="flex items-start gap-2 text-xs font-medium text-blue-700 bg-blue-50 rounded-xl px-3.5 py-3">
+                <Info size={14} className="shrink-0 mt-0.5" />
+                Remember to check out at the end of your working hours.
+              </div>
+            </div>
           )}
         </div>
 
-        {/* ---------- Shift & Location ---------- */}
-        {/* <div className="bg-white rounded-xl border border-slate-200 p-5">
+        {/* ---------- Right side: summary tiles + calendar ---------- */}
+        <div className="flex-1 min-w-0 flex flex-col gap-3">
+          {/* Summary tiles */}
+          {loading ? (
+            <div className="grid grid-cols-4 gap-3 animate-pulse">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-[64px] bg-slate-100 rounded-xl" />
+              ))}
+            </div>
+          ) : !dayData && !isViewingToday ? (
+            <div className="bg-white rounded-2xl border border-slate-200 py-6 text-center text-sm text-slate-400">
+              No attendance record for {formatShortDate(selectedDate)}.
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                {
+                  label: "Break",
+                  value: formatDuration(dayData?.break_minutes),
+                  sub: "of 01h 00m",
+                },
+                {
+                  label: "Late arrival",
+                  value: dayData?.late_minutes
+                    ? formatDuration(dayData.late_minutes)
+                    : "On time",
+                  sub: dayData?.late_minutes
+                    ? `after ${shiftStartLabel}`
+                    : "00h 00m",
+                },
+                {
+                  label: "Early checkout",
+                  value: dayData?.early_checkout_minutes
+                    ? formatDuration(dayData.early_checkout_minutes)
+                    : "00h 00m",
+                  sub: dayData?.early_checkout_minutes
+                    ? checkedOut
+                      ? `before ${shiftEndLabel}`
+                      : "short so far"
+                    : checkedOut
+                      ? "on time"
+                      : "none",
+                },
+                {
+                  label: "Overtime",
+                  value: dayData?.overtime_minutes
+                    ? formatDuration(dayData.overtime_minutes)
+                    : "--",
+                  sub: dayData?.overtime_minutes
+                    ? `after ${shiftEndLabel}`
+                    : "No overtime",
+                },
+              ].map((t) => (
+                <div
+                  key={t.label}
+                  className="bg-white rounded-xl border border-slate-200 px-3.5 py-2.5"
+                >
+                  <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    {t.label}
+                  </div>
+                  <div className="text-lg font-extrabold text-slate-800 mt-0.5">
+                    {t.value}
+                  </div>
+                  <div className="text-[11px] text-slate-400">{t.sub}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Shift info line (expected check out, shift hours) */}
+          {/* <div className="flex items-center gap-2 text-xs text-slate-500 -mt-2">
+            <Clock size={13} className="text-slate-400" />
+            {shiftNameLabel}: {shiftStartLabel} - {shiftEndLabel} (
+            {shiftHoursLabel})
+          </div> */}
+
+          {/* Calendar */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setMonthCursor(new Date(year, month - 1, 1))}
+                  className="p-1.5 rounded-md hover:bg-orange-50 text-slate-600"
+                  aria-label="Previous month"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <h3 className="text-base font-extrabold text-slate-800 min-w-[130px] text-center">
+                  {monthCursor.toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </h3>
+                <button
+                  onClick={() => setMonthCursor(new Date(year, month + 1, 1))}
+                  className="p-1.5 rounded-md hover:bg-orange-50 text-slate-600"
+                  aria-label="Next month"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+              <div className="text-xs font-bold text-slate-500">
+                {presentCount} present · {absentCount} absent
+                {earlyCount > 0 ? ` · ${earlyCount} early checkout` : ""}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1.5 mb-1 text-center text-xs font-bold text-slate-500">
+              {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => (
+                <span key={d}>{d}</span>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-1.5">
+              {Array.from({ length: firstDay }).map((_, i) => (
+                <span key={`pad-${i}`} />
+              ))}
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(
+                (day) => {
+                  const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const status = rowsByDate[dateStr];
+                  const holidayName = holidayByDate[dateStr];
+                  // A holiday shows its festival name unless the employee
+                  // actually worked / was on leave that day.
+                  const showHoliday =
+                    !!holidayName &&
+                    ![
+                      "Present",
+                      "Half Day",
+                      "On Leave",
+                      "Early Checkout",
+                    ].includes(status);
+                  const card = showHoliday ? HOLIDAY_CARD : DAY_CARD[status];
+                  const cardLabel = showHoliday ? holidayName : card?.label;
+                  const isToday = dateStr === todayIso();
+                  const isSelected = dateStr === selectedDate;
+                  const isFuture = dateStr > todayIso();
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      disabled={isFuture}
+                      onClick={() => !isFuture && selectDate(dateStr)}
+                      title={
+                        holidayName
+                          ? holidayName
+                          : isFuture
+                            ? undefined
+                            : `View summary for ${dateStr}`
+                      }
+                      className={`h-[44px] min-w-0 overflow-hidden rounded-xl border px-2 py-1 flex flex-col justify-between items-start text-left transition-colors disabled:cursor-not-allowed ${
+                        isToday
+                          ? "bg-orange-500 border-orange-500 text-white"
+                          : card
+                            ? `${card.box} ${card.text}`
+                            : "bg-white border-slate-200 text-slate-700"
+                      } ${isSelected && !isToday ? "ring-2 ring-orange-400 ring-offset-1" : ""} ${
+                        isSelected && isToday
+                          ? "ring-2 ring-orange-300 ring-offset-1"
+                          : ""
+                      }`}
+                    >
+                      <span
+                        className={`text-[13px] leading-none font-extrabold ${
+                          isFuture && !showHoliday
+                            ? "text-slate-300"
+                            : isToday
+                              ? "text-white"
+                              : "text-slate-800"
+                        }`}
+                      >
+                        {day}
+                      </span>
+                      <span className="text-[10px] leading-none font-bold w-full truncate">
+                        {isToday && !showHoliday ? "Today" : cardLabel || ""}
+                      </span>
+                    </button>
+                  );
+                },
+              )}
+            </div>
+
+            {monthEndpointMissing && (
+              <p className="text-xs text-slate-400 mt-3">
+                Attendance history for this month isn't available yet.
+              </p>
+            )}
+
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5 pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-green-500" /> Present
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-red-500" /> Absent
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500" /> Half Day
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-slate-300" /> Weekly
+                Off
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-blue-500" /> On Leave
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-purple-500" /> Holiday
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-orange-400" /> Early
+                Checkout
+              </span>
+            </div>
+          </div>
+
+          {/* ---------- Shift & Location ---------- */}
+          {/* <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h3 className="font-semibold text-slate-800 mb-4">
             Shift & Location
           </h3>
@@ -1068,6 +1219,7 @@ export default function Attendance() {
             </div>
           </div>
         </div> */}
+        </div>
       </div>
     </div>
   );

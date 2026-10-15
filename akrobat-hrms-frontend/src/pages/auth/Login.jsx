@@ -108,9 +108,9 @@ export default function Login() {
   };
 
   return (
-    <div className="h-screen w-full flex bg-white overflow-hidden">
-      {/* LEFT -- rotating image panel */}
-      <div className="relative hidden lg:flex w-1/2 h-screen overflow-hidden bg-[#0b1f45] text-white">
+    <div className="relative h-screen w-full flex bg-white overflow-hidden">
+      {/* LEFT -- rotating image panel (ends ~20% into the login card) */}
+      <div className="relative hidden lg:flex lg:w-[calc(72%-138px)] h-screen overflow-hidden bg-[#0b1f45] text-white">
         {SLIDES.map((src, i) => (
           <img
             key={i}
@@ -128,7 +128,7 @@ export default function Login() {
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
           <div>
             <img src={logo} alt="Akrobat" className="h-16 mb-10" />
-            <h1 className="text-4xl font-bold tracking-wide leading-tight text-white">
+            <h1 className="text-3xl xl:text-4xl font-bold tracking-wide leading-tight text-white">
               AKROBAT
               <br />
               HR MANAGEMENT SYSTEM
@@ -170,14 +170,14 @@ export default function Login() {
       </div>
 
       {/* RIGHT -- form */}
-      <div className="flex-1 flex flex-col px-6 sm:px-12 lg:px-20 py-6 overflow-hidden">
+      <div className="flex-1 flex flex-col px-6 sm:px-12 py-6 overflow-hidden lg:contents">
         {/* Mobile-only brand header removed — the AKROBAT HR MANAGEMENT
             SYSTEM logo and title only show in the desktop slide panel
             (`hidden lg:flex` above); no equivalent shown below the
             `lg` breakpoint. */}
 
         <div className="flex-1 flex flex-col justify-start lg:justify-center lg:items-center">
-          <div className="w-full max-w-md mx-auto pt-20 pb-12 lg:py-12">
+          <div className="w-full max-w-md mx-auto pt-20 pb-12 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:max-w-none lg:mx-0 lg:pt-10 lg:pb-8 lg:px-14 lg:bg-white lg:rounded-[4rem] lg:shadow-[0_25px_70px_rgba(11,31,69,0.3)]">
             <h2 className="text-2xl font-bold text-[#0b1f45]">Welcome Back!</h2>
             <p className="text-gray-500 mt-1">
               Sign in to continue to your Akrobat HRMS account
@@ -189,7 +189,7 @@ export default function Login() {
                   Username
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
                     type="text"
                     required
@@ -197,7 +197,7 @@ export default function Login() {
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Your name"
                     autoComplete="username"
-                    className={`w-full pl-11 pr-4 py-3 rounded-lg border transition-colors
+                    className={`w-full pl-12 pr-5 py-3 rounded-full border transition-colors
     ${
       errors.username
         ? "border-orange-500 focus:border-orange-500 focus:ring-orange-500"
@@ -218,7 +218,7 @@ export default function Login() {
                 </label>
 
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
 
                   <input
                     type={showPwd ? "text" : "password"}
@@ -226,7 +226,7 @@ export default function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className={`w-full pl-11 pr-11 py-3 rounded-lg border transition-colors
+                    className={`w-full pl-12 pr-12 py-3 rounded-full border transition-colors
             ${
               errors.password
                 ? "border-orange-500 focus:border-orange-500 focus:ring-orange-500"
@@ -238,7 +238,7 @@ export default function Login() {
                     <button
                       type="button"
                       onClick={() => setShowPwd(!showPwd)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
                     >
                       {showPwd ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
@@ -267,7 +267,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#0b1f45] hover:bg-[#0a1a3a] text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-60"
+                className="w-full bg-[#0b1f45] hover:bg-[#0a1a3a] text-white font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors disabled:opacity-60"
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
@@ -285,6 +285,11 @@ export default function Login() {
             </form>
           </div>
         </div>
+
+        {/* Footer */}
+        <p className="text-center text-xs text-gray-400 pb-2 lg:absolute lg:bottom-5 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:pb-0">
+          © {new Date().getFullYear()} Akrobat. All rights reserved.
+        </p>
       </div>
     </div>
   );

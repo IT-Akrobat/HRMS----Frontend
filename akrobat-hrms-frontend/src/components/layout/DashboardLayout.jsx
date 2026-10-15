@@ -14,6 +14,10 @@ export default function DashboardLayout() {
   // the sidebar is always visible exactly as before.
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { user } = useAuth();
+  // Navy sidebar + blue-tinted content area for every role
+  // (styles live under .theme-blue in index.css). Keep in sync with the
+  // `blue` flag in Sidebar.jsx.
+  const blueTheme = true;
   const navigate = useNavigate();
   // Employee dashboard on mobile paints a gradient behind the whole header
   // (top bar included). Only this route; every other page is unchanged.
@@ -26,7 +30,9 @@ export default function DashboardLayout() {
     /^\/[^/]+(\/me)?\/profile\/(personal|my-profile)$/.test(cleanPath);
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div
+      className={`flex min-h-screen ${blueTheme ? "theme-blue" : "bg-slate-50"}`}
+    >
       <Sidebar
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}

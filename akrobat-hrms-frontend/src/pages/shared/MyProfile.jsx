@@ -872,13 +872,6 @@ export default function MyProfile() {
                       className="max-lg:col-span-2"
                     />
                   </div>
-
-                  <button
-                    onClick={openEditModal}
-                    className="mt-5 flex items-center gap-1.5 text-sm font-medium text-orange-600 hover:text-orange-700"
-                  >
-                    <Pencil size={14} /> Edit these details
-                  </button>
                 </div>
               )}
 

@@ -252,6 +252,7 @@ export default function LeaveHistory() {
   return (
     <div>
       <PageHeader
+        actionsInline
         title="Leave History"
         subtitle="View your leave history and past records."
         actions={

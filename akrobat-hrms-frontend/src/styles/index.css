@@ -937,3 +937,44 @@ body:has(
   aside {
   z-index: 0;
 }
+/* =====================================================
+   BLUE THEME (Super Admin) -- applied via .theme-blue on the
+   DashboardLayout root. Pairs the blue sidebar with a soft
+   blue-tinted content area so both sides feel like one design.
+===================================================== */
+.theme-blue {
+  background: linear-gradient(180deg, #e6ebf5 0%, #eff2f9 45%, #f5f7fb 100%);
+}
+/* Top bar blends into the page (same tone as the gradient's top edge, no
+   divider line) so it no longer looks like a separate white strip. */
+@media (min-width: 1024px) {
+  .theme-blue .header {
+    background: #e6ebf5;
+    backdrop-filter: none;
+    border-bottom-color: transparent;
+    height: 3.75rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+  /* bell + profile + logout grouped in one white pill */
+  .theme-blue .header > div:last-child {
+    background: #ffffff;
+    border: 1px solid #dae1ef;
+    border-radius: 9999px;
+    padding: 0.2rem 0.5rem 0.2rem 0.3rem;
+    box-shadow: 0 4px 14px rgba(11, 31, 69, 0.08);
+  }
+}
+.theme-blue main .border-slate-200 {
+  border-color: #dae1ef;
+}
+.theme-blue main .bg-white.rounded-xl,
+.theme-blue main .bg-white.rounded-2xl {
+  box-shadow: 0 2px 10px rgba(11, 31, 69, 0.06);
+}
+
+@media (min-width: 1024px) {
+  .theme-blue main {
+    padding: 0.5rem 1.25rem 1.25rem;
+  }
+}
