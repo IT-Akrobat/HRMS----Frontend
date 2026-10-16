@@ -32,8 +32,9 @@ export const LEAVE_REQUEST_VIEWER_ROLES = [
 export const DEFAULT_ROUTE_BY_ROLE = {
   [ROLES.EMPLOYEE]: "/employee/dashboard",
   [ROLES.MANAGER]: "/manager/dashboard",
-  // HR lands on the chooser page (My Profile / Company) after login.
-  [ROLES.HR_ADMIN]: "/hr-admin/home",
+  // HR goes straight to the Company workspace after login (the
+  // /hr-admin/home chooser page is no longer the landing page).
+  [ROLES.HR_ADMIN]: "/hr-admin/dashboard",
   [ROLES.SUPER_ADMIN]: "/super-admin/dashboard",
 };
 

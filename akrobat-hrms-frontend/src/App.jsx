@@ -1,10 +1,10 @@
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import InstallPrompt from "./components/common/InstallPrompt.jsx";
 import ProtectedRoute from "./components/common/ProtectedRoute.jsx";
 import DashboardLayout from "./components/layout/DashboardLayout.jsx";
-import { DEFAULT_ROUTE_BY_ROLE, ROLES } from "./config/roles";
+import { DEFAULT_ROUTE_BY_ROLE, HR_COMPANY_HOME, ROLES } from "./config/roles";
 import { useAuth } from "./context/AuthContext";
 // Login is NOT lazy-loaded on purpose -- it's the first thing anyone
 // sees, so it should be part of the small initial bundle instead of
@@ -13,9 +13,6 @@ import { useAuth } from "./context/AuthContext";
 // that JS (or its heavy deps like jspdf/leaflet/xlsx-js-style) loads
 // until someone actually logs in and navigates to a route that needs it.
 import Login from "./pages/auth/Login.jsx";
-
-// HR's post-login chooser (My Profile / Company) -- full screen, no sidebar.
-const HrHome = lazy(() => import("./pages/hr-admin/HrHome.jsx"));
 
 // Small, dependency-free fallback shown while a role's page chunk is
 // still downloading (route navigation, not first paint -- Login itself
@@ -71,14 +68,11 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<RootRedirect />} />
 
-          {/* HR chooser: My Profile (employee view) or Company */}
+          {/* The old HR chooser page (My Profile / Company) is retired:
+              anyone landing on /hr-admin/home goes straight to Company. */}
           <Route
             path="/hr-admin/home"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.HR_ADMIN]}>
-                <HrHome />
-              </ProtectedRoute>
-            }
+            element={<Navigate to={HR_COMPANY_HOME} replace />}
           />
 
           {/* Employee */}
