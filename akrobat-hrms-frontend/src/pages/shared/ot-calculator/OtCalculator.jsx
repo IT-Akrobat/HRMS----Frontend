@@ -125,7 +125,7 @@ export default function OtCalculator() {
               value={month}
               onChange={handleMonthChange}
               placeholder="Select month"
-              className="w-[168px]"
+              className="shrink-0"
             />
             <div className="hidden lg:flex items-center gap-2">
               <button

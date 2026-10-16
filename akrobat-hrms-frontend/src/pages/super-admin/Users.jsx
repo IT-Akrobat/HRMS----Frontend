@@ -1046,6 +1046,7 @@ export default function Users() {
     <div>
       <PageHeader
         title="Users"
+        actionsInline
         subtitle={
           <span className="hidden sm:inline">
             Manage every account in the system, across all roles.
