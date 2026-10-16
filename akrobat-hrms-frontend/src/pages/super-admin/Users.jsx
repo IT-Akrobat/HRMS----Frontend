@@ -27,6 +27,7 @@ import StatCard from "../../components/common/StatCard";
 import UserFormModal, {
   FilterDropdown,
 } from "../../components/common/UserformModal";
+import { useIsDesktop } from "../../hooks/useBasePath";
 import { apiClient } from "../../services/apiClient";
 import { documentsService } from "../../services/documentsService";
 
@@ -506,6 +507,10 @@ export default function Users() {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  // Web (lg+) uses the table + detail-panel layout; mobile keeps the
+  // original card list below.
+  const isDesktop = useIsDesktop();
+  const [selectedId, setSelectedId] = useState(null);
 
   const [formState, setFormState] = useState(null); // { mode: 'add'|'edit', user }
   const [viewing, setViewing] = useState(null);
@@ -626,6 +631,7 @@ export default function Users() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const selected = pageItems.find((u) => u.id === selectedId) || pageItems[0];
 
   useEffect(() => {
     setPage(1);
@@ -654,11 +660,397 @@ export default function Users() {
     }
   }
 
+  const modals = (
+    <>
+      {viewing && (
+        <UserViewModal
+          user={viewing}
+          users={users}
+          onClose={() => setViewing(null)}
+          onEdit={() => {
+            // Keep the view drawer open behind the edit popup — only
+            // the edit form should appear on top, not replace it.
+            setFormState({ mode: "edit", user: viewing });
+          }}
+        />
+      )}
+
+      {/* Rendered AFTER the view drawer so that when both are open
+          (editing from within the view drawer) the edit popup stacks
+          on top of it — both share the same z-50, and later markup
+          wins the stacking order. */}
+      {formState && (
+        <UserFormModal
+          mode={formState.mode}
+          user={formState.user}
+          refData={refData}
+          onClose={() => setFormState(null)}
+          onSaved={() => {
+            setFormState(null);
+            loadUsers(roles);
+          }}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteConfirmModal
+          user={deleteTarget}
+          deleting={deleting}
+          error={deleteError}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+        />
+      )}
+    </>
+  );
+
+  const hasFilters = !!(
+    search ||
+    roleFilter ||
+    deptFilter ||
+    designationFilter ||
+    statusFilter
+  );
+
+  // ======================= Web layout: table + detail panel =======================
+  if (isDesktop) {
+    return (
+      <div>
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div className="flex items-baseline gap-3 min-w-0">
+            <h1 className="text-xl font-bold text-slate-800">Users</h1>
+            <span className="text-xs text-slate-500 truncate">
+              {loading
+                ? "Loading…"
+                : `${stats.total} total · ${stats.active} active · ${stats.inactive} inactive · ${stats.roleCount} roles`}
+            </span>
+          </div>
+          <button
+            onClick={() => setFormState({ mode: "add" })}
+            disabled={!rolesReady}
+            title={rolesError || (!rolesReady ? "Loading roles…" : undefined)}
+            className="px-3.5 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center gap-1.5 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus size={15} />
+            Add User
+          </button>
+        </div>
+
+        {rolesError && (
+          <div className="flex items-center gap-2 text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-4 py-3 text-sm mb-3">
+            <AlertTriangle size={16} />
+            {rolesError}
+          </div>
+        )}
+
+        <div className="bg-white border border-slate-200 rounded-xl p-2 mb-3 flex flex-wrap xl:flex-nowrap items-center gap-2 xl:[&>div>button]:w-40">
+          <div className="relative flex-1 min-w-[220px] xl:min-w-[120px]">
+            <Search
+              size={15}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, email or employee ID..."
+              className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+            />
+          </div>
+          <FilterDropdown
+            allLabel="All Roles"
+            value={roleFilter}
+            onChange={setRoleFilter}
+            options={roles}
+            getKey={(r) => r.id}
+            getLabel={(r) => r.role_name}
+          />
+          <FilterDropdown
+            allLabel="All Departments"
+            value={deptFilter}
+            onChange={setDeptFilter}
+            options={departments}
+            getKey={(d) => d.id}
+            getLabel={(d) => d.department_name}
+          />
+          <FilterDropdown
+            allLabel="All Designations"
+            value={designationFilter}
+            onChange={setDesignationFilter}
+            options={designationOptions}
+            getKey={(d) => d.id}
+            getLabel={(d) => d.designation_name}
+          />
+          <FilterDropdown
+            allLabel="All Status"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={["Active", "Inactive"]}
+            getKey={(s) => s}
+            getLabel={(s) => s}
+          />
+          {hasFilters && (
+            <button
+              onClick={() => {
+                setSearch("");
+                setRoleFilter("");
+                setDeptFilter("");
+                setDesignationFilter("");
+                setStatusFilter("");
+              }}
+              className="text-sm text-orange-600 hover:underline px-1 shrink-0 whitespace-nowrap"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-[minmax(0,2fr)_minmax(270px,1fr)] gap-4 items-start">
+          {/* ---- Left: compact table ---- */}
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            {loadError && (
+              <div className="flex items-center gap-2 text-orange-600 bg-orange-50 border-b border-orange-100 px-4 py-3 text-sm">
+                <AlertTriangle size={16} />
+                {loadError}
+              </div>
+            )}
+            <div className="max-h-[calc(100vh-290px)] min-h-[260px] overflow-y-auto">
+              <table className="w-full text-sm table-fixed">
+                <colgroup>
+                  <col />
+                  <col className="w-[120px]" />
+                  <col className="w-[100px]" />
+                  <col className="w-[84px]" />
+                  <col className="w-[76px]" />
+                </colgroup>
+                <thead className="sticky top-0 z-10">
+                  <tr className="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
+                    <th className="px-4 py-2.5 font-medium">User</th>
+                    <th className="px-2 py-2.5 font-medium">Role</th>
+                    <th className="px-2 py-2.5 font-medium">Dept</th>
+                    <th className="px-2 py-2.5 font-medium">Status</th>
+                    <th className="px-2 py-2.5 font-medium text-right">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    [...Array(6)].map((_, i) => (
+                      <tr key={i} className="border-b border-slate-50">
+                        <td colSpan={5} className="px-4 py-3.5">
+                          <div className="h-4 bg-slate-100 rounded animate-pulse" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : pageItems.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-4 py-12 text-center text-slate-400 text-sm"
+                      >
+                        No users found.
+                      </td>
+                    </tr>
+                  ) : (
+                    pageItems.map((u) => {
+                      const isSel = selected?.id === u.id;
+                      return (
+                        <tr
+                          key={u.id}
+                          onClick={() => setSelectedId(u.id)}
+                          className={`border-b border-slate-50 cursor-pointer ${
+                            isSel ? "bg-orange-50/70" : "hover:bg-slate-50/60"
+                          }`}
+                        >
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <Avatar
+                                person={u}
+                                className="w-8 h-8 rounded-full text-xs"
+                              />
+                              <div className="min-w-0">
+                                <div className="font-medium text-slate-800 truncate text-[13px]">
+                                  {u.full_name}
+                                </div>
+                                <div className="text-[11px] text-slate-400 truncate">
+                                  {u.employee_id}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-2 py-2">
+                            <span
+                              title={u.role_name}
+                              className={`inline-block max-w-full truncate align-middle px-2 py-0.5 rounded-full text-[11px] font-medium ${roleBadgeStyle(u.role_name)}`}
+                            >
+                              {u.role_name}
+                            </span>
+                          </td>
+                          <td
+                            className="px-2 py-2 text-xs text-slate-600 truncate"
+                            title={u.departments?.department_name || ""}
+                          >
+                            {u.departments?.department_name || "—"}
+                          </td>
+                          <td className="px-2 py-2">
+                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  u.employment_status === "Active"
+                                    ? "bg-emerald-500"
+                                    : "bg-red-400"
+                                }`}
+                              />
+                              {u.employment_status}
+                            </span>
+                          </td>
+                          <td
+                            className="px-2 py-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-end gap-0.5">
+                              <button
+                                onClick={() => {
+                                  setDeleteError(null);
+                                  setDeleteTarget(u);
+                                }}
+                                title="Delete"
+                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-orange-50 hover:text-orange-500"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {!loading && filtered.length > 0 && (
+              <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t border-slate-100 text-xs text-slate-500">
+                <span>
+                  {(page - 1) * pageSize + 1}–
+                  {Math.min(page * pageSize, filtered.length)} of{" "}
+                  {filtered.length} users
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={page === 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50"
+                  >
+                    Prev
+                  </button>
+                  <span className="px-2">
+                    {page} / {totalPages}
+                  </span>
+                  <button
+                    disabled={page === totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ---- Right: selected user's detail panel ---- */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sticky top-3">
+            {!selected ? (
+              <div className="py-10 text-center text-sm text-slate-400">
+                Select a user to see details.
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 mb-3">
+                  <Avatar
+                    person={selected}
+                    className="w-12 h-12 rounded-full text-sm"
+                  />
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-800 truncate">
+                      {selected.full_name}
+                    </div>
+                    <div className="text-xs text-slate-500 truncate">
+                      {selected.email}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium ${roleBadgeStyle(selected.role_name)}`}
+                  >
+                    {selected.role_name}
+                  </span>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium ${
+                      STATUS_STYLES[selected.employment_status] ||
+                      "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {selected.employment_status}
+                  </span>
+                </div>
+                <div className="divide-y divide-slate-100 text-sm">
+                  {[
+                    ["Employee ID", selected.employee_id],
+                    ["Department", selected.departments?.department_name],
+                    ["Designation", selected.designations?.designation_name],
+                    ["Phone", selected.phone],
+                    ["Joined", formatDate(selected.joining_date)],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="flex items-center justify-between gap-3 py-2"
+                    >
+                      <span className="text-slate-500">{label}</span>
+                      <span className="text-slate-800 truncate">
+                        {value || "—"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  <button
+                    onClick={() =>
+                      setFormState({ mode: "edit", user: selected })
+                    }
+                    className="px-3 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center justify-center gap-1.5"
+                  >
+                    <Pencil size={14} />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setViewing(selected)}
+                    className="px-3 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-medium"
+                  >
+                    Full details
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {modals}
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
         title="Users"
-        subtitle="Manage every account in the system, across all roles."
+        subtitle={
+          <span className="hidden sm:inline">
+            Manage every account in the system, across all roles.
+          </span>
+        }
         actions={
           <button
             onClick={() => setFormState({ mode: "add" })}
@@ -680,8 +1072,61 @@ export default function Users() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="flex sm:grid sm:grid-cols-4 gap-2.5 sm:gap-4 mb-4 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible">
+      {/* Stats — mobile: compact tiles (same size as the Departments page) */}
+      <div className="flex gap-2 mb-4 sm:hidden overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {[
+          {
+            icon: UsersIcon,
+            label: "Total Users",
+            value: stats.total,
+            tone: "bg-orange-50 text-orange-600",
+          },
+          {
+            icon: UserCheck,
+            label: "Active",
+            value: stats.active,
+            tone: "bg-blue-50 text-blue-600",
+          },
+          {
+            icon: UserX,
+            label: "Inactive",
+            value: stats.inactive,
+            tone: "bg-orange-50 text-orange-600",
+          },
+          {
+            icon: Shield,
+            label: "Roles",
+            value: stats.roleCount,
+            tone: "bg-slate-100 text-slate-600",
+          },
+        ].map(({ icon: Icon, label, value, tone }) => (
+          <div
+            key={label}
+            className="bg-white rounded-lg border border-slate-200 px-2.5 py-2 flex items-center gap-2.5 shrink-0 min-w-[130px]"
+          >
+            <div
+              className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${tone}`}
+            >
+              <Icon size={14} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] text-slate-500 truncate leading-tight">
+                {label}
+              </div>
+              {loading ? (
+                <div className="h-4 w-8 mt-0.5 bg-slate-100 rounded animate-pulse" />
+              ) : (
+                <div className="text-base font-bold text-slate-800 leading-tight">
+                  {value}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Stats — tablet/desktop: unchanged */}
+      <div className="hidden sm:grid sm:grid-cols-4 gap-4 mb-4">
         <StatCard
           icon={UsersIcon}
           label="Total Users"
@@ -840,15 +1285,6 @@ export default function Users() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
-                          onClick={() =>
-                            setFormState({ mode: "edit", user: u })
-                          }
-                          title="Edit"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-orange-50 hover:text-orange-500"
-                        >
-                          <Pencil size={15} />
-                        </button>
-                        <button
                           onClick={() => {
                             setDeleteError(null);
                             setDeleteTarget(u);
@@ -992,15 +1428,6 @@ export default function Users() {
                           {/* <Eye size={15} /> */}
                         </button>
                         <button
-                          onClick={() =>
-                            setFormState({ mode: "edit", user: u })
-                          }
-                          title="Edit"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-orange-50 hover:text-orange-500"
-                        >
-                          <Pencil size={15} />
-                        </button>
-                        <button
                           onClick={() => {
                             setDeleteError(null);
                             setDeleteTarget(u);
@@ -1049,45 +1476,7 @@ export default function Users() {
         )}
       </div>
 
-      {viewing && (
-        <UserViewModal
-          user={viewing}
-          users={users}
-          onClose={() => setViewing(null)}
-          onEdit={() => {
-            // Keep the view drawer open behind the edit popup — only
-            // the edit form should appear on top, not replace it.
-            setFormState({ mode: "edit", user: viewing });
-          }}
-        />
-      )}
-
-      {/* Rendered AFTER the view drawer so that when both are open
-          (editing from within the view drawer) the edit popup stacks
-          on top of it — both share the same z-50, and later markup
-          wins the stacking order. */}
-      {formState && (
-        <UserFormModal
-          mode={formState.mode}
-          user={formState.user}
-          refData={refData}
-          onClose={() => setFormState(null)}
-          onSaved={() => {
-            setFormState(null);
-            loadUsers(roles);
-          }}
-        />
-      )}
-
-      {deleteTarget && (
-        <DeleteConfirmModal
-          user={deleteTarget}
-          deleting={deleting}
-          error={deleteError}
-          onClose={() => setDeleteTarget(null)}
-          onConfirm={handleDelete}
-        />
-      )}
+      {modals}
     </div>
   );
 }

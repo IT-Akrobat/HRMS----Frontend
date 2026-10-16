@@ -3,7 +3,15 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import "leaflet/dist/leaflet.css";
-import { AlertTriangle, Loader2, MapPin, RefreshCw, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  Search,
+  Users,
+  X,
+} from "lucide-react";
 import {
   forwardRef,
   useEffect,
@@ -12,22 +20,19 @@ import {
   useRef,
   useState,
 } from "react";
-import PageHeader from "../../components/common/PageHeader";
-import DatePicker from "../../components/layout/DatePicker";
-import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
-import { apiClient } from "../../services/apiClient";
-import { parseServerDate } from "../../utils/date";
+import PageHeader from "../../../components/common/PageHeader";
+import DatePicker from "../../../components/layout/DatePicker";
+import { useAttendanceLiveUpdates } from "../../../hooks/Useattendanceliveupdates";
+import { useIsDesktop } from "../../../hooks/useBasePath";
+import { apiClient } from "../../../services/apiClient";
+import { parseServerDate } from "../../../utils/date";
 
 // ---------------------------------------------------------------------
-// HR's copy of Super Admin's Live Site Tracking screen
-// (src/pages/super-admin/LiveTracking.jsx). Both /attendance/org/site-visits
-// and /attendance/org/site-visits/history are gated server-side on the
-// VIEW_ALL_ATTENDANCE permission (see app/attendance/routes.py), which HR
-// ADMIN / HR EXECUTIVE already hold (sql/009_attendance_permissions_seed.sql)
-// — this component is otherwise self-contained (no hardcoded
-// "/super-admin" paths), so it's a straight copy rather than a shared
-// component split, matching how the rest of this app duplicates
-// per-role pages instead of parameterizing one page by role.
+// SHARED Live Site Tracking screen — used by both Super Admin (as a
+// Dashboard tab on web / sidebar page on mobile) and HR Admin (sidebar
+// page). The endpoints are gated server-side on VIEW_ALL_ATTENDANCE, which
+// both roles hold. There are no role-specific paths in here, so one
+// component serves both.
 //
 // Two tabs:
 //  - "Today": GET /attendance/org/site-visits (get_org_site_visits_today)
@@ -393,6 +398,134 @@ function TrailMapModal({ row, onClose }) {
 // TODAY TAB — only employees who have actually visited a site today
 // (GET /attendance/org/site-visits, already filtered server-side).
 // ==========================================================================
+// WEB-ONLY pieces for the Today tab (lg and up): presence text + a live
+// overview map of everyone's last known position.
+// ==========================================================================
+
+function PresenceText({ row }) {
+  if (row.live_status !== "on_site")
+    return <span className="text-slate-300">Not on a site</span>;
+  if (row.is_outside_radius)
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-orange-600 font-medium"
+        title={
+          row.last_ping_distance_m
+            ? `${Math.round(row.last_ping_distance_m)}m from site`
+            : undefined
+        }
+      >
+        <AlertTriangle size={12} /> Out of range
+        {row.last_ping_at && (
+          <span className="text-slate-400 font-normal">
+            · {timeAgo(row.last_ping_at)}
+          </span>
+        )}
+      </span>
+    );
+  if (row.last_ping_at)
+    return (
+      <span className="text-emerald-600">
+        In range · {timeAgo(row.last_ping_at)}
+      </span>
+    );
+  return <span className="text-slate-400">No live ping yet</span>;
+}
+
+function markerColor(row) {
+  if (row.live_status === "on_site")
+    return row.is_outside_radius ? "#f97316" : "#16a34a";
+  if (row.live_status === "checked_in_no_site") return "#f59e0b";
+  return "#94a3b8";
+}
+
+function LiveOverviewMap({ rows, focusId, fitKey, onSelect }) {
+  const elRef = useRef(null);
+  const mapRef = useRef(null);
+  const layerRef = useRef(null);
+  const markersRef = useRef({});
+  const fittedRef = useRef(false);
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+
+  useEffect(() => {
+    if (mapRef.current) return undefined;
+    const map = L.map(elRef.current, {
+      center: [SINGAPORE_CENTER.lat, SINGAPORE_CENTER.lng],
+      zoom: 11,
+    });
+    mapRef.current = map;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(map);
+    layerRef.current = L.layerGroup().addTo(map);
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(elRef.current);
+    return () => {
+      ro.disconnect();
+      map.remove();
+      mapRef.current = null;
+      layerRef.current = null;
+    };
+  }, []);
+
+  // A new filter/search should re-frame the map once.
+  useEffect(() => {
+    fittedRef.current = false;
+  }, [fitKey]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = layerRef.current;
+    if (!map || !layer) return;
+    layer.clearLayers();
+    markersRef.current = {};
+    const pts = [];
+    rows.forEach((row) => {
+      const lat = row.current_latitude;
+      const lng = row.current_longitude;
+      if (typeof lat !== "number" || typeof lng !== "number") return;
+      const isFocus = row.employee_id === focusId;
+      const marker = L.circleMarker([lat, lng], {
+        radius: isFocus ? 12 : 9,
+        color: isFocus ? "#0f172a" : "#ffffff",
+        weight: isFocus ? 3 : 2,
+        fillColor: markerColor(row),
+        fillOpacity: 1,
+      }).addTo(layer);
+      marker.bindTooltip(
+        `${row.employee?.full_name || "Employee"}${
+          row.current_site?.location_name
+            ? ` · ${row.current_site.location_name}`
+            : ""
+        }`,
+      );
+      marker.on("click", () => onSelectRef.current(row.employee_id));
+      markersRef.current[row.employee_id] = marker;
+      pts.push([lat, lng]);
+    });
+    if (pts.length && !fittedRef.current) {
+      map.fitBounds(pts, { padding: [48, 48], maxZoom: 16 });
+      fittedRef.current = true;
+    }
+  }, [rows, focusId]);
+
+  useEffect(() => {
+    if (focusId == null) return;
+    const map = mapRef.current;
+    const marker = markersRef.current[focusId];
+    if (!map || !marker) return;
+    map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), 15), {
+      duration: 0.6,
+    });
+    marker.openTooltip();
+  }, [focusId]);
+
+  return <div ref={elRef} className="h-full w-full" />;
+}
+
+// ==========================================================================
 
 // forwardRef so the parent tab bar can trigger a refresh on mobile, where
 // the standalone Refresh button below is hidden and replaced by an
@@ -403,6 +536,11 @@ const TodayTab = forwardRef(function TodayTab(_props, ref) {
   const [loadError, setLoadError] = useState(null);
   const [selected, setSelected] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  // Web-only view state
+  const isDesktop = useIsDesktop();
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); // all | on_site | out | other
+  const [focusId, setFocusId] = useState(null);
 
   function load(silent = false) {
     if (!silent) setLoading(true);
@@ -440,6 +578,280 @@ const TodayTab = forwardRef(function TodayTab(_props, ref) {
     (r) => r.live_status === "on_site" && r.is_outside_radius,
   ).length;
 
+  const filteredRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter((r) => {
+      const isOn = r.live_status === "on_site";
+      const isOut = isOn && r.is_outside_radius;
+      if (statusFilter === "on_site" && !isOn) return false;
+      if (statusFilter === "out" && !isOut) return false;
+      if (statusFilter === "other" && isOn) return false;
+      if (!q) return true;
+      return [
+        r.employee?.full_name,
+        r.employee?.departments?.department_name,
+        r.current_site?.location_name,
+      ].some((v) => (v || "").toLowerCase().includes(q));
+    });
+  }, [rows, query, statusFilter]);
+
+  // ======================= WEB layout (lg and up) =======================
+  // Stat cards (click to filter) + search, then staff list on the left and
+  // a live map of everyone's position on the right. Mobile/tablet keep the
+  // original layout below, unchanged.
+  if (isDesktop) {
+    const statCards = [
+      {
+        key: "all",
+        label: "Field staff",
+        value: rows.length,
+        icon: <Users size={18} />,
+        tone: "bg-slate-100 text-slate-600",
+      },
+      {
+        key: "on_site",
+        label: "On site now",
+        value: onSiteCount,
+        icon: <MapPin size={18} />,
+        tone: "bg-green-50 text-green-600",
+      },
+      {
+        key: "out",
+        label: "Out of range",
+        value: outOfRangeCount,
+        icon: <AlertTriangle size={18} />,
+        tone: "bg-orange-50 text-orange-600",
+      },
+      {
+        key: "other",
+        label: "Not on a site",
+        value: rows.length - onSiteCount,
+        icon: <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />,
+        tone: "bg-slate-100 text-slate-500",
+      },
+    ];
+    const withLocation = filteredRows.filter(
+      (r) =>
+        typeof r.current_latitude === "number" &&
+        typeof r.current_longitude === "number",
+    ).length;
+
+    return (
+      <div>
+        <div className="grid grid-cols-4 gap-3 mb-3">
+          {statCards.map((c) => {
+            const active = statusFilter === c.key;
+            return (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => setStatusFilter(active ? "all" : c.key)}
+                className={`text-left rounded-xl border bg-white px-4 py-3 flex items-center gap-3 transition-all hover:shadow-sm ${
+                  active
+                    ? "border-orange-400 ring-2 ring-orange-100"
+                    : "border-slate-200"
+                }`}
+              >
+                <span
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${c.tone}`}
+                >
+                  {c.icon}
+                </span>
+                <span>
+                  <span className="block text-2xl font-bold leading-none text-slate-800">
+                    {c.value}
+                  </span>
+                  <span className="block text-xs text-slate-500 mt-1">
+                    {c.label}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="relative w-80">
+            <Search
+              size={15}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name, department or site..."
+              className="w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+            />
+          </div>
+          {lastUpdated && (
+            <span className="flex items-center gap-2 text-xs text-slate-400">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+              </span>
+              Live · updated {lastUpdated.toLocaleTimeString()} · refreshes
+              every 30s
+            </span>
+          )}
+        </div>
+
+        {loadError && (
+          <div className="flex items-center gap-2 text-orange-600 bg-orange-50 border border-orange-100 rounded-xl px-4 py-3 text-sm mb-3">
+            <AlertTriangle size={16} />
+            {loadError}
+          </div>
+        )}
+
+        {loading && !rows.length ? (
+          <div className="bg-white border border-slate-200 rounded-xl flex items-center justify-center py-16 text-slate-400 text-sm gap-2">
+            <Loader2 size={16} className="animate-spin" />
+            Loading live tracking...
+          </div>
+        ) : !rows.length ? (
+          <div className="bg-white border border-slate-200 rounded-xl py-16 text-center text-sm text-slate-400">
+            No one has visited a site today yet.
+          </div>
+        ) : (
+          <div className="grid grid-cols-[minmax(340px,420px)_minmax(0,1fr)] gap-3 items-start">
+            {/* ---- Left: staff list ---- */}
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="max-h-[620px] overflow-y-auto divide-y divide-slate-100">
+                {filteredRows.length === 0 ? (
+                  <div className="px-4 py-12 text-center text-sm text-slate-400">
+                    No staff match.
+                  </div>
+                ) : (
+                  filteredRows.map((row) => {
+                    const meta =
+                      STATUS_META[row.live_status] ||
+                      STATUS_META.not_checked_in;
+                    const focused = focusId === row.employee_id;
+                    return (
+                      <div
+                        key={row.employee_id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setFocusId(row.employee_id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") setFocusId(row.employee_id);
+                        }}
+                        className={`px-4 py-3 cursor-pointer border-l-4 transition-colors ${
+                          focused
+                            ? "border-orange-500 bg-orange-50/60"
+                            : "border-transparent hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          {row.employee?.profile_photo ? (
+                            <img
+                              src={row.employee.profile_photo}
+                              alt=""
+                              className="w-10 h-10 rounded-full object-cover shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-semibold shrink-0">
+                              {initials(row.employee?.full_name)}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="font-medium text-slate-800 truncate">
+                                  {row.employee?.full_name || "—"}
+                                </div>
+                                <div className="text-xs text-slate-400 truncate">
+                                  {row.employee?.departments?.department_name ||
+                                    ""}
+                                </div>
+                              </div>
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-medium shrink-0 ${meta.badge}`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${meta.dot}`}
+                                />
+                                {meta.label}
+                              </span>
+                            </div>
+                            <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-600">
+                              <MapPin
+                                size={12}
+                                className="text-slate-400 shrink-0"
+                              />
+                              <span className="truncate">
+                                {row.current_site?.location_name ||
+                                  "No site yet"}
+                              </span>
+                              {row.current_site_since && (
+                                <span className="text-slate-400 shrink-0">
+                                  · since {timeOnly(row.current_site_since)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
+                              <PresenceText row={row} />
+                              <span className="flex items-center gap-3 shrink-0">
+                                <span className="text-slate-400">
+                                  {row.sites_visited_today} site
+                                  {row.sites_visited_today === 1 ? "" : "s"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelected(row);
+                                  }}
+                                  className="text-orange-600 hover:text-orange-700 font-medium inline-flex items-center gap-1"
+                                >
+                                  View Trail
+                                </button>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* ---- Right: live map ---- */}
+            <div className="isolate sticky top-4 h-[620px] rounded-xl overflow-hidden border border-slate-200 bg-white">
+              <LiveOverviewMap
+                rows={filteredRows}
+                focusId={focusId}
+                fitKey={`${statusFilter}|${query}`}
+                onSelect={setFocusId}
+              />
+              <div className="absolute top-3 left-3 z-[400] rounded-lg bg-white/95 shadow px-2.5 py-1 text-xs text-slate-600">
+                {withLocation} of {filteredRows.length} with a live location
+              </div>
+              <div className="absolute bottom-3 left-3 z-[400] rounded-lg bg-white/95 shadow px-3 py-2 text-xs text-slate-600 flex items-center gap-3">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-600" />
+                  On site
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                  Out of range
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+                  Other
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {selected && (
+          <TrailMapModal row={selected} onClose={() => setSelected(null)} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Desktop only — mobile gets an icon-only Refresh docked at the
@@ -454,7 +866,58 @@ const TodayTab = forwardRef(function TodayTab(_props, ref) {
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-sm">
+      {/* MOBILE (below sm): compact tiles, same size as the Departments page.
+          sm and up keep the original summary strip below. */}
+      <div className="sm:hidden mb-3">
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            {
+              icon: Users,
+              label: "Field staff",
+              value: rows.length,
+              tone: "bg-slate-100 text-slate-600",
+            },
+            {
+              icon: MapPin,
+              label: "On site",
+              value: onSiteCount,
+              tone: "bg-green-50 text-green-600",
+            },
+            {
+              icon: AlertTriangle,
+              label: "Out of range",
+              value: outOfRangeCount,
+              tone: "bg-orange-50 text-orange-600",
+            },
+          ].map(({ icon: Icon, label, value, tone }) => (
+            <div
+              key={label}
+              className="bg-white rounded-lg border border-slate-200 px-2.5 py-2 flex items-center gap-2.5 min-w-0"
+            >
+              <div
+                className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${tone}`}
+              >
+                <Icon size={14} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] text-slate-500 truncate leading-tight">
+                  {label}
+                </div>
+                <div className="text-base font-bold text-slate-800 leading-tight">
+                  {value}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {lastUpdated && (
+          <div className="mt-1.5 text-[11px] text-slate-400">
+            Updated {lastUpdated.toLocaleTimeString()} · refreshes every 30s
+          </div>
+        )}
+      </div>
+
+      <div className="hidden sm:flex bg-white border border-slate-200 rounded-xl p-3 mb-3 sm:flex-row sm:items-center sm:justify-between gap-1.5 text-sm">
         <div className="flex items-center gap-2 text-slate-600 flex-wrap">
           <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
           <span className="font-medium">{onSiteCount}</span> on site right now ·{" "}
@@ -581,7 +1044,7 @@ const TodayTab = forwardRef(function TodayTab(_props, ref) {
               })}
             </div>
 
-            {/* ---- Desktop table (sm and up) — unchanged ---- */}
+            {/* ---- Desktop table (sm and up) ---- */}
             <div className="hidden sm:block max-h-[560px] overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
@@ -788,7 +1251,7 @@ function HistoryTab() {
           value={fromDate}
           max={toDate}
           onChange={(iso) => setFromDate(iso)}
-          className="w-[140px] sm:w-auto"
+          className="flex-1 min-w-0 sm:flex-none sm:w-auto"
         />
         <DatePicker
           label="To"
@@ -797,26 +1260,23 @@ function HistoryTab() {
           min={fromDate}
           max={defaultTo}
           onChange={(iso) => setToDate(iso)}
-          className="w-[140px] sm:w-auto"
+          className="flex-1 min-w-0 sm:flex-none sm:w-auto"
         />
-        {/* Mobile: button and text share their own full-width row, with
-            the button pushed to the end (right) via justify-between and
-            order. Desktop (sm and up): sm:contents drops this wrapper so
-            both flow in the row exactly as before — unchanged. */}
-        <div className="flex items-center justify-between gap-2 w-full sm:contents">
-          <button
-            onClick={() => load()}
-            className="px-2.5 py-2 sm:px-3.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5 shrink-0 order-2 sm:order-none"
-          >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            <span className="hidden sm:inline">Apply / Refresh</span>
-          </button>
-          <div className="text-xs text-slate-400 order-1 sm:order-none sm:ml-auto">
-            <span className="sm:hidden">Showing past visits only.</span>
-            <span className="hidden sm:inline">
-              Showing past visits only — today's activity is on the "Today" tab.
-            </span>
-          </div>
+        {/* Mobile: Refresh sits at the right end of the From/To line (the
+            dates stretch to fill), and the hint text drops to its own row
+            below. sm and up: same flow as before — unchanged. */}
+        <button
+          onClick={() => load()}
+          className="h-10 w-10 justify-center sm:h-auto sm:w-auto sm:px-3.5 sm:py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5 shrink-0"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          <span className="hidden sm:inline">Apply / Refresh</span>
+        </button>
+        <div className="text-xs text-slate-400 order-last w-full sm:w-auto sm:order-none sm:ml-auto">
+          <span className="sm:hidden">Showing past visits only.</span>
+          <span className="hidden sm:inline">
+            Showing past visits only — today's activity is on the "Today" tab.
+          </span>
         </div>
       </div>
 
@@ -895,7 +1355,7 @@ function HistoryTab() {
               ))}
             </div>
 
-            {/* ---- Desktop table (sm and up) — unchanged ---- */}
+            {/* ---- Desktop table (sm and up) ---- */}
             <div className="hidden sm:block max-h-[560px] overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
@@ -999,12 +1459,54 @@ export default function LiveTracking() {
 
   return (
     <div>
-      <PageHeader
-        title="Live Site Tracking"
-        subtitle="Field staff (Inspection/Operation) who've visited a site — today, live, or their past history."
-      />
+      {/* WEB (lg and up): title on the left, Today/History switch at the
+          right end of the same line. Mobile keeps its original header +
+          underline tabs below, unchanged. */}
+      <div className="hidden lg:flex items-center justify-between gap-3 mb-6">
+        <h1 className="min-w-0 text-2xl font-bold text-slate-800">
+          Live Site Tracking
+        </h1>
+        <div className="flex shrink-0 items-center gap-3">
+          {tab === "today" && (
+            <button
+              type="button"
+              onClick={handleMobileRefresh}
+              className="h-10 px-3.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-sm font-medium flex items-center gap-1.5"
+            >
+              <RefreshCw
+                size={14}
+                className={mobileRefreshing ? "animate-spin" : ""}
+              />
+              Refresh
+            </button>
+          )}
+          <div className="inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+            {[
+              { key: "today", label: "Today" },
+              { key: "history", label: "History" },
+            ].map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                className={`px-5 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  tab === t.key
+                    ? "bg-white text-orange-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-      <div className="flex items-center justify-between gap-2 mb-4 border-b border-slate-200">
+      <div className="lg:hidden">
+        <PageHeader title="Live Site Tracking" />
+      </div>
+
+      <div className="lg:hidden flex items-center justify-between gap-2 mb-4 border-b border-slate-200">
         <div className="flex items-center gap-1">
           {[
             { key: "today", label: "Today" },

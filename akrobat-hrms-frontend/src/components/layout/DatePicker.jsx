@@ -107,6 +107,11 @@ export default function DatePicker({
   // ~256px-wide calendar can't spill sideways and overlap neighboring
   // controls.
   overlay = false,
+  // Overlay mode only: line the calendar's RIGHT edge up with the trigger's
+  // right edge (instead of its left edge). Use it for a picker that sits at
+  // the right end of a header, so the calendar opens below the field and
+  // grows to the left and never runs off the screen.
+  alignRight = false,
   // When true, the calendar popover is rendered in a portal on <body>
   // (position: fixed) instead of inside the picker's own box. Use this
   // when the picker sits inside something that clips or scrolls its
@@ -231,12 +236,15 @@ export default function DatePicker({
     if (!open || !overlay || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const calendarWidth = 256;
-    const left = Math.min(
-      rect.left,
-      Math.max(8, window.innerWidth - calendarWidth - 8),
-    );
+    const vw = document.documentElement.clientWidth || window.innerWidth;
+    const left = alignRight
+      ? Math.max(
+          8,
+          Math.min(rect.right - calendarWidth, vw - calendarWidth - 8),
+        )
+      : Math.min(rect.left, Math.max(8, vw - calendarWidth - 8));
     setOverlayPos({ top: rect.bottom + 8, left });
-  }, [open, overlay]);
+  }, [open, overlay, alignRight]);
 
   // ---- Portal mode: smart placement (below / above / clamped) ----
   const popRef = useRef(null);
@@ -915,12 +923,18 @@ export default function DatePicker({
         document.body,
       )
     ) : overlay && overlayPos ? (
-      <div
-        className="fixed w-64 max-w-[calc(100vw-1rem)] bg-white rounded-xl border border-slate-200 shadow-lg p-4 z-50"
-        style={{ top: overlayPos.top, left: overlayPos.left }}
-      >
-        {popoverBody}
-      </div>
+      // Portalled to <body> so no transformed / clipped ancestor can shift
+      // this fixed calendar away from the trigger.
+      createPortal(
+        <div
+          ref={popRef}
+          className="fixed w-64 max-w-[calc(100vw-1rem)] bg-white rounded-xl border border-slate-200 shadow-lg p-4 z-[110]"
+          style={{ top: overlayPos.top, left: overlayPos.left }}
+        >
+          {popoverBody}
+        </div>,
+        document.body,
+      )
     ) : (
       <div className="absolute top-full mt-2 left-0 w-64 bg-white rounded-xl border border-slate-200 shadow-lg p-4 z-50">
         {popoverBody}

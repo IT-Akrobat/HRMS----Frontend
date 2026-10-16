@@ -22,7 +22,6 @@ import * as XLSX from "xlsx-js-style";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import SearchInput from "../../components/common/SearchInput";
-import StatCard from "../../components/common/StatCard";
 import DatePicker from "../../components/layout/DatePicker";
 import { reportsService } from "../../services/ReportService";
 import { parseServerDate } from "../../utils/date";
@@ -1437,131 +1436,73 @@ export default function Reports() {
 
   return (
     <div>
-      <PageHeader
-        title="Reports & Analytics"
-        subtitle="Company-wide data across employees, attendance, leave, payroll and projects."
-      />
+      <PageHeader title="Reports & Analytics" />
 
-      {/* ---------- KPI strip (desktop/tablet — unchanged) ---------- */}
-      <div className="hidden sm:flex gap-4 mb-6 overflow-x-auto no-scrollbar pb-1">
-        <div className="min-w-[170px] w-[170px] shrink-0">
-          <StatCard
-            icon={Users}
-            label="Employees"
-            color="orange"
-            loading={statsLoading}
-            value={stats?.employees ?? "—"}
-          />
-        </div>
-        <div className="min-w-[170px] w-[170px] shrink-0">
-          <StatCard
-            icon={Clock3}
-            label="Attendance Records"
-            color="blue"
-            loading={statsLoading}
-            value={stats?.attendance ?? "—"}
-          />
-        </div>
-        <div className="min-w-[170px] w-[170px] shrink-0">
-          <StatCard
-            icon={CalendarClock}
-            label="Leave Requests"
-            color="purple"
-            loading={statsLoading}
-            value={stats?.leaves ?? "—"}
-          />
-        </div>
-        <div className="min-w-[170px] w-[170px] shrink-0">
-          <StatCard
-            icon={Wallet}
-            label="Payroll Records"
-            color="green"
-            loading={statsLoading}
-            value={stats?.payroll ?? "—"}
-          />
-        </div>
-        <div className="min-w-[170px] w-[170px] shrink-0">
-          <StatCard
-            icon={Briefcase}
-            label="Projects"
-            color="slate"
-            loading={statsLoading}
-            value={stats?.projects ?? "—"}
-          />
-        </div>
-      </div>
-
-      {/* ---------- KPI strip (mobile only) ----------
-          Snap-scrolling carousel of compact tiles instead of the
-          desktop StatCard grid — peeking edges hint there's more to
-          scroll, and each tile is sized for a thumb-swipe rather than
-          a mouse-drag. Desktop block above is untouched. ---------- */}
-      <div className="sm:hidden -mx-4 px-4 mb-5">
-        <div className="flex gap-2.5 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1">
-          {[
-            {
-              icon: Users,
-              label: "Employees",
-              value: stats?.employees,
-              color: "orange",
-            },
-            {
-              icon: Clock3,
-              label: "Attendance",
-              value: stats?.attendance,
-              color: "blue",
-            },
-            {
-              icon: CalendarClock,
-              label: "Leave Reqs",
-              value: stats?.leaves,
-              color: "purple",
-            },
-            {
-              icon: Wallet,
-              label: "Payroll",
-              value: stats?.payroll,
-              color: "green",
-            },
-            {
-              icon: Briefcase,
-              label: "Projects",
-              value: stats?.projects,
-              color: "slate",
-            },
-          ].map((kpi) => {
-            const Icon = kpi.icon;
-            const tileColors = {
-              orange: "bg-orange-50 text-orange-600",
-              blue: "bg-blue-50 text-blue-600",
-              purple: "bg-blue-50 text-blue-600",
-              green: "bg-blue-50 text-blue-600",
-              slate: "bg-slate-100 text-slate-600",
-            };
-            return (
-              <div
-                key={kpi.label}
-                className="snap-start shrink-0 w-[124px] rounded-2xl border border-slate-200 bg-white p-3"
-              >
-                <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2.5 ${tileColors[kpi.color]}`}
-                >
-                  <Icon size={15} />
-                </div>
-                {statsLoading ? (
-                  <div className="h-5 w-10 bg-slate-100 rounded animate-pulse mb-1" />
+      {/* ---------- KPI strip — compact tiles (same size as the Departments page) ---------- */}
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {[
+          {
+            icon: Users,
+            label: "Employees",
+            value: stats?.employees,
+            tone: "bg-orange-50 text-orange-600",
+          },
+          {
+            icon: Clock3,
+            label: "Attendance",
+            value: stats?.attendance,
+            tone: "bg-blue-50 text-blue-600",
+          },
+          {
+            icon: CalendarClock,
+            label: "Leave Requests",
+            short: "Leave Reqs",
+            value: stats?.leaves,
+            tone: "bg-blue-50 text-blue-600",
+          },
+          {
+            icon: Wallet,
+            label: "Payroll",
+            value: stats?.payroll,
+            tone: "bg-blue-50 text-blue-600",
+          },
+          {
+            icon: Briefcase,
+            label: "Projects",
+            value: stats?.projects,
+            tone: "bg-slate-100 text-slate-600",
+          },
+        ].map(({ icon: Icon, label, short, value, tone }) => (
+          <div
+            key={label}
+            className="bg-white rounded-lg border border-slate-200 px-2.5 py-2 flex items-center gap-2.5 shrink-0 min-w-[130px] sm:min-w-0 sm:flex-1"
+          >
+            <div
+              className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${tone}`}
+            >
+              <Icon size={14} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] sm:text-[11px] text-slate-500 truncate leading-tight">
+                {short ? (
+                  <>
+                    <span className="sm:hidden">{short}</span>
+                    <span className="hidden sm:inline">{label}</span>
+                  </>
                 ) : (
-                  <div className="text-lg font-bold text-slate-800 leading-none mb-1">
-                    {kpi.value ?? "—"}
-                  </div>
+                  label
                 )}
-                <div className="text-[10.5px] text-slate-500 leading-tight">
-                  {kpi.label}
-                </div>
               </div>
-            );
-          })}
-        </div>
+              {statsLoading ? (
+                <div className="h-4 w-8 mt-0.5 bg-slate-100 rounded animate-pulse" />
+              ) : (
+                <div className="text-base font-bold text-slate-800 leading-tight">
+                  {value ?? "—"}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* ---------- Report card: tabs + search/export + table ---------- */}

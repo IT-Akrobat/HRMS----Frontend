@@ -4,7 +4,9 @@ import {
   Building2,
   Clock,
   FileText,
+  KeyRound,
   LayoutDashboard,
+  MapPin,
   Palmtree,
   Settings,
   ShieldCheck,
@@ -226,14 +228,20 @@ export const NAVIGATION_CONFIG = {
       icon: LayoutDashboard,
       path: "/super-admin/dashboard",
     },
+    // Users, Permissions, Live Tracking, OT Calculator are Dashboard tabs on
+    // web. On mobile there are no tabs, so they stay as sidebar items
+    // (mobileOnly -> Sidebar.jsx hides them on desktop).
     {
-      label: "User Management",
+      label: "Users",
       icon: Users,
-      children: [
-        { label: "Users", path: "/super-admin/users" },
-        // { label: "Roles", path: "/super-admin/users/roles" },
-        { label: "Permissions", path: "/super-admin/users/permissions" },
-      ],
+      path: "/super-admin/users",
+      mobileOnly: true,
+    },
+    {
+      label: "User Permissions",
+      icon: KeyRound,
+      path: "/super-admin/users/permissions",
+      mobileOnly: true,
     },
     {
       label: "Departments",
@@ -268,15 +276,19 @@ export const NAVIGATION_CONFIG = {
         { label: "Leave Balance", path: "/super-admin/leave/balance" },
       ],
     },
-    {
-      label: "Live Site Tracking",
-      icon: Clock,
-      path: "/super-admin/attendance/live-tracking",
-    },
+    // Live Site Tracking + OT Calculator are Dashboard tabs on web; mobile
+    // keeps them in the sidebar.
     {
       label: "OT Calculator",
       icon: Clock,
       path: "/super-admin/attendance/ot-calculator",
+      mobileOnly: true,
+    },
+    {
+      label: "Live Site Tracking",
+      icon: MapPin,
+      path: "/super-admin/attendance/live-tracking",
+      mobileOnly: true,
     },
     {
       label: "Security",

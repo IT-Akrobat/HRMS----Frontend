@@ -4,9 +4,30 @@
 // All page imports are React.lazy() so this role's pages only download
 // when a super admin actually navigates to them, not upfront on login.
 import { lazy } from "react";
+import { Navigate } from "react-router-dom";
+import { useIsDesktop } from "../hooks/useBasePath";
 import { commonRoutes } from "./commonRoutes.jsx";
 
-const Dashboard = lazy(() => import("../pages/super-admin/Dashboard.jsx"));
+// On web (lg+) these pages live inside the Dashboard tabs, so their old URLs
+// redirect to the matching tab. On mobile they stay normal pages.
+function WebTabRedirect({ tab, children }) {
+  const isDesktop = useIsDesktop();
+  if (isDesktop) {
+    return <Navigate to={`/super-admin/dashboard?tab=${tab}`} replace />;
+  }
+  return children;
+}
+
+// Dashboard page = 5 tabs (Overview / Users / Live Tracking / User
+// Permissions / OT Calculator). Those pages are no longer separate sidebar routes.
+const Dashboard = lazy(() => import("../pages/super-admin/DashboardTabs.jsx"));
+const Users = lazy(() => import("../pages/super-admin/Users.jsx"));
+const UsersPermissions = lazy(
+  () => import("../pages/super-admin/UsersPermissions.jsx"),
+);
+const LiveTracking = lazy(
+  () => import("../pages/shared/live-tracking/LiveTracking.jsx"),
+);
 const OtCalculator = lazy(
   () => import("../pages/shared/ot-calculator/OtCalculator.jsx"),
 );
@@ -14,9 +35,6 @@ const LeaveRequests = lazy(
   () => import("../pages/super-admin/LeaveRequests.jsx"),
 );
 const LeaveBalance = lazy(() => import("../pages/hr-admin/LeaveBalance.jsx"));
-const LiveTracking = lazy(
-  () => import("../pages/super-admin/LiveTracking.jsx"),
-);
 const OrganizationDepartments = lazy(
   () => import("../pages/super-admin/OrganizationDepartments.jsx"),
 );
@@ -35,17 +53,28 @@ const SystemSettingsConfigurations = lazy(
 );
 // System Settings > Integrations removed -- commented out in
 // navigationConfig.js, page file no longer exists under ../pages/super-admin/.
-const Users = lazy(() => import("../pages/super-admin/Users.jsx"));
-const UsersPermissions = lazy(
-  () => import("../pages/super-admin/UsersPermissions.jsx"),
-);
 
 export const superAdminRoutes = [
   { path: "dashboard", element: <Dashboard /> },
   ...commonRoutes,
-  { path: "users", element: <Users /> },
+  {
+    path: "users",
+    element: (
+      <WebTabRedirect tab="users">
+        <Users />
+      </WebTabRedirect>
+    ),
+  },
   // { path: "users/roles", element: <UsersRoles /> },
-  { path: "users/permissions", element: <UsersPermissions /> },
+  // Old links still work -- they redirect to the matching dashboard tab.
+  {
+    path: "users/permissions",
+    element: (
+      <WebTabRedirect tab="permissions">
+        <UsersPermissions />
+      </WebTabRedirect>
+    ),
+  },
   // {
   //   path: "organization/company-profile",
   //   element: <OrganizationCompanyProfile />,
@@ -60,8 +89,22 @@ export const superAdminRoutes = [
   // { path: "employees/managers", element: <EmployeesManagers /> },
   { path: "leave/requests", element: <LeaveRequests /> },
   { path: "leave/balance", element: <LeaveBalance /> },
-  { path: "attendance/live-tracking", element: <LiveTracking /> },
-  { path: "attendance/ot-calculator", element: <OtCalculator /> },
+  {
+    path: "attendance/live-tracking",
+    element: (
+      <WebTabRedirect tab="live-tracking">
+        <LiveTracking />
+      </WebTabRedirect>
+    ),
+  },
+  {
+    path: "attendance/ot-calculator",
+    element: (
+      <WebTabRedirect tab="ot-calculator">
+        <OtCalculator />
+      </WebTabRedirect>
+    ),
+  },
   { path: "security/login-activity", element: <SecurityLoginActivity /> },
   { path: "security/audit-logs", element: <SecurityAuditLogs /> },
   { path: "security/access-control", element: <SecurityAccessControl /> },

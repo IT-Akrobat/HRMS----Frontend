@@ -5,7 +5,7 @@ import {
   ChevronRight,
   Clock,
   Stethoscope,
-  XCircle,
+  XCircle
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
@@ -66,10 +66,10 @@ function initials(name) {
 const MC_TAB = "MC";
 
 const TABS = [
+  { value: "", label: "All" },
   { value: "Pending", label: "Pending" },
   { value: "Approved", label: "Approved" },
   { value: "Rejected", label: "Rejected" },
-  { value: "", label: "All" },
   { value: MC_TAB, label: "Medical (MC)", icon: Stethoscope },
 ];
 
@@ -90,10 +90,12 @@ export default function LeaveRequests() {
   const [records, setRecords] = useState(null); // null = loading
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState("Pending");
+  const [status, setStatus] = useState(""); // "All" tab is active initially
   const [search, setSearch] = useState("");
   const [mcFilter, setMcFilter] = useState("");
   const isMc = status === MC_TAB;
+  // KPI strip counts (same compact grid as the Departments page).
+  const [counts, setCounts] = useState(null); // null = loading
   // Leaves THIS logged-in Super Admin is the assigned reporting manager for
   // (from GET /leaves/team -> can_decide). Only those get Approve / Reject.
   const [decidableIds, setDecidableIds] = useState(() => new Set());
@@ -113,6 +115,7 @@ export default function LeaveRequests() {
         comments,
       });
       load();
+      loadCounts();
     } catch (e) {
       setActionError(e.message || "Unable to update this request.");
     } finally {
@@ -174,6 +177,22 @@ export default function LeaveRequests() {
     loadDecidable();
   }
 
+  function loadCounts() {
+    const one = (st) =>
+      apiClient
+        .get(`/leaves/?page=1&limit=1${st ? `&status=${st}` : ""}`)
+        .then((res) => res?.data?.total || 0)
+        .catch(() => 0);
+    Promise.all([
+      one(""),
+      one("Pending"),
+      one("Approved"),
+      one("Rejected"),
+    ]).then(([all, pending, approved, rejected]) =>
+      setCounts({ all, pending, approved, rejected }),
+    );
+  }
+
   function loadDecidable() {
     apiClient
       .get("/leaves/team")
@@ -189,6 +208,8 @@ export default function LeaveRequests() {
       })
       .catch(() => setDecidableIds(new Set()));
   }
+
+  useEffect(loadCounts, []);
 
   // The MC tab pages client-side, so a page change must not refetch it.
   useEffect(load, [isMc ? 0 : page, status]);
@@ -252,11 +273,17 @@ export default function LeaveRequests() {
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-slate-800">Leave Requests</h1>
           <div className="flex items-center gap-2">
-            <CreateLeaveTypeButton label="Leave type" />
-            <HrManagedLeaveForm onChanged={load} label="Record leave" />
+            <CreateLeaveTypeButton label="Leave type" plusOnly />
+            <HrManagedLeaveForm
+              onChanged={load}
+              label="Record leave"
+              plusOnly
+            />
           </div>
         </div>
       </div>
+
+      {/* KPI strip — compact tiles (same size as the Departments page) */}
 
       {!isMc && <McValidationQueue onChanged={load} />}
 

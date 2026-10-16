@@ -1,32 +1,29 @@
 import {
   AlertTriangle,
+  ArrowLeft,
   Briefcase,
   Building2,
-  ChevronDown,
   ChevronRight,
   Loader2,
   Search,
   Users,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
-import StatCard from "../../components/common/StatCard";
 import { apiClient } from "../../services/apiClient";
 
 // ---------------------------------------------------------------------
-// Headcount-by-department / headcount-by-designation view. Deliberately
-// counts-only (no employee list, no edit/delete) — this is a quick
-// "how many people are in Department X, and how are they split across
-// its designations" glance, not another Employees table.
+// Departments overview — card grid. Each card shows headcount, share of
+// the organisation and its top designations; clicking a card opens a
+// slide-in panel with the full designation breakdown.
 //
-// Wired to the same reference endpoints Employees.jsx already uses:
+// Data (unchanged):
 //   GET /departments/   -> [{ id, department_name }]
 //   GET /designations/  -> [{ id, designation_name, department_id }]
-//   GET /employees/     -> { data: [{ id, department_id, designation_id,
+//   GET /employees/     -> { data: [{ department_id, designation_id,
 //                             employment_status, ... }] }
-// Counts are derived client-side from these three lists rather than a
-// dedicated aggregation endpoint, since the data is small (department/
-// designation counts, not per-employee detail).
+// Counts are derived client-side. Counts-only: no edit/delete.
 // ---------------------------------------------------------------------
 
 const UNASSIGNED_DEPT = "__unassigned_dept__";
@@ -51,10 +48,9 @@ export default function OrganizationDepartments() {
 
   const [activeOnly, setActiveOnly] = useState(false);
   const [search, setSearch] = useState("");
-  const [selectedDeptId, setSelectedDeptId] = useState(null);
-  // Mobile accordion — which department card is expanded (independent
-  // of `selectedDeptId`, which drives the desktop detail panel).
-  const [expandedMobileId, setExpandedMobileId] = useState(null);
+  const [sortBy, setSortBy] = useState("count"); // "count" | "name"
+  const [openDeptId, setOpenDeptId] = useState(null);
+  const [openDesigId, setOpenDesigId] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -69,11 +65,27 @@ export default function OrganizationDepartments() {
         setDesignations(desigRes || []);
         setEmployees(empRes?.data || []);
       })
-      .catch((err) => {
-        setError(err.message || "Couldn't load departments.");
-      })
+      .catch((err) => setError(err.message || "Couldn't load departments."))
       .finally(() => setLoading(false));
   }, []);
+
+  // Collapse any expanded designation when another department is opened.
+  useEffect(() => {
+    setOpenDesigId(null);
+  }, [openDeptId]);
+
+  // Close the panel on Escape.
+  useEffect(() => {
+    if (!openDeptId) return;
+    // Escape goes back one step: members -> designations -> close.
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (openDesigId) setOpenDesigId(null);
+      else setOpenDeptId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openDeptId, openDesigId]);
 
   const scopedEmployees = useMemo(
     () =>
@@ -92,9 +104,47 @@ export default function OrganizationDepartments() {
     [scopedEmployees],
   );
 
-  // Department rows: real departments + a synthetic "Unassigned" row
-  // if any (scoped) employee has no department_id, so the counts on
-  // this page always add up to the total headcount.
+  function designationRowsFor(deptId) {
+    const rows = designations
+      .filter((d) => d.department_id === deptId)
+      .map((d) => ({
+        id: d.id,
+        name: d.designation_name || "Untitled Designation",
+        count: desigCounts[d.id] || 0,
+      }));
+    if (deptId !== UNASSIGNED_DEPT) {
+      const unassigned = scopedEmployees.filter(
+        (e) => e.department_id === deptId && !e.designation_id,
+      ).length;
+      if (unassigned) {
+        rows.push({
+          id: `${deptId}-${UNASSIGNED_DESIG}`,
+          name: "Unassigned",
+          count: unassigned,
+          virtual: true,
+        });
+      }
+    }
+    return rows.sort((a, b) => b.count - a.count);
+  }
+
+  function employeesFor(deptId, desig) {
+    return scopedEmployees
+      .filter((e) => {
+        const inDept =
+          deptId === UNASSIGNED_DEPT
+            ? !e.department_id
+            : e.department_id === deptId;
+        if (!inDept) return false;
+        return desig.virtual
+          ? !e.designation_id
+          : e.designation_id === desig.id;
+      })
+      .sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""));
+  }
+
+  const totalHeadcount = scopedEmployees.length;
+
   const deptRows = useMemo(() => {
     const rows = departments.map((d) => ({
       id: d.id,
@@ -109,76 +159,47 @@ export default function OrganizationDepartments() {
         virtual: true,
       });
     }
-    return rows.sort((a, b) => b.count - a.count);
-  }, [departments, deptCounts]);
+    return rows.map((r) => ({
+      ...r,
+      share: totalHeadcount ? Math.round((r.count / totalHeadcount) * 100) : 0,
+      desigRows: designationRowsFor(r.id),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departments, designations, deptCounts, desigCounts, scopedEmployees]);
 
-  const filteredDeptRows = useMemo(() => {
+  const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return deptRows;
-    return deptRows.filter((d) => d.name.toLowerCase().includes(q));
-  }, [deptRows, search]);
+    const list = q
+      ? deptRows.filter((d) => d.name.toLowerCase().includes(q))
+      : [...deptRows];
+    list.sort((a, b) =>
+      sortBy === "name" ? a.name.localeCompare(b.name) : b.count - a.count,
+    );
+    return list;
+  }, [deptRows, search, sortBy]);
 
-  const maxDeptCount = Math.max(1, ...deptRows.map((d) => d.count));
-
-  // Designations scoped to a given department, each with its own
-  // headcount + a synthetic "Unassigned" row for that department if
-  // any of its employees have no designation_id.
-  function designationRowsFor(deptId) {
-    const rows = designations
-      .filter((d) => d.department_id === deptId)
-      .map((d) => ({
-        id: d.id,
-        name: d.designation_name || "Untitled Designation",
-        count: desigCounts[d.id] || 0,
-      }));
-    if (deptId !== UNASSIGNED_DEPT) {
-      const unassignedInDept = scopedEmployees.filter(
-        (e) => e.department_id === deptId && !e.designation_id,
-      ).length;
-      if (unassignedInDept) {
-        rows.push({
-          id: `${deptId}-${UNASSIGNED_DESIG}`,
-          name: "Unassigned",
-          count: unassignedInDept,
-          virtual: true,
-        });
-      }
-    }
-    return rows.sort((a, b) => b.count - a.count);
-  }
-
-  // Keep the desktop detail panel pointed at a valid, visible
-  // department once data loads / the search narrows the list.
-  useEffect(() => {
-    if (filteredDeptRows.length === 0) {
-      setSelectedDeptId(null);
-      return;
-    }
-    if (!filteredDeptRows.some((d) => d.id === selectedDeptId)) {
-      setSelectedDeptId(filteredDeptRows[0].id);
-    }
-  }, [filteredDeptRows, selectedDeptId]);
-
-  const selectedDept = filteredDeptRows.find((d) => d.id === selectedDeptId);
-  const selectedDesigRows = selectedDept
-    ? designationRowsFor(selectedDept.id)
-    : [];
-  const maxSelectedDesigCount = Math.max(
-    1,
-    ...selectedDesigRows.map((d) => d.count),
+  const largest = deptRows.reduce(
+    (m, d) => (d.count > (m?.count ?? -1) ? d : m),
+    null,
   );
-
-  const totals = {
-    departments: departments.length,
-    designations: designations.length,
-    employees: scopedEmployees.length,
-  };
+  const openDept = deptRows.find((d) => d.id === openDeptId) || null;
+  const openDesig =
+    openDept?.desigRows.find((r) => r.id === openDesigId) || null;
+  const openPeople = openDesig ? employeesFor(openDept.id, openDesig) : [];
+  const maxOpenCount = Math.max(
+    1,
+    ...(openDept?.desigRows || []).map((r) => r.count),
+  );
 
   return (
     <div>
       <PageHeader
         title="Departments & Designations"
-        subtitle="Headcount by department, and by designation within each department."
+        subtitle={
+          <span className="hidden lg:inline">
+            Headcount by department, and by designation within each department.
+          </span>
+        }
       />
 
       {error ? (
@@ -189,32 +210,54 @@ export default function OrganizationDepartments() {
       ) : (
         <>
           {/* ---------- KPI strip ---------- */}
-          <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-6">
-            <StatCard
-              icon={Building2}
-              label="Departments"
-              color="orange"
-              loading={loading}
-              value={totals.departments}
-            />
-            <StatCard
-              icon={Briefcase}
-              label="Designations"
-              color="blue"
-              loading={loading}
-              value={totals.designations}
-            />
-            <StatCard
-              icon={Users}
-              label={activeOnly ? "Active Employees" : "Employees"}
-              color="slate"
-              loading={loading}
-              value={totals.employees}
-            />
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+            {[
+              {
+                icon: Building2,
+                label: "Departments",
+                value: departments.length,
+                tone: "bg-orange-50 text-orange-600",
+              },
+              {
+                icon: Briefcase,
+                label: "Designations",
+                value: designations.length,
+                tone: "bg-blue-50 text-blue-600",
+              },
+              {
+                icon: Users,
+                label: activeOnly ? "Active Employees" : "Employees",
+                value: totalHeadcount,
+                tone: "bg-slate-100 text-slate-600",
+              },
+            ].map(({ icon: Icon, label, value, tone }) => (
+              <div
+                key={label}
+                className="bg-white rounded-lg border border-slate-200 px-2.5 py-2 flex items-center gap-2.5"
+              >
+                <div
+                  className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${tone}`}
+                >
+                  <Icon size={14} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] sm:text-[11px] text-slate-500 truncate leading-tight">
+                    {label}
+                  </div>
+                  {loading ? (
+                    <div className="h-4 w-8 mt-0.5 bg-slate-100 rounded animate-pulse" />
+                  ) : (
+                    <div className="text-base font-bold text-slate-800 leading-tight">
+                      {value}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* ---------- Controls: search + active-only toggle ---------- */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+          {/* ---------- Controls ---------- */}
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-4">
             <div className="relative flex-1 max-w-sm">
               <Search
                 size={15}
@@ -227,284 +270,324 @@ export default function OrganizationDepartments() {
                 className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
               />
             </div>
-            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 self-start">
-              <button
-                onClick={() => setActiveOnly(false)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  !activeOnly
-                    ? "bg-orange-500 text-white"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                All Employees
-              </button>
-              <button
-                onClick={() => setActiveOnly(true)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  activeOnly
-                    ? "bg-orange-500 text-white"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                Active Only
-              </button>
-            </div>
-          </div>
 
-          {/* ==================================================
-              Desktop / tablet — master-detail: department list on
-              the left drives a designation breakdown on the right.
-              ================================================== */}
-          <div className="hidden sm:grid sm:grid-cols-5 gap-4">
-            <div className="sm:col-span-2 bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 text-xs font-medium text-slate-500 uppercase tracking-wide">
-                Departments
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
+                {[
+                  [false, "All Employees"],
+                  [true, "Active Only"],
+                ].map(([val, label]) => (
+                  <button
+                    key={label}
+                    onClick={() => setActiveOnly(val)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      activeOnly === val
+                        ? "bg-orange-500 text-white"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-              <div className="max-h-[520px] overflow-y-auto">
-                {loading ? (
-                  <div className="p-3 space-y-2">
-                    {[...Array(6)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="h-11 bg-slate-100 rounded-lg animate-pulse"
-                      />
-                    ))}
-                  </div>
-                ) : filteredDeptRows.length === 0 ? (
-                  <div className="px-4 py-10 text-center text-slate-400 text-sm">
-                    No departments found.
-                  </div>
-                ) : (
-                  <div className="p-2">
-                    {filteredDeptRows.map((d) => {
-                      const isActive = d.id === selectedDeptId;
-                      return (
-                        <button
-                          key={d.id}
-                          onClick={() => setSelectedDeptId(d.id)}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-                            isActive ? "bg-orange-50" : "hover:bg-slate-50"
-                          }`}
-                        >
-                          <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                              isActive
-                                ? "bg-orange-500 text-white"
-                                : "bg-slate-100 text-slate-500"
-                            }`}
-                          >
-                            <Building2 size={14} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div
-                              className={`text-sm font-medium truncate ${
-                                isActive ? "text-orange-700" : "text-slate-700"
-                              } ${d.virtual ? "italic" : ""}`}
-                            >
-                              {d.name}
-                            </div>
-                            <div className="mt-1 h-1 rounded-full bg-slate-100 overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${isActive ? "bg-orange-400" : "bg-slate-300"}`}
-                                style={{
-                                  width: `${Math.round((d.count / maxDeptCount) * 100)}%`,
-                                }}
-                              />
-                            </div>
-                          </div>
-                          <span
-                            className={`shrink-0 text-xs font-semibold px-2 py-1 rounded-full ${
-                              isActive
-                                ? "bg-orange-500 text-white"
-                                : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {d.count}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
+                {[
+                  ["count", "Most staff"],
+                  ["name", "A – Z"],
+                ].map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => setSortBy(val)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      sortBy === val
+                        ? "bg-slate-800 text-white"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="sm:col-span-3 bg-white rounded-xl border border-slate-200 overflow-hidden">
-              {loading ? (
-                <div className="p-4 space-y-2.5">
-                  {[...Array(5)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-10 bg-slate-100 rounded-lg animate-pulse"
-                    />
-                  ))}
-                </div>
-              ) : !selectedDept ? (
-                <div className="px-4 py-16 text-center text-slate-400 text-sm">
-                  Select a department to see its designations.
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-800">
-                        {selectedDept.name}
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        {selectedDesigRows.length}{" "}
-                        {selectedDesigRows.length === 1
-                          ? "designation"
-                          : "designations"}
-                      </div>
-                    </div>
-                    <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full bg-orange-50 text-orange-600">
-                      <Users size={12} />
-                      {selectedDept.count} total
-                    </span>
-                  </div>
-                  <div className="max-h-[464px] overflow-y-auto p-3 space-y-1.5">
-                    {selectedDesigRows.length === 0 ? (
-                      <div className="px-2 py-10 text-center text-slate-400 text-sm">
-                        No designations set up for this department yet.
-                      </div>
-                    ) : (
-                      selectedDesigRows.map((r) => (
-                        <div
-                          key={r.id}
-                          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50"
-                        >
-                          <div
-                            className={`text-sm text-slate-700 flex-1 min-w-0 truncate ${r.virtual ? "italic text-slate-400" : ""}`}
-                          >
-                            {r.name}
-                          </div>
-                          <div className="w-32 h-1.5 rounded-full bg-slate-100 overflow-hidden hidden md:block">
-                            <div
-                              className="h-full rounded-full bg-blue-400"
-                              style={{
-                                width: `${Math.round((r.count / maxSelectedDesigCount) * 100)}%`,
-                              }}
-                            />
-                          </div>
-                          <span className="shrink-0 text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-600 min-w-[2rem] text-center">
-                            {r.count}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
+            {!loading && largest && (
+              <div className="lg:ml-auto text-xs text-slate-500">
+                Largest:{" "}
+                <span className="font-semibold text-slate-700">
+                  {largest.name}
+                </span>{" "}
+                ({largest.count})
+              </div>
+            )}
           </div>
 
-          {/* ==================================================
-              Mobile — accordion: tap a department to expand its
-              designation counts inline underneath.
-              ================================================== */}
-          <div className="sm:hidden space-y-2.5">
-            {loading ? (
-              [...Array(5)].map((_, i) => (
+          {/* ---------- Department cards ---------- */}
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+              {[...Array(6)].map((_, i) => (
                 <div
                   key={i}
-                  className="h-16 bg-white border border-slate-200 rounded-2xl animate-pulse"
+                  className="h-44 bg-white border border-slate-200 rounded-2xl animate-pulse"
                 />
-              ))
-            ) : filteredDeptRows.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 px-4 py-14 text-center bg-white border border-slate-200 rounded-2xl">
-                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
-                  <Search size={16} className="text-slate-400" />
-                </div>
-                <div className="text-slate-500 text-sm font-medium">
-                  No departments found
-                </div>
+              ))}
+            </div>
+          ) : visibleRows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 px-4 py-14 text-center bg-white border border-slate-200 rounded-2xl">
+              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                <Search size={16} className="text-slate-400" />
               </div>
-            ) : (
-              filteredDeptRows.map((d) => {
-                const isOpen = expandedMobileId === d.id;
-                const rows = isOpen ? designationRowsFor(d.id) : [];
-                const maxRowCount = Math.max(1, ...rows.map((r) => r.count));
+              <div className="text-slate-500 text-sm font-medium">
+                No departments found
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+              {visibleRows.map((d) => {
+                const top = d.desigRows.filter((r) => !r.virtual).slice(0, 3);
+                const extra = d.desigRows.length - top.length;
                 return (
-                  <div
+                  <button
                     key={d.id}
-                    className="rounded-2xl border border-slate-200 bg-white overflow-hidden"
+                    onClick={() => setOpenDeptId(d.id)}
+                    className="group text-left bg-white border border-slate-200 rounded-2xl p-4 hover:border-orange-300 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-100"
                   >
-                    <button
-                      onClick={() => setExpandedMobileId(isOpen ? null : d.id)}
-                      className="w-full flex items-center gap-3 p-3.5"
-                    >
-                      <div className="w-9 h-9 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-                        <Building2 size={16} />
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                        <Building2 size={18} />
                       </div>
-                      <div className="flex-1 min-w-0 text-left">
+                      <div className="flex-1 min-w-0">
                         <div
-                          className={`text-sm font-medium text-slate-800 truncate ${d.virtual ? "italic" : ""}`}
+                          className={`text-sm font-semibold text-slate-800 truncate ${d.virtual ? "italic" : ""}`}
                         >
                           {d.name}
                         </div>
                         <div className="text-[11px] text-slate-400">
-                          {d.count} {d.count === 1 ? "employee" : "employees"}
+                          {d.desigRows.length}{" "}
+                          {d.desigRows.length === 1
+                            ? "designation"
+                            : "designations"}
                         </div>
                       </div>
-                      <span className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
-                        {d.count}
-                      </span>
-                      {isOpen ? (
-                        <ChevronDown
-                          size={16}
-                          className="text-slate-400 shrink-0"
-                        />
-                      ) : (
-                        <ChevronRight
-                          size={16}
-                          className="text-slate-400 shrink-0"
-                        />
-                      )}
-                    </button>
-                    {isOpen && (
-                      <div className="border-t border-slate-100 bg-slate-50/60 p-3 space-y-1.5">
-                        {rows.length === 0 ? (
-                          <div className="text-center text-xs text-slate-400 py-4">
-                            No designations set up for this department yet.
-                          </div>
-                        ) : (
-                          rows.map((r) => (
-                            <div
-                              key={r.id}
-                              className="flex items-center gap-2.5 bg-white rounded-lg px-3 py-2 border border-slate-100"
-                            >
-                              <div
-                                className={`text-xs text-slate-700 flex-1 min-w-0 truncate ${r.virtual ? "italic text-slate-400" : ""}`}
-                              >
-                                {r.name}
-                              </div>
-                              <div className="w-14 h-1 rounded-full bg-slate-100 overflow-hidden shrink-0">
-                                <div
-                                  className="h-full rounded-full bg-blue-400"
-                                  style={{
-                                    width: `${Math.round((r.count / maxRowCount) * 100)}%`,
-                                  }}
-                                />
-                              </div>
-                              <span className="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 min-w-[1.75rem] text-center">
-                                {r.count}
-                              </span>
-                            </div>
-                          ))
-                        )}
+                      <ChevronRight
+                        size={16}
+                        className="text-slate-300 group-hover:text-orange-500 transition-colors shrink-0 mt-1"
+                      />
+                    </div>
+
+                    <div className="mt-4 flex items-end justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-slate-800 leading-none">
+                          {d.count}
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-1">
+                          {d.count === 1 ? "employee" : "employees"}
+                        </div>
                       </div>
-                    )}
-                  </div>
+                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-orange-50 text-orange-600">
+                        {d.share}% of org
+                      </span>
+                    </div>
+
+                    <div className="mt-3 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-orange-400"
+                        style={{ width: `${d.share}%` }}
+                      />
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-1.5 min-h-[24px]">
+                      {top.length === 0 ? (
+                        <span className="text-[11px] text-slate-400">
+                          No designations yet
+                        </span>
+                      ) : (
+                        <>
+                          {top.map((r) => (
+                            <span
+                              key={r.id}
+                              className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 max-w-[9rem] truncate"
+                            >
+                              {r.name} · {r.count}
+                            </span>
+                          ))}
+                          {extra > 0 && (
+                            <span className="text-[11px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-600">
+                              +{extra} more
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </button>
                 );
-              })
-            )}
-          </div>
+              })}
+            </div>
+          )}
         </>
       )}
 
       {loading && (
         <div className="flex items-center justify-center gap-2 py-3 text-xs text-slate-400">
           <Loader2 size={13} className="animate-spin" /> Loading departments...
+        </div>
+      )}
+
+      {/* ---------- Detail panel: side drawer (desktop) / bottom sheet (mobile) ----------
+          Two steps: designations list -> members of the chosen designation.
+          The back arrow in the header returns from members to designations. */}
+      {openDept && (
+        <div className="fixed inset-0 z-50 flex sm:justify-end items-end sm:items-stretch">
+          <div
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={() => setOpenDeptId(null)}
+          />
+          <div className="relative bg-white w-full sm:w-[420px] h-[85vh] sm:h-auto rounded-t-2xl sm:rounded-none shadow-xl flex flex-col">
+            <div className="flex items-start gap-3 px-5 py-4 border-b border-slate-100">
+              {openDesig ? (
+                <button
+                  onClick={() => setOpenDesigId(null)}
+                  className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center shrink-0"
+                  aria-label="Back to designations"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shrink-0">
+                  <Building2 size={18} />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-base font-semibold text-slate-800 truncate">
+                  {openDesig ? openDesig.name : openDept.name}
+                </div>
+                <div className="text-xs text-slate-400 truncate">
+                  {openDesig ? (
+                    <>
+                      {openDept.name} · {openPeople.length}{" "}
+                      {openPeople.length === 1 ? "employee" : "employees"}
+                    </>
+                  ) : (
+                    <>
+                      {openDept.desigRows.length}{" "}
+                      {openDept.desigRows.length === 1
+                        ? "designation"
+                        : "designations"}
+                    </>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setOpenDeptId(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {openDesig ? (
+              /* ----- Step 2: members of the selected designation ----- */
+              <div className="flex-1 overflow-y-auto px-3 py-3">
+                {openPeople.length === 0 ? (
+                  <div className="px-2 py-10 text-center text-slate-400 text-sm">
+                    No employees in this designation.
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-slate-100 divide-y divide-slate-100">
+                    {openPeople.map((p) => (
+                      <div
+                        key={p.id ?? p.employee_id}
+                        className="flex items-center gap-2.5 px-3 py-2.5"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-[11px] font-semibold shrink-0">
+                          {(p.full_name || "?")
+                            .trim()
+                            .split(/\s+/)
+                            .map((w) => w[0])
+                            .slice(0, 2)
+                            .join("")
+                            .toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0 text-sm text-slate-700 truncate">
+                          {p.full_name || "Unnamed"}
+                        </div>
+                        <span className="shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">
+                          {p.employee_id || "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* ----- Step 1: designations of the department ----- */}
+                <div className="grid grid-cols-2 gap-3 px-5 py-4 border-b border-slate-100">
+                  <div className="rounded-xl bg-orange-50 px-3 py-2.5">
+                    <div className="text-[11px] text-orange-600/80">
+                      Employees
+                    </div>
+                    <div className="text-xl font-bold text-orange-600">
+                      {openDept.count}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-blue-50 px-3 py-2.5">
+                    <div className="text-[11px] text-blue-600/80">
+                      Share of org
+                    </div>
+                    <div className="text-xl font-bold text-blue-600">
+                      {openDept.share}%
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-5 pt-4 pb-1 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                  By designation
+                </div>
+                <div className="flex-1 overflow-y-auto px-3 pb-5 space-y-1">
+                  {openDept.desigRows.length === 0 ? (
+                    <div className="px-2 py-10 text-center text-slate-400 text-sm">
+                      No designations set up for this department yet.
+                    </div>
+                  ) : (
+                    openDept.desigRows.map((r) => (
+                      <button
+                        key={r.id}
+                        onClick={() => setOpenDesigId(r.id)}
+                        className="w-full text-left px-3 py-2 rounded-lg transition-colors hover:bg-slate-50"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span
+                            className={`flex items-center gap-1.5 text-sm truncate ${r.virtual ? "italic text-slate-400" : "text-slate-700"}`}
+                          >
+                            <span className="truncate">{r.name}</span>
+                          </span>
+                          <span className="shrink-0 flex items-center gap-1.5">
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 min-w-[2rem] text-center">
+                              {r.count}
+                            </span>
+                            <ChevronRight
+                              size={14}
+                              className="text-slate-300 shrink-0"
+                            />
+                          </span>
+                        </div>
+                        <div className="mt-1.5 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-blue-400"
+                            style={{
+                              width: `${Math.round((r.count / maxOpenCount) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

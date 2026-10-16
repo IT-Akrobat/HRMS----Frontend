@@ -22,11 +22,13 @@ const ROLE_CONFIG = {
     subtitle: "Leave requests, approvals, and company-wide announcements.",
     reviewLink: "/hr-admin/leave/requests",
     reviewLabel: "Leave Requests To Review",
+    hideReviewOnMobile: true,
   },
   [ROLES.SUPER_ADMIN]: {
     subtitle: "Leave requests, system alerts, and account activity.",
     reviewLink: "/super-admin/leave/requests",
     reviewLabel: "Leave Requests To Review",
+    hideReviewOnMobile: true,
   },
 };
 
@@ -39,6 +41,7 @@ export default function Notifications() {
       subtitle={config.subtitle}
       reviewLink={config.reviewLink}
       reviewLabel={config.reviewLabel}
+      hideReviewOnMobile={config.hideReviewOnMobile}
     />
   );
 }

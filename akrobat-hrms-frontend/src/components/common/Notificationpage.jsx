@@ -101,11 +101,13 @@ const FILTERS = [
  * @param {string} subtitle - shown under the page title
  * @param {string} reviewLink - optional CTA (e.g. manager -> /manager/leave/pending)
  * @param {string} reviewLabel - label for that CTA
+ * @param {boolean} hideReviewOnMobile - hide the CTA tile below lg (mobile/tablet)
  */
 export default function NotificationsPage({
   subtitle = "Stay up to date with requests, approvals and announcements.",
   reviewLink,
   reviewLabel = "Review Pending Approvals",
+  hideReviewOnMobile = false,
 }) {
   const [notifications, setNotifications] = useState(null); // null = loading
   const [filter, setFilter] = useState("all");
@@ -283,7 +285,8 @@ export default function NotificationsPage({
     <div>
       <PageHeader
         title="Notifications"
-        subtitle={subtitle}
+        actionsInline
+        subtitle={<span className="hidden lg:inline">{subtitle}</span>}
         actions={
           <>
             {/* Auto-delete dropdown, kept next to Mark All Read */}
@@ -399,7 +402,9 @@ export default function NotificationsPage({
         {reviewLink && (
           <Link
             to={reviewLink}
-            className="shrink-0 order-first sm:order-last self-end sm:self-auto w-[132px] sm:w-auto sm:min-w-[170px] bg-orange-500 hover:bg-orange-600 transition-colors rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 text-white"
+            className={`shrink-0 order-first sm:order-last self-end sm:self-auto w-[132px] sm:w-auto sm:min-w-[170px] bg-orange-500 hover:bg-orange-600 transition-colors rounded-xl px-3 py-2.5 items-center justify-between gap-2 text-white ${
+              hideReviewOnMobile ? "hidden lg:flex" : "flex"
+            }`}
           >
             <div className="min-w-0">
               <span className="block text-xs leading-tight text-orange-50">

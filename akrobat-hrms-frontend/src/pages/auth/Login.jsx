@@ -110,7 +110,7 @@ export default function Login() {
   return (
     <div className="relative h-screen w-full flex bg-white overflow-hidden">
       {/* LEFT -- rotating image panel (ends ~20% into the login card) */}
-      <div className="relative hidden lg:flex lg:w-[calc(72%-138px)] h-screen overflow-hidden bg-[#0b1f45] text-white">
+      <div className="relative isolate hidden lg:flex lg:w-[calc(72%-138px)] h-screen overflow-hidden bg-[#0b1f45] text-white">
         {SLIDES.map((src, i) => (
           <img
             key={i}
@@ -177,7 +177,7 @@ export default function Login() {
             `lg` breakpoint. */}
 
         <div className="flex-1 flex flex-col justify-start lg:justify-center lg:items-center">
-          <div className="w-full max-w-md mx-auto pt-20 pb-12 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:max-w-none lg:mx-0 lg:pt-10 lg:pb-8 lg:px-14 lg:bg-white lg:rounded-[4rem] lg:shadow-[0_25px_70px_rgba(11,31,69,0.3)]">
+          <div className="w-full max-w-md mx-auto pt-20 pb-12 lg:z-20 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:max-w-none lg:mx-0 lg:pt-10 lg:pb-8 lg:px-14 lg:bg-white lg:rounded-[4rem] lg:shadow-[0_25px_70px_rgba(11,31,69,0.3)]">
             <h2 className="text-2xl font-bold text-[#0b1f45]">Welcome Back!</h2>
             <p className="text-gray-500 mt-1">
               Sign in to continue to your Akrobat HRMS account

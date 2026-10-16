@@ -36,11 +36,9 @@ import BirthdaysCard, {
 import HolidaysCalendarCard, {
   countUpcomingHolidays,
 } from "../../components/common/Holidayscalendarcard";
-import PageHeader from "../../components/common/PageHeader";
-import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
-import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import UserFormModal from "../../components/common/UserformModal";
+import { useAuth } from "../../context/AuthContext";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import {
@@ -270,14 +268,39 @@ function QuickActionCircle({ to, label, icon: Icon }) {
       to={to}
       title={label}
       aria-label={label}
-      className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+      className="group relative w-8 h-8 rounded-full bg-white/10 border border-white/15 hover:bg-orange-500 hover:border-orange-500 text-white flex items-center justify-center transition-colors shrink-0"
     >
-      <Icon size={16} />
+      <Icon size={15} />
       {/* Tooltip on hover */}
       <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
         {label}
       </span>
     </Link>
+  );
+}
+
+// Compact KPI tile used inside the slim navy header strip (desktop only).
+function StripKpi({ icon: Icon, label, value, loading, chip }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-lg bg-white/[0.08] px-3 py-1.5 min-w-0">
+      <span
+        className={`w-7 h-7 shrink-0 rounded-lg ${chip} text-white flex items-center justify-center`}
+      >
+        <Icon size={15} strokeWidth={1.9} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] text-blue-200 truncate leading-tight">
+          {label}
+        </p>
+        {loading ? (
+          <div className="h-4 w-8 mt-0.5 bg-white/15 rounded animate-pulse" />
+        ) : (
+          <p className="text-base font-bold text-white leading-tight">
+            {value}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -291,7 +314,11 @@ function QuickActionCircle({ to, label, icon: Icon }) {
 // Non-Singapore coordinates fall back to Nominatim automatically, same
 // as before — no behavior change outside Singapore.
 
-export default function SuperAdminDashboard() {
+// actionsSlot: when rendered inside DashboardTabs, the Create User / Create
+// Site / Leave Balance buttons are portalled into the tab line instead of the
+// banner. undefined = standalone (buttons stay in the banner as before).
+export default function SuperAdminDashboard({ actionsSlot } = {}) {
+  const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -359,6 +386,9 @@ export default function SuperAdminDashboard() {
     minute: "2-digit",
     second: "2-digit",
   });
+  const hour = now.getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   // "Create User" quick action (top-right, before the Quote of the Day
   // card) opens UserFormModal in place instead of navigating to
@@ -886,21 +916,63 @@ export default function SuperAdminDashboard() {
           original plain PageHeader. The dark-navy banner treatment
           is mobile-only now (see below); desktop keeps its original
           look, unchanged. ---------- */}
-      <div className="hidden lg:block">
-        <PageHeader
-          title="System Dashboard"
-          subtitle="Overview of your system and activity"
-          actions={
-            <div className="flex items-center gap-3">
+      <div className="hidden lg:block relative mb-4 rounded-xl bg-gradient-to-br from-[#0b1f45] via-[#10295a] to-[#1a3c82] text-white pl-5 pr-3 py-2 shadow-[0_6px_16px_rgba(11,31,69,0.20)]">
+        <span
+          aria-hidden="true"
+          className="absolute top-0 left-0 h-full w-1 rounded-l-xl bg-gradient-to-b from-orange-400 to-orange-600"
+        />
+        <div className="relative flex items-center gap-4">
+          <div className="min-w-0 shrink-0 w-[210px]">
+            <h1 className="text-[15px] font-bold leading-tight !text-white truncate">
+              {greeting}, {user?.name || "Super Admin"}
+            </h1>
+            <p className="text-[11px] text-blue-200 mt-0.5 truncate">
+              {headerDateLabel} · {headerTimeLabel}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 flex-1 min-w-0">
+            <StripKpi
+              icon={Users}
+              label="Total Employees"
+              chip="bg-orange-500"
+              loading={statsLoading}
+              value={stats?.total_employees ?? "—"}
+            />
+            <StripKpi
+              icon={UserCheck}
+              label="Present Today"
+              chip="bg-sky-500"
+              loading={statsLoading}
+              value={stats?.present_today ?? "—"}
+            />
+            <StripKpi
+              icon={AlertTriangle}
+              label="Late Today"
+              chip="bg-indigo-500"
+              loading={statsLoading}
+              value={stats?.late_today ?? "—"}
+            />
+            <StripKpi
+              icon={Building2}
+              label="Departments"
+              chip="bg-[#1d3f86]"
+              loading={statsLoading}
+              value={stats?.total_departments ?? "—"}
+            />
+          </div>
+
+          {actionsSlot === undefined && (
+            <div className="flex items-center gap-2.5 shrink-0">
               <button
                 type="button"
                 onClick={openAddUser}
                 title="Create User"
                 aria-label="Create User"
-                className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+                className="group relative w-8 h-8 rounded-full bg-white/10 border border-white/15 hover:bg-orange-500 hover:border-orange-500 text-white flex items-center justify-center transition-colors shrink-0"
               >
-                <UserPlus size={16} />
-                <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                <UserPlus size={15} />
+                <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                   Create User
                 </span>
               </button>
@@ -909,10 +981,10 @@ export default function SuperAdminDashboard() {
                 onClick={() => setAddSiteOpen(true)}
                 title="Create Site"
                 aria-label="Create Site"
-                className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
+                className="group relative w-8 h-8 rounded-full bg-white/10 border border-white/15 hover:bg-orange-500 hover:border-orange-500 text-white flex items-center justify-center transition-colors shrink-0"
               >
-                <Building2 size={16} />
-                <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                <Building2 size={15} />
+                <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                   Create Site
                 </span>
               </button>
@@ -921,10 +993,9 @@ export default function SuperAdminDashboard() {
                 label="Leave Balance"
                 icon={CalendarRange}
               />
-              <QuoteOfDayCard compact />
             </div>
-          }
-        />
+          )}
+        </div>
       </div>
 
       {/* Mobile header removed -- the mobile dashboard starts directly
@@ -939,45 +1010,6 @@ export default function SuperAdminDashboard() {
           the same way HR Admin's mobile dashboard is.
       ================================================================= */}
       <div className="lg:hidden">
-        {/* ---------- Stat carousel: compact light-orange cards, ~2.3 visible at a time ---------- */}
-        <div
-          onScroll={handleStatScroll}
-          className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory scroll-px-4 no-scrollbar -mx-4 px-4 pb-1 mb-2"
-        >
-          {statItems.map(({ key, icon: Icon, label, value }) => (
-            <div
-              key={key}
-              className="snap-start shrink-0 w-[42%] rounded-xl bg-orange-50 border border-orange-100 p-3 flex flex-col gap-2 h-[76px]"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-orange-700/80 truncate">
-                  {label}
-                </span>
-                <div className="w-6 h-6 rounded-full bg-[#16305A] text-white flex items-center justify-center shrink-0">
-                  <Icon size={12} />
-                </div>
-              </div>
-              <p className="text-xl font-bold leading-none text-slate-800">
-                {statsLoading ? (
-                  <span className="inline-block w-8 h-5 bg-orange-100 rounded animate-pulse" />
-                ) : (
-                  (value ?? "—")
-                )}
-              </p>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center justify-center gap-1.5 mb-4">
-          {statItems.map((_, i) => (
-            <span
-              key={i}
-              className={`h-1.5 rounded-full transition-all ${
-                i === statPage ? "w-4 bg-orange-500" : "w-1.5 bg-slate-200"
-              }`}
-            />
-          ))}
-        </div>
-
         {/* ---------- Segmented tab switcher ---------- */}
         <div className="grid grid-cols-2 gap-1 bg-slate-100 rounded-full p-1 mb-4">
           {[
@@ -1008,6 +1040,49 @@ export default function SuperAdminDashboard() {
             see it, right under the attendance chart, full-width. ---------- */}
         {mobileTab === "overview" && (
           <div className="mb-6 space-y-4">
+            <div>
+              {/* ---------- Stat carousel: compact light-orange cards, ~2.3 visible at a time ---------- */}
+              <div
+                onScroll={handleStatScroll}
+                className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory scroll-px-4 no-scrollbar -mx-4 px-4 pb-1 mb-2"
+              >
+                {statItems.map(({ key, icon: Icon, label, value }) => (
+                  <div
+                    key={key}
+                    className="snap-start shrink-0 w-[42%] rounded-xl bg-orange-50 border border-orange-100 p-3 flex flex-col gap-2 h-[76px]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-orange-700/80 truncate">
+                        {label}
+                      </span>
+                      <div className="w-6 h-6 rounded-full bg-[#16305A] text-white flex items-center justify-center shrink-0">
+                        <Icon size={12} />
+                      </div>
+                    </div>
+                    <p className="text-xl font-bold leading-none text-slate-800">
+                      {statsLoading ? (
+                        <span className="inline-block w-8 h-5 bg-orange-100 rounded animate-pulse" />
+                      ) : (
+                        (value ?? "—")
+                      )}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-center gap-1.5">
+                {statItems.map((_, i) => (
+                  <span
+                    key={i}
+                    className={`h-1.5 rounded-full transition-all ${
+                      i === statPage
+                        ? "w-4 bg-orange-500"
+                        : "w-1.5 bg-slate-200"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
             <div className="flex items-center gap-2 px-0.5">
               <span className="h-1.5 w-4 rounded-full bg-orange-500" />
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -1100,7 +1175,7 @@ export default function SuperAdminDashboard() {
         {/* ---------- Activity tab: same Recent Activity feed as desktop,
             just its own fixed-height scroll area under the tab. ---------- */}
         {mobileTab === "activity" && (
-          <div className="bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col h-[420px] mb-6">
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col h-[550px] mb-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                 <ShieldCheck size={17} className="text-orange-500" /> Recent
@@ -1250,7 +1325,7 @@ export default function SuperAdminDashboard() {
                   Create User
                 </span>
                 <span className="w-11 h-11 rounded-full bg-[#0B1830]/95 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform shrink-0">
-                  <UserPlus size={17} />
+                  <UserPlus size={15} />
                 </span>
               </button>
 
@@ -1567,68 +1642,6 @@ export default function SuperAdminDashboard() {
         </div>
       )}
 
-      {/* ---------- Top row: stat cards (full width, desktop/tablet only —
-          mobile gets its own gradient KPI carousel above) ---------- */}
-      <div className="hidden lg:flex gap-3 sm:gap-4 mb-4 sm:mb-6 items-stretch">
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1 w-full">
-          <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={Users}
-              label="Total Employees"
-              color="orange"
-              loading={statsLoading}
-              value={stats?.total_employees ?? "—"}
-            />
-          </div>
-          <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={UserCheck}
-              label="Present Today"
-              color="green"
-              loading={statsLoading}
-              value={stats?.present_today ?? "—"}
-            />
-          </div>
-
-          <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={AlertTriangle}
-              label="Late Today"
-              color="purple"
-              loading={statsLoading}
-              value={stats?.late_today ?? "—"}
-            />
-          </div>
-          <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={Building2}
-              label="Departments"
-              color="slate"
-              loading={statsLoading}
-              value={stats?.total_departments ?? "—"}
-            />
-          </div>
-          {/* <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={MapPin}
-              label="Locations"
-              color="slate"
-              loading={statsLoading}
-              value={stats?.total_locations ?? "—"}
-            />
-          </div>
-          <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={Clock3}
-              label="Shifts"
-              color="slate"
-              loading={statsLoading}
-              value={stats?.total_shifts ?? "—"}
-            />
-          </div> */}
-        </div>
-      </div>
-
       {/* ---------- Two-column body (desktop/tablet only — mobile gets its
           own Overview / Activity / Team tabs above) ----------
           Left:  Check-in/out -> Recent Activity -> Attendance Trend (+ Dept
@@ -1643,7 +1656,7 @@ export default function SuperAdminDashboard() {
           {/* <CheckInOutCard onActivityChange={loadLogs} /> */}
 
           {/* ---------- Recent audit activity: fixed height, hidden scrollbar ---------- */}
-          <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 flex flex-col h-[300px] sm:h-[360px]">
+          <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-5 flex flex-col h-[300px] sm:h-[360px]">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                 <ShieldCheck size={17} className="text-orange-500" /> Recent
@@ -1771,7 +1784,7 @@ export default function SuperAdminDashboard() {
               {
                 key: "announcements",
                 node: (
-                  <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 h-60 sm:h-72 flex flex-col">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-5 h-60 sm:h-72 flex flex-col">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                         <Megaphone size={17} className="text-orange-500" />{" "}
@@ -1923,6 +1936,50 @@ export default function SuperAdminDashboard() {
       >
         <Plus size={24} />
       </Link> */}
+
+      {/* ---------- Tab-line quick actions (desktop). Portalled into the
+          slot DashboardTabs renders on the right of the tab bar. ---------- */}
+      {actionsSlot &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              onClick={openAddUser}
+              title="Create User"
+              aria-label="Create User"
+              className="group relative w-9 h-9 rounded-full bg-[#0b1d45] border border-[#0b1d45] hover:bg-orange-500 hover:border-orange-500 text-white flex items-center justify-center transition-colors shrink-0"
+            >
+              <UserPlus size={16} />
+              <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                Create User
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddSiteOpen(true)}
+              title="Create Site"
+              aria-label="Create Site"
+              className="group relative w-9 h-9 rounded-full bg-[#0b1d45] border border-[#0b1d45] hover:bg-orange-500 hover:border-orange-500 text-white flex items-center justify-center transition-colors shrink-0"
+            >
+              <Building2 size={16} />
+              <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                Create Site
+              </span>
+            </button>
+            <Link
+              to="/super-admin/leave/balance"
+              title="Leave Balance"
+              aria-label="Leave Balance"
+              className="group relative w-9 h-9 rounded-full bg-[#0b1d45] border border-[#0b1d45] hover:bg-orange-500 hover:border-orange-500 text-white flex items-center justify-center transition-colors shrink-0"
+            >
+              <CalendarRange size={16} />
+              <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                Leave Balance
+              </span>
+            </Link>
+          </>,
+          actionsSlot,
+        )}
 
       {/* ---------- Create User modal (opened from the "Create User"
           quick action above). Shows a loading/error overlay first,

@@ -22,6 +22,7 @@ import {
   SELF_SPACE_BY_ROLE,
 } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
+import { useIsDesktop } from "../../hooks/useBasePath";
 import { isFieldEmployee } from "../../utils/employeeType";
 import { isSiteEmployee } from "../../utils/workingLocation";
 
@@ -70,6 +71,7 @@ export default function Sidebar({
   const isReportingManager = !!user?.profile?.is_reporting_manager;
   const canSeeLeaveRequests =
     isReportingManager || LEAVE_REQUEST_VIEWER_ROLES.includes(role);
+  const isDesktop = useIsDesktop();
   const items = useMemo(
     () =>
       (inMySpace
@@ -77,10 +79,13 @@ export default function Sidebar({
         : (NAVIGATION_CONFIG[role] ?? [])
       )
         .filter((item) => !(item.hideForSite && siteEmployee))
+        // Web-only dashboard tabs replace these items on desktop.
+        .filter((item) => !(item.mobileOnly && isDesktop))
         .map((item) => {
           if (!item.children) return item;
           const children = item.children.filter(
-            (c) => !c.fieldOnly || showFieldOnly,
+            (c) =>
+              (!c.fieldOnly || showFieldOnly) && !(c.mobileOnly && isDesktop),
           );
           // "Leave Requests" lives INSIDE the leave group (only when
           // canSeeLeaveRequests, see above):
@@ -125,6 +130,7 @@ export default function Sidebar({
       siteEmployee,
       canSeeLeaveRequests,
       selfSpace,
+      isDesktop,
     ],
   );
 
@@ -151,7 +157,19 @@ export default function Sidebar({
       (item) =>
         item.children && isChildActive(item.children, location.pathname),
     );
-    if (!activeItem) return;
+    // Route belongs to no dropdown group (Reports, Dashboard, Settings...)
+    // -> collapse every open group instead of leaving the old one open.
+    if (!activeItem) {
+      setOpenGroups((prev) => {
+        if (!Object.values(prev).some(Boolean)) return prev;
+        const closed = {};
+        items.forEach((i) => {
+          if (i.children) closed[i.label] = false;
+        });
+        return closed;
+      });
+      return;
+    }
     setOpenGroups((prev) => {
       // Already the only open group -> keep same state object (no re-render)
       const alreadyOk = items.every(
@@ -249,6 +267,29 @@ export default function Sidebar({
     ? "text-blue-100/90 hover:bg-white/10 hover:text-white"
     : "text-slate-500 hover:bg-orange-50 hover:text-orange-600";
 
+  // My Space / Company options, shared by the web circles (next to the logo)
+  // and the pill (mobile drawer + collapsed rail).
+  const switchOptions = hasSwitch
+    ? [
+        {
+          key: "me",
+          label: "My Space",
+          short: "SP",
+          icon: User,
+          active: inMySpace,
+          to: `${selfSpace.base}/dashboard`,
+        },
+        {
+          key: "company",
+          label: "Company",
+          short: "CM",
+          icon: Building2,
+          active: !inMySpace,
+          to: selfSpace.companyHome,
+        },
+      ]
+    : [];
+
   return (
     <>
       {/* Backdrop — mobile only, closes the drawer on tap outside */}
@@ -291,6 +332,37 @@ export default function Sidebar({
               }`}
             />
           </span>
+          {/* WEB (lg+, expanded sidebar): My Space / Company as two small
+              overlapping circles on the right of the logo. The active one
+              sits on top. Mobile drawer + collapsed rail keep the pill. */}
+          {hasSwitch && !effectiveCollapsed && (
+            <div className="hidden lg:flex items-center shrink-0 pl-2">
+              {switchOptions.map(({ key, label, short, active, to }, i) => (
+                <button
+                  key={key}
+                  type="button"
+                  title={label}
+                  aria-label={label}
+                  aria-pressed={active}
+                  onClick={() => {
+                    if (!active) navigate(to);
+                    onCloseMobile();
+                  }}
+                  className={`h-9 w-9 rounded-full flex items-center justify-center text-[11px] font-bold tracking-wide transition-all ${
+                    i > 0 ? "-ml-3" : ""
+                  } ${
+                    active
+                      ? "z-10 bg-white text-orange-600 ring-2 ring-orange-500 shadow-md"
+                      : blue
+                        ? "bg-[#1a3566] text-blue-100 ring-2 ring-[#0b1f45] hover:text-white"
+                        : "bg-slate-100 text-slate-500 ring-2 ring-white hover:text-slate-700"
+                  }`}
+                >
+                  {short}
+                </button>
+              ))}
+            </div>
+          )}
           <button
             type="button"
             onClick={onCloseMobile}
@@ -317,44 +389,33 @@ export default function Sidebar({
         {hasSwitch && (
           <div
             className={`shrink-0 mx-4 mb-2 p-1 rounded-full ${blue ? "bg-white/10" : "bg-slate-100"} ${
-              effectiveCollapsed ? "flex flex-col gap-1" : "flex gap-1"
+              effectiveCollapsed
+                ? "flex flex-col gap-1"
+                : "flex gap-1 lg:hidden"
             }`}
           >
-            {[
-              {
-                key: "me",
-                label: "My Space",
-                icon: User,
-                active: inMySpace,
-                to: `${selfSpace.base}/dashboard`,
-              },
-              {
-                key: "company",
-                label: "Company",
-                icon: Building2,
-                active: !inMySpace,
-                to: selfSpace.companyHome,
-              },
-            ].map(({ key, label, icon: SwitchIcon, active, to }) => (
-              <button
-                key={key}
-                type="button"
-                title={label}
-                aria-pressed={active}
-                onClick={() => {
-                  if (!active) navigate(to);
-                  onCloseMobile();
-                }}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-medium transition-colors ${
-                  active
-                    ? "bg-white text-orange-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                <SwitchIcon size={14} className="shrink-0" />
-                {!effectiveCollapsed && <span>{label}</span>}
-              </button>
-            ))}
+            {switchOptions.map(
+              ({ key, label, icon: SwitchIcon, active, to }) => (
+                <button
+                  key={key}
+                  type="button"
+                  title={label}
+                  aria-pressed={active}
+                  onClick={() => {
+                    if (!active) navigate(to);
+                    onCloseMobile();
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-medium transition-colors ${
+                    active
+                      ? "bg-white text-orange-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  <SwitchIcon size={14} className="shrink-0" />
+                  {!effectiveCollapsed && <span>{label}</span>}
+                </button>
+              ),
+            )}
           </div>
         )}
 
@@ -419,6 +480,15 @@ export default function Sidebar({
                 <NavLink
                   key={item.label}
                   to={item.path}
+                  // "Users" (/users) must not stay active on its sibling
+                  // "User Permissions" (/users/permissions): match exactly
+                  // when another item's path sits under this one.
+                  end={visibleItems.some(
+                    (o) =>
+                      o !== item &&
+                      o.path &&
+                      o.path.startsWith(item.path + "/"),
+                  )}
                   title={effectiveCollapsed ? item.label : undefined}
                   onClick={onCloseMobile}
                   className={({ isActive }) =>

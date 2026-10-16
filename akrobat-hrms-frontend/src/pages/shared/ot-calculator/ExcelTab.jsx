@@ -3,11 +3,11 @@ import {
   ChevronRight,
   Download,
   Save,
+  Search,
   Upload,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import SearchInput from "../../../components/common/SearchInput";
-import SelectDropdown from "../../../components/common/SelectDropdown";
 import { formatClock } from "../../../utils/timeFormat";
 import { exportOtExcel, readOtExcel } from "./otExcel";
 import { effectiveRow, empTotals, formatH } from "./otUtils";
@@ -80,10 +80,41 @@ export default function ExcelTab({
 }) {
   const employees = data.employees || [];
   const fileRef = useRef(null);
-  const [filterId, setFilterId] = useState("");
-  const shown = filterId
-    ? employees.filter((e) => e.employee_id === filterId)
+  const shown = employees;
+
+  // Web: staff list on the left, selected employee's month on the right.
+  const [webEmpId, setWebEmpId] = useState(null);
+  const [webQuery, setWebQuery] = useState("");
+  const [flashDate, setFlashDate] = useState(null);
+  const wq = webQuery.trim().toLowerCase();
+  const webList = wq
+    ? employees.filter(
+        (e) =>
+          (e.full_name || "").toLowerCase().includes(wq) ||
+          String(e.employee_code || "")
+            .toLowerCase()
+            .includes(wq),
+      )
     : employees;
+  const webEmp =
+    employees.find((e) => e.employee_id === webEmpId) || webList[0] || null;
+  const webTotals = webEmp ? empTotals(webEmp, edits) : null;
+
+  // Calendar for the web view: Monday-first month grid built from `month`.
+  const [calY, calM] = month.split("-").map(Number);
+  const calDays = new Date(calY, calM, 0).getDate();
+  const calOffset = monthOffset(calY, calM - 1);
+  const rowByDate = {};
+  (webEmp?.rows || []).forEach((r) => {
+    rowByDate[r.date] = r;
+  });
+  const selRow =
+    (webEmp &&
+      (rowByDate[flashDate] ||
+        webEmp.rows.find((r) => r.auto_ot_hours > 0) ||
+        webEmp.rows[0])) ||
+    null;
+  const selCur = selRow ? effectiveRow(webEmp, selRow, edits) : null;
 
   // Mobile only: employee list -> tap one -> full details screen.
   const [mobileEmpId, setMobileEmpId] = useState(null);
@@ -178,167 +209,325 @@ export default function ExcelTab({
         onChange={handleImport}
       />
 
-      {/* ---------------- Web: unchanged table view ---------------- */}
+      {/* ---------------- Web: staff list + month panel ---------------- */}
       <div className="hidden lg:block">
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <SelectDropdown
-            searchable
-            value={filterId}
-            onChange={setFilterId}
-            options={[
-              { value: "", label: `All OT staff (${employees.length})` },
-              ...employees.map((e) => ({
-                value: e.employee_id,
-                label: e.full_name,
-              })),
-            ]}
-            searchPlaceholder="Search employee..."
-            className="w-64"
-            triggerClassName="min-h-[44px]"
-          />
-          <button
-            type="button"
-            onClick={() => exportOtExcel(shown, edits, month)}
-            className="min-h-[44px] rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 flex items-center gap-2"
-          >
-            <Download size={16} />
-            Export Excel
-          </button>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="min-h-[44px] rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 flex items-center gap-2"
-          >
-            <Upload size={16} />
-            Import edited Excel
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving || dirtyCount === 0}
-            className="bg-brand-orange text-white text-sm font-medium px-4 py-2.5 min-h-[44px] rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50 transition flex items-center gap-2 ml-auto"
-          >
-            <Save size={16} />
-            {saving
-              ? "Saving..."
-              : `Save changes${dirtyCount ? ` (${dirtyCount})` : ""}`}
-          </button>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-lg overflow-auto max-h-[60vh]">
-          <table className="w-full text-sm min-w-[1100px] border-collapse">
-            <thead>
-              <tr className="bg-slate-100 text-slate-600 text-xs font-bold">
-                <th className="w-10 border-r border-slate-200 sticky top-0 z-10 bg-slate-100" />
-                {COLS.map((c) => (
-                  <th
-                    key={c}
-                    className="px-3 py-2.5 text-left border-r border-slate-200 whitespace-nowrap sticky top-0 z-10 bg-slate-100"
-                  >
-                    {c}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {shown.flatMap((emp) =>
-                emp.rows.map((row) => {
-                  const cur = effectiveRow(emp, row, edits);
+        <div className="grid grid-cols-[260px_minmax(0,1fr)] gap-4 items-start">
+          {/* ---- Left: staff list ---- */}
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="p-3 border-b border-slate-100">
+              <div className="relative">
+                <Search
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  value={webQuery}
+                  onChange={(e) => setWebQuery(e.target.value)}
+                  placeholder="Search staff..."
+                  className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                />
+              </div>
+            </div>
+            <div className="max-h-[64vh] overflow-y-auto p-2 space-y-0.5">
+              {webList.length === 0 ? (
+                <div className="px-3 py-8 text-center text-sm text-slate-400">
+                  No staff found.
+                </div>
+              ) : (
+                webList.map((emp) => {
+                  const t = empTotals(emp, edits);
+                  const active = webEmp?.employee_id === emp.employee_id;
                   return (
-                    <tr
-                      key={`${emp.employee_id}|${row.date}`}
-                      className="border-t border-slate-200"
+                    <button
+                      key={emp.employee_id}
+                      type="button"
+                      onClick={() => {
+                        setWebEmpId(emp.employee_id);
+                        setFlashDate(null);
+                      }}
+                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                        active ? "bg-orange-50" : "hover:bg-slate-50"
+                      }`}
                     >
-                      <td className="bg-slate-100 text-center text-xs text-slate-500 border-r border-slate-200" />
-                      <td className="px-3 py-2 border-r border-slate-100">
-                        {emp.employee_code}
-                      </td>
-                      <td className="px-3 py-2 border-r border-slate-100 font-medium">
-                        {emp.full_name}
-                      </td>
-                      <td className="px-3 py-2 border-r border-slate-100">
-                        {row.date}
-                      </td>
-                      <td className="px-3 py-2 border-r border-slate-100">
-                        {row.weekday}
-                      </td>
-                      <td className="px-3 py-2 border-r border-slate-100">
-                        {formatClock(row.shift_end) || "--"}
-                      </td>
-                      <td className="px-3 py-2 border-r border-slate-100">
-                        {formatClock(row.check_out) || "--"}
-                      </td>
-                      <td className="px-3 py-2 border-r border-slate-100">
-                        {row.after_shift_minutes}
-                      </td>
-                      <td className="px-3 py-2 border-r border-slate-100">
-                        {row.auto_ot_hours}
-                      </td>
-                      <td
-                        className={`p-0 border-r border-slate-100 ${
-                          cur.edited
-                            ? "bg-orange-50 outline outline-2 -outline-offset-2 outline-orange-600"
-                            : ""
+                      <span
+                        className={`w-8 h-8 shrink-0 rounded-full text-[11px] font-semibold flex items-center justify-center ${
+                          active
+                            ? "bg-orange-500 text-white"
+                            : "bg-orange-100 text-orange-700"
                         }`}
                       >
-                        <input
-                          type="number"
-                          min="0"
-                          max="24"
-                          step="0.5"
-                          aria-label={`Manual OT for ${emp.full_name} on ${row.date}`}
-                          value={cur.manual}
-                          onChange={(e) =>
-                            onEdit(emp, row, { manual: e.target.value })
-                          }
-                          className="w-24 min-h-[40px] bg-transparent px-3 text-sm font-bold text-orange-800"
-                        />
-                      </td>
-                      <td className="px-3 py-2 border-r border-slate-100 font-bold">
-                        {cur.final}
-                      </td>
-                      <td className="p-0 border-r border-slate-100">
-                        <input
-                          type="text"
-                          maxLength={300}
-                          aria-label={`Note for ${emp.full_name} on ${row.date}`}
-                          value={cur.note}
-                          onChange={(e) =>
-                            onEdit(emp, row, { note: e.target.value })
-                          }
-                          className="w-56 min-h-[40px] bg-transparent px-3 text-sm"
-                        />
-                      </td>
-                    </tr>
+                        {initials(emp.full_name)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={`block text-sm font-medium truncate ${
+                            active ? "text-orange-700" : "text-slate-700"
+                          }`}
+                        >
+                          {emp.full_name}
+                        </span>
+                        <span className="block text-[11px] text-slate-400">
+                          {emp.employee_code}
+                        </span>
+                      </span>
+                      <span className="shrink-0 flex items-center gap-1.5">
+                        {t.editedDays > 0 && (
+                          <span
+                            className="w-1.5 h-1.5 rounded-full bg-orange-500"
+                            title={`${t.editedDays} edited day(s)`}
+                          />
+                        )}
+                        <span className="text-xs font-semibold text-slate-600">
+                          {formatH(t.final)}
+                        </span>
+                      </span>
+                    </button>
                   );
-                }),
+                })
               )}
-              <tr className="border-t-2 border-slate-300 bg-slate-100 font-bold">
-                <td className="border-r border-slate-200 sticky bottom-0 bg-slate-100" />
-                <td
-                  className="px-3 py-2.5 sticky bottom-0 bg-slate-100"
-                  colSpan={6}
-                >
-                  Total
-                </td>
-                <td className="px-3 py-2.5 sticky bottom-0 bg-slate-100">
-                  {sum.after}
-                </td>
-                <td className="px-3 py-2.5 sticky bottom-0 bg-slate-100">
-                  {formatH(sum.auto)}
-                </td>
-                <td className="px-3 py-2.5 sticky bottom-0 bg-slate-100" />
-                <td className="px-3 py-2.5 text-orange-700 sticky bottom-0 bg-slate-100">
-                  {formatH(sum.final)}
-                </td>
-                <td className="sticky bottom-0 bg-slate-100" />
-              </tr>
-            </tbody>
-          </table>
+            </div>
+            <div className="border-t border-slate-100 p-3 space-y-2">
+              <div className="text-[11px] text-slate-400">
+                {employees.length} staff · {formatH(sum.final)} final OT
+              </div>
+            </div>
+          </div>
+
+          {/* ---- Right: selected employee ---- */}
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden min-w-0">
+            {!webEmp ? (
+              <div className="px-4 py-16 text-center text-sm text-slate-400">
+                No OT staff for this month.
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-4 px-4 py-3 border-b border-slate-100">
+                  <span className="w-10 h-10 shrink-0 rounded-full bg-orange-100 text-orange-700 font-bold text-sm flex items-center justify-center">
+                    {initials(webEmp.full_name)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-slate-800 truncate">
+                      {webEmp.full_name}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {webEmp.employee_code} · {month}
+                    </div>
+                  </div>
+                  {[
+                    ["After shift", `${webTotals.afterShift} min`],
+                    ["Auto OT", formatH(webTotals.auto)],
+                    ["Edited days", webTotals.editedDays],
+                    ["Final OT", formatH(webTotals.final)],
+                  ].map(([label, value], i) => (
+                    <div
+                      key={label}
+                      className={`rounded-lg px-3 py-1.5 ${
+                        i === 3 ? "bg-orange-50" : "bg-slate-50"
+                      }`}
+                    >
+                      <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                        {label}
+                      </div>
+                      <div
+                        className={`text-sm font-bold ${
+                          i === 3 ? "text-orange-700" : "text-slate-700"
+                        }`}
+                      >
+                        {value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-[minmax(0,1fr)_250px] gap-4 p-4">
+                  {/* ---- Month calendar ---- */}
+                  <div>
+                    <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+                      {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
+                        (d) => (
+                          <div
+                            key={d}
+                            className="text-[11px] text-slate-400 px-1"
+                          >
+                            {d}
+                          </div>
+                        ),
+                      )}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {Array.from({ length: calOffset }, (_, i) => (
+                        <div key={`pad-${i}`} />
+                      ))}
+                      {Array.from({ length: calDays }, (_, i) => {
+                        const day = i + 1;
+                        const date = `${month}-${String(day).padStart(2, "0")}`;
+                        const row = rowByDate[date];
+                        if (!row) {
+                          return (
+                            <div
+                              key={date}
+                              className="rounded-lg px-2 py-1.5 min-h-[52px] text-slate-300 text-xs border border-dashed border-slate-100"
+                            >
+                              {day}
+                            </div>
+                          );
+                        }
+                        const cur = effectiveRow(webEmp, row, edits);
+                        const tone = cur.edited
+                          ? "bg-orange-500 text-white"
+                          : cur.final > 0
+                            ? "bg-orange-50 text-orange-700"
+                            : "bg-slate-50 text-slate-500 hover:bg-slate-100";
+                        return (
+                          <button
+                            key={date}
+                            type="button"
+                            onClick={() => setFlashDate(date)}
+                            title={`${date} · ${cur.final} h`}
+                            className={`rounded-lg px-2 py-1.5 min-h-[52px] text-left transition-shadow ${tone} ${
+                              selRow?.date === date
+                                ? "ring-2 ring-orange-400 ring-offset-1"
+                                : ""
+                            }`}
+                          >
+                            <span className="block text-xs font-semibold">
+                              {day}
+                            </span>
+                            <span className="block text-[11px] opacity-90">
+                              {cur.final}h
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-400">
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-sm bg-orange-500" />
+                        Edited
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-sm bg-orange-100" />
+                        Auto OT
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-sm bg-slate-200" />
+                        No OT
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* ---- Right end: selected-day edit card + Save ---- */}
+                  <div className="self-start space-y-3">
+                    <div className="rounded-xl border border-slate-200 p-4 text-sm">
+                      {!selRow ? (
+                        <div className="text-slate-400 text-center py-6">
+                          No days this month.
+                        </div>
+                      ) : (
+                        <>
+                          <div className="font-semibold text-slate-800">
+                            {new Date(
+                              `${selRow.date}T00:00:00`,
+                            ).toLocaleDateString("en-GB", {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "short",
+                            })}
+                          </div>
+                          <div className="text-xs text-slate-500 mb-3">
+                            {formatClock(selRow.shift_end) || "--"} →{" "}
+                            {formatClock(selRow.check_out) || "--"} ·{" "}
+                            {selRow.after_shift_minutes} min after shift
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 mb-3">
+                            <div className="rounded-lg bg-slate-50 px-3 py-2">
+                              <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                                Auto OT
+                              </div>
+                              <div className="font-bold text-slate-700">
+                                {formatH(selRow.auto_ot_hours)}
+                              </div>
+                            </div>
+                            <div className="rounded-lg bg-orange-50 px-3 py-2">
+                              <div className="text-[10px] uppercase tracking-wide text-orange-400">
+                                Final
+                              </div>
+                              <div className="font-bold text-orange-700">
+                                {formatH(selCur.final)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <label className="block text-xs text-slate-500 mb-1">
+                            Manual (h)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="24"
+                            step="0.5"
+                            aria-label={`Manual OT for ${webEmp.full_name} on ${selRow.date}`}
+                            value={selCur.manual}
+                            onChange={(e) =>
+                              onEdit(webEmp, selRow, { manual: e.target.value })
+                            }
+                            className={`w-full h-9 rounded-lg border px-3 text-sm font-semibold mb-3 focus:outline-none focus:ring-2 focus:ring-orange-100 ${
+                              selCur.edited
+                                ? "border-orange-400 bg-orange-50 text-orange-800"
+                                : "border-slate-200 text-slate-700"
+                            }`}
+                          />
+
+                          <label className="block text-xs text-slate-500 mb-1">
+                            Note
+                          </label>
+                          <textarea
+                            rows={3}
+                            maxLength={300}
+                            aria-label={`Note for ${webEmp.full_name} on ${selRow.date}`}
+                            value={selCur.note}
+                            onChange={(e) =>
+                              onEdit(webEmp, selRow, { note: e.target.value })
+                            }
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-100"
+                          />
+
+                          {selCur.edited && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onEdit(webEmp, selRow, { manual: "" })
+                              }
+                              className="mt-2 text-xs font-medium text-orange-600 hover:underline"
+                            >
+                              Reset to auto OT
+                            </button>
+                          )}
+                        </>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={onSave}
+                        disabled={saving || dirtyCount === 0}
+                        className="mt-4 w-full bg-brand-orange text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50 transition flex items-center justify-center gap-2"
+                      >
+                        <Save size={16} />
+                        {saving
+                          ? "Saving..."
+                          : `Save changes${dirtyCount ? ` (${dirtyCount})` : ""}`}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
         <p className="text-xs text-slate-500 mt-3">
-          Type in the Manual column and Final updates. Or export, edit in Excel,
-          import back, then Save.
+          Pick a staff member, click a day, then type the Manual hours. Or
+          export, edit in Excel, import back, then Save.
         </p>
       </div>
 

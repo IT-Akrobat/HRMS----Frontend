@@ -24,7 +24,9 @@ const Employees = lazy(() => import("../pages/hr-admin/Employees.jsx"));
 // const EmployeesProfile = lazy(() => import("../pages/hr-admin/EmployeesProfile.jsx"));
 const LeaveBalance = lazy(() => import("../pages/hr-admin/LeaveBalance.jsx"));
 const LeaveRequests = lazy(() => import("../pages/hr-admin/LeaveRequests.jsx"));
-const LiveTracking = lazy(() => import("../pages/hr-admin/LiveTracking.jsx"));
+const LiveTracking = lazy(
+  () => import("../pages/shared/live-tracking/LiveTracking.jsx"),
+);
 // Organization (Departments / Designations / Locations) was removed from
 // the HR sidebar and routes on purpose — HR no longer gets a "create
 // site/location" or org-structure screen. Super Admin still owns that

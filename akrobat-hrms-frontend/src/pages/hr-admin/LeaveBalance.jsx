@@ -1,3 +1,4 @@
+import { AlertTriangle, Percent, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
@@ -443,25 +444,47 @@ export default function LeaveBalance() {
         }
       />
 
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <div className="bg-slate-50 rounded-xl p-4">
-          <p className="text-xs text-slate-500 mb-1.5">Employees tracked</p>
-          <p className="text-2xl font-semibold text-slate-800">
-            {summary.total}
-          </p>
-        </div>
-        <div className="bg-slate-50 rounded-xl p-4">
-          <p className="text-xs text-slate-500 mb-1.5">Avg balance used</p>
-          <p className="text-2xl font-semibold text-slate-800">
-            {summary.avgUsedPct}%
-          </p>
-        </div>
-        <div className="bg-red-50 rounded-xl p-4">
-          <p className="text-xs text-red-600 mb-1.5">Running low</p>
-          <p className="text-2xl font-semibold text-red-700">
-            {summary.runningLow}
-          </p>
-        </div>
+      {/* KPI strip — compact tiles (same size as the Departments page) */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+        {[
+          {
+            icon: Users,
+            label: "Employees tracked",
+            value: summary.total,
+            tone: "bg-orange-50 text-orange-600",
+          },
+          {
+            icon: Percent,
+            label: "Avg balance used",
+            value: `${summary.avgUsedPct}%`,
+            tone: "bg-blue-50 text-blue-600",
+          },
+          {
+            icon: AlertTriangle,
+            label: "Running low",
+            value: summary.runningLow,
+            tone: "bg-red-50 text-red-600",
+          },
+        ].map(({ icon: Icon, label, value, tone }) => (
+          <div
+            key={label}
+            className="bg-white rounded-lg border border-slate-200 px-2.5 py-2 flex items-center gap-2.5 min-w-0"
+          >
+            <div
+              className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${tone}`}
+            >
+              <Icon size={14} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] sm:text-[11px] text-slate-500 truncate leading-tight">
+                {label}
+              </div>
+              <div className="text-base font-bold text-slate-800 leading-tight">
+                {value}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
