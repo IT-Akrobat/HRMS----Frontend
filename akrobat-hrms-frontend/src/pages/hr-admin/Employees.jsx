@@ -1797,25 +1797,34 @@ export default function EmployeesHrAdmin() {
     <div>
       <PageHeader
         title="Employees"
-        subtitle="Browse by department and designation, or search the full list."
+        // Subtitle hidden on phones; the + buttons stay on the title line,
+        // pushed to the right end.
+        subtitle={
+          <span className="hidden sm:inline">
+            Browse by department and designation, or search the full list.
+          </span>
+        }
+        actionsInline
         actions={
           <>
             <button
               onClick={() => setOrgModal("dept")}
               aria-label="Add department"
               title="Add department"
-              className="h-9 w-9 sm:w-auto sm:px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center justify-center gap-1.5"
+              className="h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center justify-center gap-1.5"
             >
               <Plus size={16} />
+              <span className="sm:hidden">Dep</span>
               <span className="hidden sm:inline">Department</span>
             </button>
             <button
               onClick={() => setOrgModal("desig")}
               aria-label="Add designation"
               title="Add designation"
-              className="h-9 w-9 sm:w-auto sm:px-3 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center justify-center gap-1.5"
+              className="h-9 px-3 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center justify-center gap-1.5"
             >
               <Plus size={16} />
+              <span className="sm:hidden">Des</span>
               <span className="hidden sm:inline">Designation</span>
             </button>
           </>

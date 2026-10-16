@@ -274,7 +274,7 @@ export default function Sidebar({
         {
           key: "me",
           label: "My Space",
-          short: "SP",
+          short: "PROF",
           icon: User,
           active: inMySpace,
           to: `${selfSpace.base}/dashboard`,
@@ -282,7 +282,7 @@ export default function Sidebar({
         {
           key: "company",
           label: "Company",
-          short: "CM",
+          short: "CMPY",
           icon: Building2,
           active: !inMySpace,
           to: selfSpace.companyHome,
