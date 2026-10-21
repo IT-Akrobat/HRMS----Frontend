@@ -5,7 +5,18 @@
 // when an HR admin actually navigates to them, not upfront on login.
 import { lazy } from "react";
 import { Navigate } from "react-router-dom";
+import { useIsDesktop } from "../hooks/useBasePath";
 import { commonRoutes, selfCommonRoutes } from "./commonRoutes.jsx";
+
+// On web (lg+) these pages live inside the Dashboard tabs, so their old URLs
+// redirect to the matching tab. On mobile they stay normal pages.
+function WebTabRedirect({ tab, children }) {
+  const isDesktop = useIsDesktop();
+  if (isDesktop) {
+    return <Navigate to={`/hr-admin/dashboard?tab=${tab}`} replace />;
+  }
+  return children;
+}
 
 const Attendance = lazy(() => import("../pages/hr-admin/Attendance.jsx"));
 const OtCalculator = lazy(
@@ -16,7 +27,9 @@ const AttendanceReports = lazy(
 );
 // const AttendanceShifts = lazy(() => import("../pages/hr-admin/AttendanceShifts.jsx"));
 const AuditLogs = lazy(() => import("../pages/hr-admin/Auditlogs.jsx"));
-const Dashboard = lazy(() => import("../pages/hr-admin/Dashboard.jsx"));
+// Dashboard page = 4 tabs (Overview / Employees / OT Calculator / Live Site
+// Tracking). On mobile it renders the original Overview with no tabs.
+const Dashboard = lazy(() => import("../pages/hr-admin/DashboardTabs.jsx"));
 const Documents = lazy(() => import("../pages/hr-admin/Documents.jsx"));
 
 const Employees = lazy(() => import("../pages/hr-admin/Employees.jsx"));
@@ -65,7 +78,14 @@ export const hrAdminRoutes = [
   { path: "me/people/department", element: <MeDepartment /> },
   { path: "me/profile/sites", element: <MeSites /> },
   // ---- Company ----
-  { path: "employees", element: <Employees /> },
+  {
+    path: "employees",
+    element: (
+      <WebTabRedirect tab="employees">
+        <Employees />
+      </WebTabRedirect>
+    ),
+  },
   // { path: "employees/add", element: <EmployeesAdd /> },
   // { path: "employees/profile", element: <EmployeesProfile /> },
   // { path: "organization/departments", element: <OrganizationDepartments /> },
@@ -74,8 +94,22 @@ export const hrAdminRoutes = [
   { path: "attendance", element: <Attendance /> },
   // { path: "attendance/shifts", element: <AttendanceShifts /> },
   { path: "attendance/reports", element: <AttendanceReports /> },
-  { path: "attendance/ot-calculator", element: <OtCalculator /> },
-  { path: "attendance/live-tracking", element: <LiveTracking /> },
+  {
+    path: "attendance/ot-calculator",
+    element: (
+      <WebTabRedirect tab="ot-calculator">
+        <OtCalculator />
+      </WebTabRedirect>
+    ),
+  },
+  {
+    path: "attendance/live-tracking",
+    element: (
+      <WebTabRedirect tab="live-tracking">
+        <LiveTracking />
+      </WebTabRedirect>
+    ),
+  },
   { path: "leave/requests", element: <LeaveRequests /> },
   // { path: "leave/policies", element: <LeavePolicies /> },
   { path: "leave/balance", element: <LeaveBalance /> },

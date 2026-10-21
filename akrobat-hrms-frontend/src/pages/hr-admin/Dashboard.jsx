@@ -24,11 +24,13 @@ import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import AttendanceTrendChart from "../../components/common/AttendanceTrendChart";
+import BirthdaysCard, {
+  AnniversariesCard,
+  OnLeaveTodayCard,
+} from "../../components/common/CelebrationsStrip";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import OutdoorCheckinAccessModal from "../../components/common/Outdoorcheckinaccessmodal";
-import PageHeader from "../../components/common/PageHeader";
 // import QuoteOfDayCard from "../../components/common/Quoteofdaycard";
-import StatCard from "../../components/common/StatCard";
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import UserFormModal from "../../components/common/UserformModal";
 import { useAuth } from "../../context/AuthContext";
@@ -296,7 +298,155 @@ const NAV_QUICK_ACTIONS = [
   },
 ];
 
-export default function HrAdminDashboard() {
+// Compact KPI tile used inside the slim navy header strip (desktop only).
+function StripKpi({ icon: Icon, label, value, loading, chip }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-lg bg-white/[0.08] px-3 py-1.5 min-w-0">
+      <span
+        className={`w-7 h-7 shrink-0 rounded-lg ${chip} text-white flex items-center justify-center`}
+      >
+        <Icon size={15} strokeWidth={1.9} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] text-blue-200 truncate leading-tight">
+          {label}
+        </p>
+        {loading ? (
+          <div className="h-4 w-8 mt-0.5 bg-white/15 rounded animate-pulse" />
+        ) : (
+          <p className="text-base font-bold text-white leading-tight">
+            {value}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Desktop-only navy header (greeting + live clock + KPI strip + quick
+// actions), same look as the Super Admin dashboard. The clock ticks
+// inside this component so the per-second re-render never touches the
+// rest of the dashboard (including the mobile layout).
+function DesktopBanner({
+  name,
+  stats,
+  statsLoading,
+  onCreateUser,
+  onOutdoorAccess,
+  showActions = true,
+}) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const dateLabel = now.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const timeLabel = now.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const hour = now.getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  const circleBtn =
+    "group relative w-8 h-8 rounded-full bg-white/10 border border-white/15 hover:bg-orange-500 hover:border-orange-500 text-white flex items-center justify-center transition-colors shrink-0";
+  const tip =
+    "pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-20";
+
+  return (
+    <div className="hidden lg:block relative mb-4 rounded-xl bg-gradient-to-br from-[#0b1f45] via-[#10295a] to-[#1a3c82] text-white pl-5 pr-3 py-2 shadow-[0_6px_16px_rgba(11,31,69,0.20)]">
+      <span
+        aria-hidden="true"
+        className="absolute top-0 left-0 h-full w-1 rounded-l-xl bg-gradient-to-b from-orange-400 to-orange-600"
+      />
+      <div className="relative flex items-center gap-4">
+        <div className="min-w-0 shrink-0 w-[210px]">
+          <h1 className="text-[15px] font-bold leading-tight !text-white truncate">
+            {greeting}, {name || "HR Admin"}
+          </h1>
+          <p className="text-[11px] text-blue-200 mt-0.5 truncate">
+            {dateLabel} · {timeLabel}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2 flex-1 min-w-0">
+          <StripKpi
+            icon={Users}
+            label="Total Employees"
+            chip="bg-orange-500"
+            loading={statsLoading}
+            value={stats?.total_employees ?? "—"}
+          />
+          <StripKpi
+            icon={UserCheck}
+            label="Present Today"
+            chip="bg-sky-500"
+            loading={statsLoading}
+            value={stats?.present_today ?? "—"}
+          />
+          <StripKpi
+            icon={AlertTriangle}
+            label="Late Today"
+            chip="bg-indigo-500"
+            loading={statsLoading}
+            value={stats?.late_today ?? "—"}
+          />
+          <StripKpi
+            icon={Building2}
+            label="Departments"
+            chip="bg-[#1d3f86]"
+            loading={statsLoading}
+            value={stats?.total_departments ?? "—"}
+          />
+        </div>
+
+        {showActions && (
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={onCreateUser}
+              title="Create User"
+              aria-label="Create User"
+              className={circleBtn}
+            >
+              <UserPlus size={15} />
+              <span className={tip}>Create User</span>
+            </button>
+            <button
+              type="button"
+              onClick={onOutdoorAccess}
+              title="Outdoor Check-in Access"
+              aria-label="Outdoor Check-in Access"
+              className={circleBtn}
+            >
+              <MapPin size={15} />
+              <span className={tip}>Outdoor Check-in Access</span>
+            </button>
+            <Link
+              to="/hr-admin/leave/balance"
+              title="Leave Balance"
+              aria-label="Leave Balance"
+              className={circleBtn}
+            >
+              <CalendarRange size={15} />
+              <span className={tip}>Leave Balance</span>
+            </Link>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function HrAdminDashboard({ actionsSlot } = {}) {
   const { user } = useAuth();
   const firstName = user?.name?.split(" ")[0] || "there";
 
@@ -507,7 +657,7 @@ export default function HrAdminDashboard() {
   }, [trendRange]);
 
   return (
-    <div className="overflow-x-hidden">
+    <div className="overflow-x-hidden lg:overflow-x-clip">
       {/* Hides the scrollbar visually on the horizontal stat-card row and
           the recent-activity panel, while keeping them scrollable. */}
       <style>{`
@@ -515,48 +665,18 @@ export default function HrAdminDashboard() {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* ---------- Desktop/tablet header (lg and up) ----------
-          Only the three modal-opening actions (Create User / Create
-          Site / Outdoor Check-in Access) + the Quote of the Day card
-          live in this row. The straight-nav icons (Employees / Live
-          Tracking / Audit Logs / Reports / Leave Balance) are
-          intentionally mobile-only — see the mobile header below. */}
-      <div className="hidden lg:block">
-        <PageHeader
-          title="System Dashboard"
-          subtitle="Overview of your system and activity"
-          actions={
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={openAddUser}
-                title="Create User"
-                aria-label="Create User"
-                className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
-              >
-                <UserPlus size={16} />
-                <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  Create User
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setOutdoorAccessOpen(true)}
-                title="Outdoor Check-in Access"
-                aria-label="Outdoor Check-in Access"
-                className="group relative w-9 h-9 rounded-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white flex items-center justify-center transition-colors shrink-0"
-              >
-                <MapPin size={16} />
-                <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-800 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  Outdoor Check-in Access
-                </span>
-              </button>
-
-              {/* <QuoteOfDayCard compact /> */}
-            </div>
-          }
-        />
-      </div>
+      {/* ---------- Desktop/tablet header (lg and up): navy banner with
+          greeting, live clock, KPI strip and quick actions -- same
+          layout as the Super Admin dashboard. Mobile has its own header
+          below and is unchanged. ---------- */}
+      <DesktopBanner
+        name={user?.name}
+        stats={stats}
+        statsLoading={statsLoading}
+        onCreateUser={openAddUser}
+        onOutdoorAccess={() => setOutdoorAccessOpen(true)}
+        showActions={actionsSlot === undefined}
+      />
 
       {/* ---------- Mobile header (below lg) ----------
           Title + subtitle, then the Quote of the Day card (compact
@@ -867,68 +987,6 @@ export default function HrAdminDashboard() {
         )}
       {/* ================= END MOBILE-ONLY DASHBOARD ================= */}
 
-      {/* ---------- Top row: stat cards (full width, desktop/tablet only —
-          mobile gets its own swipeable carousel below) ---------- */}
-      <div className="hidden lg:flex gap-3 sm:gap-4 mb-4 sm:mb-6 items-stretch">
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1 w-full">
-          <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={Users}
-              label="Total Employees"
-              color="orange"
-              loading={statsLoading}
-              value={stats?.total_employees ?? "—"}
-            />
-          </div>
-          <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={UserCheck}
-              label="Present Today"
-              color="green"
-              loading={statsLoading}
-              value={stats?.present_today ?? "—"}
-            />
-          </div>
-
-          <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={AlertTriangle}
-              label="Late Today"
-              color="purple"
-              loading={statsLoading}
-              value={stats?.late_today ?? "—"}
-            />
-          </div>
-          <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={Building2}
-              label="Departments"
-              color="slate"
-              loading={statsLoading}
-              value={stats?.total_departments ?? "—"}
-            />
-          </div>
-          {/* <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={MapPin}
-              label="Locations"
-              color="slate"
-              loading={statsLoading}
-              value={stats?.total_locations ?? "—"}
-            />
-          </div>
-          <div className="min-w-[170px] w-[170px] shrink-0">
-            <StatCard
-              icon={Clock3}
-              label="Shifts"
-              color="slate"
-              loading={statsLoading}
-              value={stats?.total_shifts ?? "—"}
-            />
-          </div> */}
-        </div>
-      </div>
-
       {/* ---------- Two-column body ----------
           Left:  Check-in/out -> Recent Activity -> Attendance Trend (+ Dept
                  Distribution, same "chart" grouping)
@@ -938,7 +996,7 @@ export default function HrAdminDashboard() {
         {/* ================= Left column (65%) ================= */}
         <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
           {/* ---------- Recent audit activity: fixed height, hidden scrollbar ---------- */}
-          <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 flex flex-col h-[300px] sm:h-[360px]">
+          <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-5 flex flex-col h-[300px] sm:h-[360px]">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                 <ShieldCheck size={17} className="text-orange-500" /> Recent
@@ -1056,6 +1114,30 @@ export default function HrAdminDashboard() {
           {rankByCount(
             [
               {
+                key: "onleave",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <OnLeaveTodayCard />
+                  </div>
+                ),
+              },
+              {
+                key: "birthdays",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <BirthdaysCard />
+                  </div>
+                ),
+              },
+              {
+                key: "anniversaries",
+                node: (
+                  <div className="h-60 sm:h-72">
+                    <AnniversariesCard />
+                  </div>
+                ),
+              },
+              {
                 key: "holidays",
                 node: (
                   <div className="h-60 sm:h-72">
@@ -1084,6 +1166,54 @@ export default function HrAdminDashboard() {
       >
         <Plus size={24} />
       </Link> */}
+
+      {/* ---------- Tab-line quick actions (desktop). Portalled into the
+          slot DashboardTabs renders on the right of the tab bar. ---------- */}
+      {actionsSlot &&
+        createPortal(
+          <>
+            {[
+              {
+                key: "create-user",
+                label: "Create User",
+                icon: UserPlus,
+                onClick: openAddUser,
+              },
+              {
+                key: "outdoor",
+                label: "Outdoor Check-in Access",
+                icon: MapPin,
+                onClick: () => setOutdoorAccessOpen(true),
+              },
+            ].map(({ key, label, icon: Icon, onClick }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={onClick}
+                title={label}
+                aria-label={label}
+                className="group relative w-9 h-9 rounded-full bg-[#0b1d45] border border-[#0b1d45] hover:bg-orange-500 hover:border-orange-500 text-white flex items-center justify-center transition-colors shrink-0"
+              >
+                <Icon size={16} />
+                <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                  {label}
+                </span>
+              </button>
+            ))}
+            <Link
+              to="/hr-admin/leave/balance"
+              title="Leave Balance"
+              aria-label="Leave Balance"
+              className="group relative w-9 h-9 rounded-full bg-[#0b1d45] border border-[#0b1d45] hover:bg-orange-500 hover:border-orange-500 text-white flex items-center justify-center transition-colors shrink-0"
+            >
+              <CalendarRange size={16} />
+              <span className="pointer-events-none absolute top-full mt-2 whitespace-nowrap rounded-md bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                Leave Balance
+              </span>
+            </Link>
+          </>,
+          actionsSlot,
+        )}
 
       {/* ---------- Create User modal (opened from the "Create User"
           quick action above). Shows a loading/error overlay first,

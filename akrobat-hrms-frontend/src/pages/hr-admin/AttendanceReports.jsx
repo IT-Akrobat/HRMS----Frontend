@@ -441,7 +441,13 @@ export default function AttendanceReports() {
     <div>
       <PageHeader
         title="Attendance reports"
-        subtitle={`${formatDateLabel(fromDate)} – ${formatDateLabel(toDate)}`}
+        subtitle={
+          // Mobile: hidden — the From/To date picker right below already
+          // shows the same range. Desktop (sm and up): unchanged.
+          <span className="hidden sm:inline">
+            {`${formatDateLabel(fromDate)} – ${formatDateLabel(toDate)}`}
+          </span>
+        }
         actions={
           <>
             {/* Mobile: search moves up onto the title line itself instead

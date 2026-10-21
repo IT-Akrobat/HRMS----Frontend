@@ -258,6 +258,188 @@ function displayStatus(record) {
   return record.status || "Present";
 }
 
+// ---------------------------------------------------------------------
+// Desktop timeline (Option C): one row per employee, a bar from check-in to
+// check-out on a shared hour axis. Absent employees (active, no record for
+// the day) get a striped empty track.
+// ---------------------------------------------------------------------
+function minutesFromDayStart(iso, dayStr) {
+  const d = parseServerDate(iso);
+  if (!d) return null;
+  return (d.getTime() - new Date(`${dayStr}T00:00:00`).getTime()) / 60000;
+}
+
+function hourLabel(mins) {
+  const h = Math.floor(mins / 60) % 24;
+  return `${String(h).padStart(2, "0")}:00`;
+}
+
+// working_minutes is only filled in once someone checks out, so anyone still
+// checked in shows 0. For those (today only) count time since check-in so
+// the average and the Hours column reflect reality.
+function workedMinutes(record, isToday) {
+  if ((record.working_minutes || 0) > 0) return record.working_minutes;
+  const start = parseServerDate(record.check_in_time);
+  if (!start) return 0;
+  if (record.check_out_time) {
+    const end = parseServerDate(record.check_out_time);
+    return end ? Math.max(0, (end - start) / 60000) : 0;
+  }
+  return isToday ? Math.max(0, (Date.now() - start.getTime()) / 60000) : 0;
+}
+
+const TL_GRID =
+  "grid grid-cols-[230px_minmax(0,1fr)_84px_36px] gap-3 items-center px-4";
+
+function AttendanceTimeline({ rows, dayStr, isToday, onEdit }) {
+  const nowMins = isToday
+    ? (Date.now() - new Date(`${dayStr}T00:00:00`).getTime()) / 60000
+    : null;
+
+  const bars = rows.map((row) => {
+    if (row.kind !== "rec") return null;
+    const r = row.record;
+    const start = minutesFromDayStart(r.check_in_time, dayStr);
+    if (start == null) return null;
+    let end = r.check_out_time
+      ? minutesFromDayStart(r.check_out_time, dayStr)
+      : null;
+    const inProgress = end == null;
+    if (inProgress) {
+      end =
+        nowMins != null
+          ? Math.max(nowMins, start + 15)
+          : start + (r.working_minutes || 30);
+    }
+    return { start, end: Math.max(end, start + 10), inProgress };
+  });
+
+  const valid = bars.filter(Boolean);
+  let axisStart = 8 * 60;
+  let axisEnd = 20 * 60;
+  if (valid.length > 0) {
+    const lo = Math.min(...valid.map((b) => b.start));
+    const hi = Math.max(...valid.map((b) => b.end));
+    axisStart = Math.max(0, Math.floor((lo - 30) / 120) * 120);
+    axisEnd = Math.min(48 * 60, Math.ceil((hi + 30) / 120) * 120);
+    if (axisEnd - axisStart < 8 * 60) axisEnd = axisStart + 8 * 60;
+  }
+  const span = axisEnd - axisStart;
+  const step = span > 16 * 60 ? 240 : 120;
+  const ticks = [];
+  for (let m = axisStart; m <= axisEnd; m += step) ticks.push(m);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+      <div
+        className={`${TL_GRID} h-10 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500`}
+      >
+        <span>Employee</span>
+        <div className="relative h-full">
+          {ticks.map((m) => (
+            <span
+              key={m}
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 font-medium"
+              style={{ left: `${((m - axisStart) / span) * 100}%` }}
+            >
+              {hourLabel(m)}
+            </span>
+          ))}
+        </div>
+        <span className="text-right">Hours</span>
+        <span />
+      </div>
+
+      {rows.map((row, i) => {
+        const isRec = row.kind === "rec";
+        const r = row.record;
+        const emp = isRec ? r.employees : row.emp;
+        const status = isRec ? displayStatus(r) : "Absent";
+        const bar = bars[i];
+        const barColor =
+          status === "Late"
+            ? "#b45309"
+            : status === "Half Day"
+              ? "#64748b"
+              : "#0b1f45";
+        const label = isRec
+          ? `${formatTime(r.check_in_time)} – ${
+              r.check_out_time ? formatTime(r.check_out_time) : "now"
+            }`
+          : "";
+        return (
+          <div
+            key={isRec ? r.id : `abs-${emp?.id || emp?.employee_id}`}
+            className={`${TL_GRID} h-14 border-b border-slate-100 last:border-b-0`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Avatar
+                name={emp?.full_name}
+                photo={emp?.profile_photo}
+                size="w-8 h-8"
+              />
+              <div className="min-w-0" title={emp?.full_name}>
+                <div className="text-[13px] font-semibold text-slate-800 truncate">
+                  {emp?.full_name || "—"}
+                </div>
+                <div className="text-[11px] text-slate-400 truncate">
+                  {emp?.employee_id || "—"}
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="relative h-[22px] rounded-md bg-slate-100"
+              style={
+                isRec
+                  ? undefined
+                  : {
+                      backgroundImage:
+                        "repeating-linear-gradient(90deg,#f1f5f9 0 8px,#ffffff 8px 16px)",
+                    }
+              }
+            >
+              {bar && (
+                <div
+                  title={`${label}${bar.inProgress ? " (in progress)" : ""}`}
+                  className="absolute top-0 h-[22px] rounded-md text-white text-[11px] font-semibold flex items-center px-2 overflow-hidden whitespace-nowrap"
+                  style={{
+                    left: `${((bar.start - axisStart) / span) * 100}%`,
+                    width: `${Math.max(((bar.end - bar.start) / span) * 100, 2.5)}%`,
+                    backgroundColor: barColor,
+                  }}
+                >
+                  {label}
+                </div>
+              )}
+            </div>
+
+            <span
+              className={`text-xs font-semibold text-right ${
+                isRec ? "text-slate-700" : "text-red-700"
+              }`}
+            >
+              {isRec ? formatMinutes(workedMinutes(r, isToday)) : "Absent"}
+            </span>
+
+            {isRec ? (
+              <button
+                onClick={() => onEdit?.(r)}
+                title="Edit check-in / check-out time"
+                className="text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg p-1.5"
+              >
+                <Pencil size={14} />
+              </button>
+            ) : (
+              <span />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const STANDARD_SHIFT_MINUTES = 480; // 8h — used only for the progress bar width
 
 function DonutChart({ present, late, halfDay, absent }) {
@@ -572,7 +754,7 @@ function EditAttendanceModal({ record, onClose, onSaved }) {
     <Modal
       open={open}
       onClose={onClose}
-      width="max-w-2xl"
+      width="max-w-xl"
       title="Log a missed checkout"
       subtitle={
         record
@@ -582,9 +764,9 @@ function EditAttendanceModal({ record, onClose, onSaved }) {
           : ""
       }
       icon={
-        <div className="relative w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center">
-          <Clock size={24} className="text-orange-500" />
-          <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-orange-500 border-2 border-white flex items-center justify-center text-white text-[10px] font-bold leading-none">
+        <div className="relative w-12 h-12 rounded-full bg-[#0b1f45] flex items-center justify-center">
+          <Clock size={22} className="text-white" />
+          <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-orange-500 border-2 border-white flex items-center justify-center text-white text-[11px] font-bold leading-none">
             !
           </span>
         </div>
@@ -601,7 +783,7 @@ function EditAttendanceModal({ record, onClose, onSaved }) {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium text-white bg-[#0b1f45] rounded-lg hover:bg-[#13306b] disabled:opacity-50"
           >
             <Save size={15} />
             {saving ? "Saving..." : "Save changes"}
@@ -609,13 +791,13 @@ function EditAttendanceModal({ record, onClose, onSaved }) {
         </>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-3">
         {/* Checked-in context banner — a warm peach panel instead of the
             plain gray inline row this used to be, with the check-in
             time set off on the right by a divider, matching the mock's
             "Checked in" info card. */}
-        <div className="flex items-center gap-3 rounded-xl bg-orange-50/70 border border-orange-100 px-4 py-3.5">
-          <span className="grid place-items-center w-9 h-9 rounded-full bg-orange-500 text-white shrink-0">
+        <div className="flex items-center gap-3 rounded-xl bg-[#eef3ff] border border-blue-100 px-4 py-3">
+          <span className="grid place-items-center w-9 h-9 rounded-full bg-[#0b1f45] text-white shrink-0">
             <LogIn size={16} />
           </span>
           <div className="min-w-0">
@@ -623,7 +805,7 @@ function EditAttendanceModal({ record, onClose, onSaved }) {
               Checked in
             </div>
           </div>
-          <div className="ml-auto pl-4 border-l border-orange-200/70 flex items-center gap-1.5 shrink-0">
+          <div className="ml-auto pl-4 border-l border-blue-200 flex items-center gap-1.5 shrink-0">
             <Clock size={14} className="text-slate-400" />
             <div>
               <div className="text-sm font-bold text-slate-800 tabular-nums leading-tight">
@@ -637,9 +819,9 @@ function EditAttendanceModal({ record, onClose, onSaved }) {
         {/* Picker card — matches the mock's light slate panel with its
             own icon/heading/description instead of the picker sitting
             bare on the modal body. */}
-        <div className="rounded-xl bg-slate-50/70 border border-slate-100 p-4">
+        <div className="rounded-xl bg-slate-50/70 border border-slate-200 p-4">
           <div className="flex items-start gap-2.5 mb-4">
-            <span className="grid place-items-center w-8 h-8 rounded-lg bg-blue-50 text-blue-900 shrink-0">
+            <span className="grid place-items-center w-8 h-8 rounded-lg bg-[#0b1f45] text-white shrink-0">
               <AlarmClock size={16} />
             </span>
             <div>
@@ -696,6 +878,8 @@ export default function HrAttendanceOverview() {
   const [loadError, setLoadError] = useState(null);
 
   const [activeHeadcount, setActiveHeadcount] = useState(null);
+  const [activeEmployees, setActiveEmployees] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("all");
   const [onSiteCount, setOnSiteCount] = useState(0);
 
   useEffect(() => {
@@ -703,11 +887,14 @@ export default function HrAttendanceOverview() {
       .get("/employees/")
       .then((res) => {
         const list = unwrap(res) || [];
-        setActiveHeadcount(
-          list.filter((e) => e.employment_status === "Active").length,
-        );
+        const active = list.filter((e) => e.employment_status === "Active");
+        setActiveEmployees(active);
+        setActiveHeadcount(active.length);
       })
-      .catch(() => setActiveHeadcount(null));
+      .catch(() => {
+        setActiveEmployees([]);
+        setActiveHeadcount(null);
+      });
   }, []);
 
   function loadSiteVisits() {
@@ -781,7 +968,7 @@ export default function HrAttendanceOverview() {
   // never land on an out-of-range page.
   useEffect(() => {
     setPage(1);
-  }, [selectedDate, search]);
+  }, [selectedDate, search, statusFilter]);
 
   // Same reset, for the mobile "Load more" batch size.
   useEffect(() => {
@@ -797,6 +984,65 @@ export default function HrAttendanceOverview() {
     page * PAGE_SIZE,
   );
 
+  // Desktop timeline rows: checked-in records plus absentees (active
+  // employees with no record that day), filtered by search + status chip.
+  const absentEmployees = useMemo(() => {
+    const seen = new Set();
+    records.forEach((r) => {
+      if (r.employee_id) seen.add(r.employee_id);
+      if (r.employees?.id) seen.add(r.employees.id);
+      if (r.employees?.employee_id) seen.add(r.employees.employee_id);
+    });
+    return activeEmployees.filter(
+      (e) => !seen.has(e.id) && !seen.has(e.employee_id),
+    );
+  }, [records, activeEmployees]);
+
+  const timelineAll = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const match = (e) =>
+      !q ||
+      `${e?.full_name || ""} ${e?.employee_id || ""}`.toLowerCase().includes(q);
+    return [
+      ...records
+        .filter((r) => match(r.employees))
+        .map((record) => ({
+          kind: "rec",
+          record,
+          status: displayStatus(record),
+        })),
+      ...absentEmployees
+        .filter((e) => match(e))
+        .map((emp) => ({ kind: "abs", emp, status: "Absent" })),
+    ];
+  }, [records, absentEmployees, search]);
+
+  const timelineCounts = useMemo(() => {
+    const c = {
+      all: timelineAll.length,
+      Present: 0,
+      Late: 0,
+      "Half Day": 0,
+      Absent: 0,
+    };
+    timelineAll.forEach((r) => {
+      if (c[r.status] != null) c[r.status] += 1;
+    });
+    return c;
+  }, [timelineAll]);
+
+  const timelineRows = useMemo(
+    () =>
+      statusFilter === "all"
+        ? timelineAll
+        : timelineAll.filter((r) => r.status === statusFilter),
+    [timelineAll, statusFilter],
+  );
+  const tlTotalPages = Math.max(1, Math.ceil(timelineRows.length / PAGE_SIZE));
+  const tlPaged = timelineRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const isToday = selectedDate === toLocalISODate();
+
   const presentCount = analytics?.present_count || 0;
   const lateCount = analytics?.late_count || 0;
   const halfDayCount = analytics?.half_day_count || 0;
@@ -808,18 +1054,21 @@ export default function HrAttendanceOverview() {
   const absentCount =
     activeHeadcount != null ? Math.max(0, activeHeadcount - totalMarked) : 0;
 
-  const avgHours = analytics?.average_working_minutes
-    ? formatMinutes(analytics.average_working_minutes)
-    : "—";
+  // Backend average only counts finished shifts, so it's empty early in the
+  // day. Fall back to averaging live elapsed time across today's records.
+  const liveAvgMinutes = records.length
+    ? records.reduce((sum, r) => sum + workedMinutes(r, isToday), 0) /
+      records.length
+    : 0;
+  const avgMinutes = analytics?.average_working_minutes || liveAvgMinutes;
+  const avgHours = avgMinutes ? formatMinutes(avgMinutes) : "—";
   const overtimeHours = analytics?.total_overtime_minutes
     ? formatMinutes(analytics.total_overtime_minutes)
     : "0m";
 
-  const isToday = selectedDate === toLocalISODate();
-
   return (
     <div>
-      {/* =================== DESKTOP (unchanged) =================== */}
+      {/* =================== DESKTOP (timeline) =================== */}
       <div className="hidden lg:block">
         <PageHeader
           title="Attendance Overview"
@@ -866,99 +1115,85 @@ export default function HrAttendanceOverview() {
           </div>
         )}
 
-        <div className="flex flex-col lg:flex-row items-stretch gap-4 mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 content-start flex-1">
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
-                <Timer size={14} />
-                Avg hours worked
+        <div className="grid grid-cols-3 gap-3 mb-4 max-w-3xl">
+          {[
+            {
+              icon: Timer,
+              label: "Avg hours worked",
+              value: analyticsLoading ? "—" : avgHours,
+              tone: "bg-blue-50 text-[#0b1f45]",
+            },
+            {
+              icon: AlarmClock,
+              label: "Overtime logged",
+              value: analyticsLoading ? "—" : overtimeHours,
+              tone: "bg-amber-50 text-amber-700",
+            },
+            {
+              icon: MapPin,
+              label: "On site now",
+              value: onSiteCount,
+              tone: "bg-emerald-50 text-emerald-700",
+            },
+          ].map(({ icon: Icon, label, value, tone }) => (
+            <div
+              key={label}
+              className="bg-white border border-slate-200 rounded-lg px-3 py-2 flex items-center gap-2.5 min-w-0"
+            >
+              <div
+                className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${tone}`}
+              >
+                <Icon size={14} />
               </div>
-              <div className="text-xl font-bold text-slate-800">
-                {analyticsLoading ? "—" : avgHours}
-              </div>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
-                <AlarmClock size={14} />
-                Overtime logged
-              </div>
-              <div className="text-xl font-bold text-slate-800">
-                {analyticsLoading ? "—" : overtimeHours}
-              </div>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
-                <MapPin size={14} />
-                On site now
-              </div>
-              <div className="text-xl font-bold text-slate-800">
-                {onSiteCount}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col items-center lg:w-[220px] shrink-0">
-            {analyticsLoading ? (
-              <div className="w-[180px] h-[180px] rounded-full bg-slate-100 animate-pulse" />
-            ) : (
-              <div className="relative w-full max-w-[180px]">
-                <DonutChart
-                  present={onTimePresentCount}
-                  late={lateCount}
-                  halfDay={halfDayCount}
-                  absent={absentCount}
-                />
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-2xl font-bold text-slate-800">
-                    {activeHeadcount ?? "—"}
-                  </span>
-                  <span className="text-[11px] text-slate-400">employees</span>
+              <div className="min-w-0">
+                <div className="text-[11px] text-slate-500 truncate leading-tight">
+                  {label}
+                </div>
+                <div className="text-base font-bold text-slate-800 leading-tight">
+                  {value}
                 </div>
               </div>
-            )}
-
-            <div className="w-full max-w-xs mt-3 space-y-1.5">
-              {[
-                {
-                  label: "Present",
-                  value: onTimePresentCount,
-                  color: "#c2410c",
-                },
-                { label: "Late", value: lateCount, color: "#1d4ed8" },
-                { label: "Half day", value: halfDayCount, color: "#122a51" },
-                { label: "Absent", value: absentCount, color: "#f5730b" },
-              ].map((row) => (
-                <div
-                  key={row.label}
-                  className="flex items-center justify-between text-xs"
-                >
-                  <span className="flex items-center gap-1.5 text-slate-600">
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: row.color }}
-                    />
-                    {row.label}
-                  </span>
-                  <span className="font-medium text-slate-800">
-                    {analyticsLoading ? "—" : row.value}
-                  </span>
-                </div>
-              ))}
             </div>
-          </div>
+          ))}
         </div>
 
-        <div className="flex items-center gap-2 mb-3">
-          <Users size={16} className="text-orange-500" />
-          <h3 className="font-semibold text-slate-800 text-sm">
-            {isToday ? "Today's attendance" : "Attendance"}
-            {!recordsLoading && (
-              <span className="text-slate-400 font-normal">
-                {" "}
-                ({filteredRecords.length} of {records.length} checked in)
-              </span>
-            )}
-          </h3>
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              { key: "all", label: "All" },
+              { key: "Present", label: "Present" },
+              { key: "Late", label: "Late" },
+              { key: "Half Day", label: "Half day" },
+              { key: "Absent", label: "Absent" },
+            ].map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setStatusFilter(t.key)}
+                className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                  statusFilter === t.key
+                    ? "border-[#0b1f45] bg-[#0b1f45] text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {t.label} ({timelineCounts[t.key] ?? 0})
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-[#0b1f45]" />
+              On time
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-[#b45309]" />
+              Late
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-slate-500" />
+              Half day
+            </span>
+          </div>
         </div>
 
         {recordsLoading ? (
@@ -970,29 +1205,26 @@ export default function HrAttendanceOverview() {
               />
             ))}
           </div>
-        ) : filteredRecords.length === 0 ? (
+        ) : timelineRows.length === 0 ? (
           <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-sm text-slate-400">
-            No one has checked in {search ? "matching that search" : "yet"} for
-            this day.
+            No employees {search ? "matching that search" : "to show"} for this
+            day.
           </div>
         ) : (
           <>
-            <div className="space-y-2">
-              {pagedRecords.map((record) => (
-                <AttendanceRow
-                  key={record.id}
-                  record={record}
-                  onEdit={setEditingRecord}
-                />
-              ))}
-            </div>
+            <AttendanceTimeline
+              rows={tlPaged}
+              dayStr={selectedDate}
+              isToday={isToday}
+              onEdit={setEditingRecord}
+            />
 
-            {totalPages > 1 && (
+            {tlTotalPages > 1 && (
               <div className="flex items-center justify-between mt-4">
                 <span className="text-xs text-slate-400">
                   Showing {(page - 1) * PAGE_SIZE + 1}–
-                  {Math.min(page * PAGE_SIZE, filteredRecords.length)} of{" "}
-                  {filteredRecords.length}
+                  {Math.min(page * PAGE_SIZE, timelineRows.length)} of{" "}
+                  {timelineRows.length}
                 </span>
                 <div className="flex items-center gap-1">
                   <button
@@ -1002,14 +1234,14 @@ export default function HrAttendanceOverview() {
                   >
                     Prev
                   </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                  {Array.from({ length: tlTotalPages }, (_, i) => i + 1).map(
                     (p) => (
                       <button
                         key={p}
                         onClick={() => setPage(p)}
                         className={`w-7 h-7 text-xs font-medium rounded-lg ${
                           p === page
-                            ? "bg-orange-500 text-white"
+                            ? "bg-[#0b1f45] text-white"
                             : "border border-slate-200 text-slate-600 hover:bg-slate-50"
                         }`}
                       >
@@ -1018,8 +1250,10 @@ export default function HrAttendanceOverview() {
                     ),
                   )}
                   <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
+                    onClick={() =>
+                      setPage((p) => Math.min(tlTotalPages, p + 1))
+                    }
+                    disabled={page === tlTotalPages}
                     className="px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
                   >
                     Next

@@ -150,9 +150,13 @@ export const NAVIGATION_CONFIG = {
   [ROLES.HR_ADMIN]: [
     { label: "Dashboard", icon: LayoutDashboard, path: "/hr-admin/dashboard" },
     // { label: "Company", icon: Building2, path: "/hr-admin/company" },
+    // Employee List, OT Calculator and Live Site Tracking are Dashboard tabs
+    // on web. On mobile there are no tabs, so they stay as sidebar items
+    // (mobileOnly -> Sidebar.jsx hides them on desktop).
     {
       label: "Employees",
       icon: Users,
+      mobileOnly: true,
       children: [
         { label: "Employee List", path: "/hr-admin/employees" },
         // { label: "Add Employee", path: "/hr-admin/employees/add" },
@@ -166,7 +170,11 @@ export const NAVIGATION_CONFIG = {
         { label: "Attendance Overview", path: "/hr-admin/attendance" },
         // { label: "Shift Management", path: "/hr-admin/attendance/shifts" },
         { label: "Attendance Reports", path: "/hr-admin/attendance/reports" },
-        { label: "OT Calculator", path: "/hr-admin/attendance/ot-calculator" },
+        {
+          label: "OT Calculator",
+          path: "/hr-admin/attendance/ot-calculator",
+          mobileOnly: true,
+        },
       ],
     },
     {
@@ -202,6 +210,7 @@ export const NAVIGATION_CONFIG = {
       label: "Live Site Tracking",
       icon: Clock,
       path: "/hr-admin/attendance/live-tracking",
+      mobileOnly: true,
     },
     {
       label: "Audit Logs",
