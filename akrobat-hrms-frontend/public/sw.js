@@ -91,9 +91,15 @@ self.addEventListener("push", (event) => {
     // unique tag lets each distinct notification stack; a backend-provided
     // tag/id still collapses genuine duplicates.
     tag:
-      payload.tag ||
-      payload.id ||
-      `akrobat-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      // Generate a unique tag for each notification so they don't overwrite
+      // each other in the OS tray when the app is closed. Use a combination
+      // of timestamp and random string. If the backend provides a tag/id, we
+      // still append our unique suffix to prevent collisions from multiple
+      // notifications arriving in quick succession, while still allowing the
+      // backend to collapse genuine duplicates via its own tag mechanism.
+      payload.tag
+        ? `${payload.tag}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        : `akrobat-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     // Re-show the OS heads-up/sound even if a same-tag notification is
     // replaced, so a repeat never goes silently unnoticed.
     renotify: true,

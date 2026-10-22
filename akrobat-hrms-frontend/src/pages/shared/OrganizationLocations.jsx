@@ -387,9 +387,6 @@ export default function OrganizationLocations() {
             <Plus size={18} />
           </button>
         </div>
-        <p className="text-sm text-slate-500">
-          Manage your organization's sites and their check-in geofences.
-        </p>
       </div>
 
       {/* Filters */}

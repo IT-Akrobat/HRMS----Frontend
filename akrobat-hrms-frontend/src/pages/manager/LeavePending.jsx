@@ -122,10 +122,10 @@ function initials(name) {
 }
 
 const TABS = [
+  { value: "All", label: "All" },
   { value: "Pending", label: "Pending" },
   { value: "Approved", label: "Approved" },
   { value: "Rejected", label: "Rejected" },
-  { value: "All", label: "All" },
 ];
 
 export default function LeavePending() {
@@ -172,7 +172,7 @@ export default function LeavePending() {
   }
 
   const [leaves, setLeaves] = useState(null); // null = loading
-  const [tab, setTab] = useState("Pending");
+  const [tab, setTab] = useState("All");
   const [search, setSearch] = useState("");
 
   function load() {

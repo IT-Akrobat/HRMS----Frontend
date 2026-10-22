@@ -12,6 +12,7 @@ import { useAuth } from "./context/AuthContext";
 // employeeRoutes.jsx etc.) IS lazy now -- see those files -- so none of
 // that JS (or its heavy deps like jspdf/leaflet/xlsx-js-style) loads
 // until someone actually logs in and navigates to a route that needs it.
+import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
 import Login from "./pages/auth/Login.jsx";
 
 // Small, dependency-free fallback shown while a role's page chunk is
@@ -66,6 +67,7 @@ export default function App() {
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/" element={<RootRedirect />} />
 
           {/* The old HR chooser page (My Profile / Company) is retired:

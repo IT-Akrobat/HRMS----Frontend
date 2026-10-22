@@ -1,11 +1,16 @@
 import { Eye, EyeOff, Lock, Shield, User } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import logo from "../../assets/images/akrobat-logo.png"; // TODO: replace placeholder with real Akrobat logo
 import slide1 from "../../assets/images/slide1.jpeg"; // TODO: replace placeholder
 import slide2 from "../../assets/images/slide2.jpeg";
 import slide3 from "../../assets/images/slide3.jpeg"; // TODO: replace placeholder
-import { DEFAULT_ROUTE_BY_ROLE, HR_HOME, ROLES } from "../../config/roles";
+import {
+  DEFAULT_ROUTE_BY_ROLE,
+  HR_HOME,
+  ROLE_BASE_PATH,
+  ROLES,
+} from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
 
 const SLIDES = [slide1, slide2, slide3];
@@ -66,8 +71,15 @@ export default function Login() {
       // HR always lands on the My Profile / Company chooser after a fresh
       // login, even if they were bounced to /login from another page
       // (e.g. after logout) -- otherwise `from` would skip the chooser.
-      const redirectTo =
-        user.role === ROLES.HR_ADMIN
+      // A temporary / expired password (e.g. right after "Forgot
+      // password") sends the user straight to Settings to change it.
+      // (Built from ROLE_BASE_PATH, not the backend's redirect_path --
+      // that DB value is e.g. "/hr" for HR, which isn't a real route.)
+      const roleBase = ROLE_BASE_PATH[user.role];
+      const mustChangePassword = user.passwordExpired && roleBase;
+      const redirectTo = mustChangePassword
+        ? `${roleBase}/settings`
+        : user.role === ROLES.HR_ADMIN
           ? HR_HOME
           : (location.state?.from?.pathname ??
             DEFAULT_ROUTE_BY_ROLE[user.role] ??
@@ -262,6 +274,13 @@ export default function Login() {
                   />
                   <span className="text-sm text-gray-700">Remember me</span>
                 </label>
+
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-semibold text-orange-500 hover:text-orange-600"
+                >
+                  Forgot password?
+                </Link>
               </div>
 
               <button

@@ -38,6 +38,32 @@ function round1(n) {
   return Math.round(n * 10) / 10;
 }
 
+// Unpaid Leave has no entitlement, so it is not in leave_balances. It is
+// shown separately, totalled from Approved leave requests of this year.
+const UNPAID = "UNPAID LEAVE";
+
+async function fetchUnpaidLeave() {
+  const year = String(new Date().getFullYear());
+  const limit = 100; // backend max page size
+  const found = [];
+  for (let page = 1; page <= 50; page++) {
+    const res = await apiClient.get(
+      `/leaves/?status=Approved&page=${page}&limit=${limit}`,
+    );
+    const records = res?.data?.records || [];
+    records.forEach((r) => {
+      if (
+        r.leave_types?.leave_name?.toUpperCase() === UNPAID &&
+        String(r.start_date).slice(0, 4) === year
+      ) {
+        found.push(r);
+      }
+    });
+    if (records.length < limit) break;
+  }
+  return found;
+}
+
 // Ring/pill color by how much of that allocation is left — this is what
 // makes "who's running low" visible at a glance across a whole grid of
 // employees instead of needing a sorted column to spot it.
@@ -220,6 +246,22 @@ function LeaveTypeRow({
   );
 }
 
+function UnpaidRow({ days }) {
+  return (
+    <div className="py-2.5 first:pt-0 last:pb-0">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-slate-700">{UNPAID}</span>
+        <span className="text-xs font-medium text-slate-600">
+          {round1(days)} {days === 1 ? "day" : "days"} taken
+        </span>
+      </div>
+      <p className="text-xs text-slate-400 mt-1">
+        No entitlement, so it is not counted in the balance.
+      </p>
+    </div>
+  );
+}
+
 // Employee detail (ring summary, per-type balances with edit, leave
 // details). Shared by the mobile popup and the desktop side panel so the
 // two can't drift apart.
@@ -269,6 +311,9 @@ function EmployeeDetailBody({
             />
           );
         })}
+        {selectedEmployee.unpaid > 0 && (
+          <UnpaidRow days={selectedEmployee.unpaid} />
+        )}
       </div>
 
       {saveError && <p className="text-xs text-red-600 mt-2">{saveError}</p>}
@@ -317,7 +362,13 @@ function barColor(pct) {
   return "#0b1d45";
 }
 
-function StatusChip({ emp, pct }) {
+function StatusChip({ emp, pct, unpaid }) {
+  if (unpaid)
+    return (
+      <span className="text-[11px] font-semibold rounded-md px-2 py-0.5 bg-slate-100 text-slate-600 whitespace-nowrap">
+        No limit
+      </span>
+    );
   if (!emp.hasBalance)
     return (
       <span className="text-[11px] font-semibold rounded-md px-2 py-0.5 bg-slate-100 text-slate-600 whitespace-nowrap">
@@ -358,6 +409,7 @@ function MiniBar({ pct }) {
 export default function LeaveBalance() {
   const [employees, setEmployees] = useState([]);
   const [balanceRows, setBalanceRows] = useState([]);
+  const [unpaidRows, setUnpaidRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [view, setView] = useState("employee"); // "employee" | "type"
@@ -379,16 +431,19 @@ export default function LeaveBalance() {
     if (showSpinner) setLoading(true);
     setError(null);
     try {
-      const [empRes, balRes] = await Promise.all([
+      const [empRes, balRes, unpaid] = await Promise.all([
         apiClient.get("/employees/"),
         apiClient.get("/leaves/balances"),
+        fetchUnpaidLeave().catch(() => []),
       ]);
       setEmployees(asList(empRes));
       setBalanceRows(balRes?.data?.balances || []);
+      setUnpaidRows(unpaid);
     } catch (err) {
       setError(err.message || "Could not load leave balances.");
       setEmployees([]);
       setBalanceRows([]);
+      setUnpaidRows([]);
     } finally {
       setLoading(false);
     }
@@ -455,6 +510,12 @@ export default function LeaveBalance() {
     return names.map((n) => ({ id: n, leave_name: n }));
   }, [balanceRows]);
 
+  // Tabs for "By leave type": the balance types plus Unpaid Leave.
+  const typeTabs = useMemo(
+    () => [...leaveTypes, { id: UNPAID, leave_name: UNPAID }],
+    [leaveTypes],
+  );
+
   useEffect(() => {
     if (!activeType && leaveTypes.length > 0) {
       setActiveType(leaveTypes[0].leave_name);
@@ -472,7 +533,13 @@ export default function LeaveBalance() {
         photo: e.profile_photo,
         department: e.departments?.department_name || e.department_name || "—",
         types: {},
+        unpaid: 0,
       };
+    });
+
+    unpaidRows.forEach((r) => {
+      const entry = byEmployee[r.employee_id];
+      if (entry) entry.unpaid += Number(r.total_days) || 0;
     });
 
     balanceRows.forEach((r) => {
@@ -517,7 +584,7 @@ export default function LeaveBalance() {
         minPct: Math.min(...values.map((t) => t.pct)),
       };
     });
-  }, [employees, balanceRows]);
+  }, [employees, balanceRows, unpaidRows]);
 
   const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -543,6 +610,10 @@ export default function LeaveBalance() {
 
   const sortedByType = useMemo(() => {
     if (!activeType) return [];
+    if (activeType === UNPAID)
+      return searched
+        .filter((b) => b.unpaid > 0)
+        .sort((a, b) => b.unpaid - a.unpaid);
     return [...searched].sort(
       (a, b) =>
         (a.types[activeType]?.balance ?? 0) -
@@ -585,7 +656,9 @@ export default function LeaveBalance() {
     const rows =
       view === "employee"
         ? sortedByEmployee
-        : sortedByType.filter((e) => e.types[activeType]);
+        : activeType === UNPAID
+          ? sortedByType
+          : sortedByType.filter((e) => e.types[activeType]);
     const th =
       "text-left text-xs font-semibold text-slate-500 px-3.5 h-11 bg-slate-50 border-b border-slate-200 whitespace-nowrap sticky top-0 z-10";
     const td =
@@ -659,7 +732,7 @@ export default function LeaveBalance() {
 
         {view === "type" && leaveTypes.length > 0 && (
           <div className="flex items-center gap-1.5 mb-3 overflow-x-auto">
-            {leaveTypes.map((lt) => (
+            {typeTabs.map((lt) => (
               <button
                 key={lt.id}
                 type="button"
@@ -711,6 +784,7 @@ export default function LeaveBalance() {
                             {lt.leave_name}
                           </th>
                         ))}
+                        <th className={th}>{UNPAID} taken</th>
                         <th className={th}>Total left</th>
                       </>
                     ) : (
@@ -725,7 +799,18 @@ export default function LeaveBalance() {
                 </thead>
                 <tbody>
                   {rows.map((emp) => {
-                    const t = view === "type" ? emp.types[activeType] : null;
+                    const t =
+                      view !== "type"
+                        ? null
+                        : activeType === UNPAID
+                          ? {
+                              allocated: "—",
+                              used: emp.unpaid,
+                              balance: 0,
+                              pct: 100,
+                              unpaid: true,
+                            }
+                          : emp.types[activeType];
                     const selected = emp.id === selectedEmployeeId;
                     const statusPct = t ? t.pct : emp.minPct;
                     return (
@@ -778,6 +863,15 @@ export default function LeaveBalance() {
                                 </td>
                               );
                             })}
+                            <td className={td}>
+                              {emp.unpaid > 0 ? (
+                                <span className="tabular-nums">
+                                  {round1(emp.unpaid)} d
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
                             <td
                               className={`${td} font-semibold text-slate-800`}
                             >
@@ -791,17 +885,25 @@ export default function LeaveBalance() {
                             <td className={td}>{t.allocated}</td>
                             <td className={td}>{round1(t.used)}</td>
                             <td className={td}>
-                              <span className="inline-flex items-center gap-2">
-                                <MiniBar pct={t.pct} />
-                                <span className="tabular-nums font-semibold text-slate-800">
-                                  {round1(t.balance)}
+                              {t.unpaid ? (
+                                <span className="text-slate-300">—</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-2">
+                                  <MiniBar pct={t.pct} />
+                                  <span className="tabular-nums font-semibold text-slate-800">
+                                    {round1(t.balance)}
+                                  </span>
                                 </span>
-                              </span>
+                              )}
                             </td>
                           </>
                         )}
                         <td className={`${td} border-b`}>
-                          <StatusChip emp={emp} pct={statusPct} />
+                          <StatusChip
+                            emp={emp}
+                            pct={statusPct}
+                            unpaid={!!t?.unpaid}
+                          />
                         </td>
                       </tr>
                     );
@@ -943,7 +1045,7 @@ export default function LeaveBalance() {
 
       {view === "type" && leaveTypes.length > 0 && (
         <div className="flex items-center gap-1.5 mb-4 overflow-x-auto">
-          {leaveTypes.map((lt) => (
+          {typeTabs.map((lt) => (
             <button
               key={lt.id}
               onClick={() => setActiveType(lt.leave_name)}
@@ -994,6 +1096,18 @@ export default function LeaveBalance() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {sortedByType.map((emp) => {
+            if (activeType === UNPAID)
+              return (
+                <EmployeeTile
+                  key={emp.id}
+                  name={emp.name}
+                  photo={emp.photo}
+                  department={emp.department}
+                  pct={100}
+                  balanceLabel={`${round1(emp.unpaid)} days taken`}
+                  onClick={() => setSelectedEmployeeId(emp.id)}
+                />
+              );
             const t = emp.types[activeType];
             if (!t) return null;
             return (

@@ -1,6 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { ROLE_BASE_PATH } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
 import BirthdayWish from "../common/Birthdaywish";
 import Header from "./Header";
@@ -67,11 +68,13 @@ export default function DashboardLayout() {
             <div className="mb-3 flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm text-amber-800">
               <div className="flex items-center gap-2">
                 <AlertTriangle size={15} className="shrink-0" />
-                Your password has expired. Please update it to keep using your
-                account.
+                Your password has expired or was reset to a temporary one.
+                Please set a new password to keep using your account.
               </div>
               <button
-                onClick={() => navigate(`${user.redirectPath || ""}/settings`)}
+                onClick={() =>
+                  navigate(`${ROLE_BASE_PATH[user.role] || ""}/settings`)
+                }
                 className="text-xs font-medium text-amber-900 border border-amber-300 rounded-md px-3 py-1 hover:bg-amber-100 shrink-0"
               >
                 Change password

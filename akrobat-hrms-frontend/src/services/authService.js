@@ -54,6 +54,17 @@ export const authService = {
     return { user };
   },
 
+  // Public. username + employee code -> { temp_password } (shown once).
+  // The user signs in with it and is then asked to set their own password.
+  async forgotPassword(username, employeeCode) {
+    const res = await apiClient.post(
+      "/auth/forgot-password",
+      { username, employee_code: employeeCode },
+      { auth: false },
+    );
+    return { message: res.message, tempPassword: res.data?.temp_password };
+  },
+
   async logout() {
     // Only the server can clear an httpOnly cookie -- there's nothing
     // left client-side to remove. Best-effort: if this fails (offline,

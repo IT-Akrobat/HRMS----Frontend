@@ -472,8 +472,9 @@ export default function ManagerAttendance() {
           subtitle="Field staff live location, plus everyone else's check-in status."
         />
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mb-4">
           <StatCard
+            compact
             icon={Users}
             label="Field Staff"
             color="orange"
@@ -481,6 +482,7 @@ export default function ManagerAttendance() {
             value={fieldStaff.length || "—"}
           />
           <StatCard
+            compact
             icon={MapPin}
             label="On Site Now"
             color="green"
@@ -488,6 +490,7 @@ export default function ManagerAttendance() {
             value={onSiteCount}
           />
           <StatCard
+            compact
             icon={Users}
             label="Office Team"
             color="blue"
@@ -495,6 +498,7 @@ export default function ManagerAttendance() {
             value={officeOnly.length || "—"}
           />
           <StatCard
+            compact
             icon={Building2}
             label="Present (Office)"
             color="slate"

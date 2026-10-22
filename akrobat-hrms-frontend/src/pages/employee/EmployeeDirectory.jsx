@@ -67,7 +67,7 @@ export default function EmployeeDirectory() {
           All Employees
         </h1>
         {/* Hidden on mobile to save space */}
-        <p className="hidden sm:block text-sm text-slate-500 mt-1">
+        <p className="hidden lg:block text-sm text-slate-500 mt-1">
           All Members
         </p>
       </div>

@@ -295,13 +295,9 @@ export default function TeamEmployeeDetails() {
           them as part of the same header block instead of appearing
           further down the page after the stat cards. */}
       <div className="lg:hidden mb-4">
-        <h1 className="text-xl font-bold text-slate-800 mb-1">
+        <h1 className="text-xl font-bold text-slate-800 mb-2">
           Employee Details
         </h1>
-        <p className="text-sm text-slate-500 mb-3">
-          Full profile details for everyone reporting to you, direct or
-          indirect.
-        </p>
         <SearchInput
           value={search}
           onChange={setSearch}
@@ -311,14 +307,16 @@ export default function TeamEmployeeDetails() {
       </div>
 
       {/* ---------- Desktop/tablet stat grid (lg and up) — unchanged ---------- */}
-      <div className="hidden lg:grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="hidden lg:grid grid-cols-3 gap-3 mb-4">
         <StatCard
+          compact
           icon={Users}
           label="Team Size"
           value={team.length}
           loading={loading}
         />
         <StatCard
+          compact
           icon={Users}
           label="Active"
           value={activeCount}
@@ -326,6 +324,7 @@ export default function TeamEmployeeDetails() {
           loading={loading}
         />
         <StatCard
+          compact
           icon={Building2}
           label="Departments"
           value={departments.length}
@@ -337,55 +336,35 @@ export default function TeamEmployeeDetails() {
       {/* ---------- Mobile stat strip (below lg) ----------
           Single-line, horizontally scrolling row instead of three stacked
           cards, so the three numbers are visible together at a glance. */}
-      <div className="lg:hidden -mx-4 px-4 mb-4">
-        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1">
-          {[
-            {
-              key: "team-size",
-              icon: Users,
-              label: "Team Size",
-              value: team.length,
-              iconBg: "bg-orange-50",
-              iconFg: "text-orange-500",
-            },
-            {
-              key: "active",
-              icon: Users,
-              label: "Active",
-              value: activeCount,
-              iconBg: "bg-blue-50",
-              iconFg: "text-blue-600",
-            },
-            {
-              key: "departments",
-              icon: Building2,
-              label: "Departments",
-              value: departments.length,
-              iconBg: "bg-slate-100",
-              iconFg: "text-slate-500",
-            },
-          ].map((stat) => (
-            <div
-              key={stat.key}
-              className="snap-start shrink-0 w-[150px] bg-white rounded-xl border border-slate-200 p-3.5 flex flex-col gap-2.5"
-            >
-              <div
-                className={`w-9 h-9 rounded-lg flex items-center justify-center ${stat.iconBg} ${stat.iconFg}`}
-              >
-                <stat.icon size={18} />
-              </div>
-              {loading ? (
-                <div className="h-6 w-12 bg-slate-100 rounded animate-pulse" />
-              ) : (
-                <div className="text-xl font-bold text-slate-800 leading-none">
-                  {stat.value}
-                </div>
-              )}
-              <span className="text-xs text-slate-500 leading-tight">
-                {stat.label}
-              </span>
-            </div>
-          ))}
+      <div className="lg:hidden -mx-4 px-4 mb-3">
+        <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1">
+          <StatCard
+            compact
+            icon={Users}
+            label="Team Size"
+            color="orange"
+            loading={loading}
+            value={team.length}
+            className="snap-start shrink-0 min-w-[128px]"
+          />
+          <StatCard
+            compact
+            icon={Users}
+            label="Active"
+            color="blue"
+            loading={loading}
+            value={activeCount}
+            className="snap-start shrink-0 min-w-[128px]"
+          />
+          <StatCard
+            compact
+            icon={Building2}
+            label="Departments"
+            color="slate"
+            loading={loading}
+            value={departments.length}
+            className="snap-start shrink-0 min-w-[128px]"
+          />
         </div>
       </div>
 

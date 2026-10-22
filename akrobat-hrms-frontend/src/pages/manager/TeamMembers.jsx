@@ -187,25 +187,21 @@ export default function TeamMembers() {
           wrapped awkwardly next to side-by-side action buttons), then both
           actions as full-width stacked buttons underneath so they're easy
           to tap and never get squeezed. */}
-      <div className="lg:hidden mb-4">
-        <h1 className="text-xl font-bold text-slate-800 mb-1">Team Members</h1>
-        <p className="text-sm text-slate-500 mb-3">
-          Assign a work site to your Inspection/Operation field staff — or all
-          of them at once — for site check-in/check-out.
-        </p>
-        <div className="flex flex-col gap-2">
+      <div className="lg:hidden mb-3">
+        <h1 className="text-xl font-bold text-slate-800 mb-2">Team Members</h1>
+        <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => openAssignModal("team")}
-            className="flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium px-3.5 py-2.5 rounded-lg w-full"
+            className="flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-[11px] font-medium px-2 py-2 rounded-lg"
           >
-            <Users size={14} /> Assign Site to Whole Team
+            <Users size={13} /> Assign: Whole Team
           </button>
           <button
             onClick={() => openAssignModal("selected")}
             disabled={selectedIds.length === 0}
-            className="flex items-center justify-center gap-1.5 border border-slate-200 text-slate-700 disabled:opacity-40 text-sm font-medium px-3.5 py-2.5 rounded-lg w-full"
+            className="flex items-center justify-center gap-1.5 border border-slate-200 bg-white text-slate-700 disabled:opacity-40 text-[11px] font-medium px-2 py-2 rounded-lg"
           >
-            <MapPin size={14} /> Assign Site to Selected ({selectedIds.length})
+            <MapPin size={13} /> Assign: Selected ({selectedIds.length})
           </button>
         </div>
       </div>

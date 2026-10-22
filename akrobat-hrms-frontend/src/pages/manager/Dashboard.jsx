@@ -296,8 +296,9 @@ export default function ManagerDashboard() {
       </div>
 
       {/* ---------- Desktop/tablet stat grid (lg and up) — unchanged ---------- */}
-      <div className="hidden lg:grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="hidden lg:grid grid-cols-3 gap-3 mb-4">
         <StatCard
+          compact
           icon={Users}
           label="Team Size"
           color="orange"
@@ -305,6 +306,7 @@ export default function ManagerDashboard() {
           value={teamAttendance.length || "—"}
         />
         <StatCard
+          compact
           icon={UserCheck}
           label="Present Today"
           color="green"
@@ -312,6 +314,7 @@ export default function ManagerDashboard() {
           value={presentCount}
         />
         <StatCard
+          compact
           icon={CalendarClock}
           label="Pending Requests"
           color="blue"

@@ -455,7 +455,7 @@ export default function SecurityAuditLogs() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800">
             Audit Logs
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="hidden lg:block text-sm text-slate-500 mt-1">
             Full trail of who did what, across every module — company-wide.
           </p>
         </div>

@@ -21,7 +21,38 @@ export default function StatCard({
   trend,
   loading,
   className = "",
+  compact = false,
 }) {
+  // Compact (HR-admin style) tile: small icon chip on the left, label and
+  // value stacked on the right. Same look as the Leave balance KPI strip.
+  if (compact) {
+    return (
+      <div
+        className={`bg-white rounded-lg border border-slate-200 px-2.5 py-2 flex items-center gap-2.5 min-w-0 ${className}`}
+      >
+        {Icon && (
+          <div
+            className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${COLOR_MAP[color]}`}
+          >
+            <Icon size={14} />
+          </div>
+        )}
+        <div className="min-w-0">
+          <div className="text-[10px] sm:text-[11px] text-slate-500 truncate leading-tight">
+            {label}
+          </div>
+          {loading ? (
+            <div className="h-5 w-10 bg-slate-100 rounded animate-pulse mt-0.5" />
+          ) : (
+            <div className="text-base font-bold text-slate-800 leading-tight">
+              {value}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`bg-white rounded-xl border border-slate-200 p-2.5 lg:p-4 flex flex-col gap-2 lg:gap-3 ${className}`}
