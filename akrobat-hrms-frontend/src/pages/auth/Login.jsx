@@ -424,7 +424,7 @@ export default function Login() {
   };
 
   return (
-    <div className="relative h-screen w-full flex bg-white overflow-hidden max-lg:h-[100dvh] max-lg:flex-col max-lg:bg-[linear-gradient(180deg,#8dc2f1_0%,#b9dbf7_38%,#e1f0fc_72%,#eaf4fd_100%)]">
+    <div className="relative h-screen w-full flex bg-white overflow-hidden max-lg:h-[100dvh] max-lg:flex-col max-lg:bg-[#e8f0fa]">
       {/* MOBILE -- sky, wall, ladder and the climbing worker */}
       <LoginMobileScene />
 
