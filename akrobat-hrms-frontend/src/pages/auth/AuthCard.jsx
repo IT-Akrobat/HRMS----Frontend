@@ -87,11 +87,11 @@ export default function AuthCard({ title, subtitle, children }) {
       <div className="flex-1 flex flex-col px-6 sm:px-12 py-6 overflow-hidden lg:contents max-lg:relative max-lg:z-10 max-lg:flex-none max-lg:mx-3.5 max-lg:mb-3.5 max-lg:rounded-[2rem] max-lg:bg-white/90 max-lg:px-6 max-lg:pt-7 max-lg:pb-3 max-lg:backdrop-blur-xl max-lg:shadow-[0_20px_60px_rgba(11,31,69,0.22)] max-lg:max-h-[78dvh] max-lg:overflow-y-auto">
         <div className="flex-1 flex flex-col justify-start lg:justify-center lg:items-center max-lg:flex-none">
           <div className="w-full max-w-md mx-auto lg:z-20 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:max-w-none lg:mx-0 lg:pt-10 lg:pb-8 lg:px-14 lg:bg-white lg:rounded-[4rem] lg:shadow-[0_25px_70px_rgba(11,31,69,0.3)]">
-            <h2 className="text-2xl font-bold text-[#0b1f45] max-lg:font-display max-lg:text-[2rem] max-lg:leading-tight">
+            <h2 className="text-xl font-bold text-[#0b1f45] max-lg:font-display max-lg:text-[1.6rem] max-lg:leading-tight">
               {title}
             </h2>
             {subtitle && (
-              <p className="text-[#0b1f45] mt-1 max-lg:text-[15px]">
+              <p className="text-sm text-[#0b1f45] mt-1 max-lg:text-[13px]">
                 {subtitle}
               </p>
             )}
@@ -99,7 +99,7 @@ export default function AuthCard({ title, subtitle, children }) {
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-400 pb-2 max-lg:pt-4 max-lg:pb-1 max-lg:text-[13px] lg:absolute lg:bottom-5 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:pb-0">
+        <p className="text-center text-xs text-gray-400 pb-2 max-lg:pt-4 max-lg:pb-1 max-lg:text-[12px] lg:absolute lg:bottom-5 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:pb-0">
           © {new Date().getFullYear()} Akrobat. All rights reserved.
         </p>
       </div>

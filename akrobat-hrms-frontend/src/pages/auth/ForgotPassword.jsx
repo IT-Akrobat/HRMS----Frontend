@@ -95,7 +95,7 @@ export default function ForgotPassword() {
 
         <Link
           to="/login"
-          className="mt-6 flex w-full items-center justify-center gap-2 bg-[#0b1f45] hover:bg-[#0a1a3a] text-white font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors max-lg:py-3.5 max-lg:text-lg"
+          className="mt-6 flex w-full items-center justify-center gap-2 bg-[#0b1f45] hover:bg-[#0a1a3a] text-white text-sm font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors max-lg:py-3.5 max-lg:text-base"
         >
           Go to sign in
           <ArrowRight className="h-5 w-5 lg:hidden" />
@@ -139,7 +139,7 @@ export default function ForgotPassword() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-[#0b1f45] hover:bg-[#0a1a3a] text-white font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 max-lg:py-3.5 max-lg:text-lg"
+          className="w-full bg-[#0b1f45] hover:bg-[#0a1a3a] text-white text-sm font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 max-lg:py-3.5 max-lg:text-base"
         >
           {loading ? "Checking..." : "Reset password"}
           {!loading && <ArrowRight className="h-5 w-5 lg:hidden" />}
@@ -148,7 +148,7 @@ export default function ForgotPassword() {
 
       <Link
         to="/login"
-        className="block text-center text-sm font-semibold text-brand-orange hover:underline mt-6 max-lg:text-[15px]"
+        className="block text-center text-sm font-semibold text-brand-orange hover:underline mt-6 max-lg:text-[13px]"
       >
         Back to sign in
       </Link>

@@ -497,11 +497,11 @@ export default function Login() {
 
         <div className="flex-1 flex flex-col justify-start lg:justify-center lg:items-center max-lg:flex-none">
           <div className="w-full max-w-md mx-auto lg:z-20 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:max-w-none lg:mx-0 lg:pt-10 lg:pb-8 lg:px-14 lg:bg-white lg:rounded-[4rem] lg:shadow-[0_25px_70px_rgba(11,31,69,0.3)]">
-            <h2 className="text-2xl font-bold text-[#0b1f45] max-lg:text-[#0b1f45] max-lg:font-display max-lg:text-[2rem] max-lg:leading-tight">
+            <h2 className="text-xl font-bold text-[#0b1f45] max-lg:text-[#0b1f45] max-lg:font-display max-lg:text-[1.6rem] max-lg:leading-tight">
               <span className="lg:hidden">Welcome back</span>
               <span className="hidden lg:inline">Welcome Back!</span>
             </h2>
-            <p className="text-[#0b1f45] mt-1 max-lg:text-[15px]">
+            <p className="text-sm text-[#0b1f45] mt-1 max-lg:text-[13px]">
               <span className="lg:hidden">
                 Sign in to your Akrobat HRMS account.
               </span>
@@ -523,7 +523,7 @@ export default function Login() {
               >
                 <label
                   htmlFor="login-username"
-                  className="block text-sm font-semibold text-[#0b1f45] mb-2 max-lg:mb-0 max-lg:pl-9 max-lg:text-[15px] max-lg:font-medium max-lg:text-[#0b1f45]"
+                  className="block text-sm font-semibold text-[#0b1f45] mb-2 max-lg:mb-0 max-lg:pl-9 max-lg:text-[13px] max-lg:font-medium max-lg:text-[#0b1f45]"
                 >
                   Username
                 </label>
@@ -537,8 +537,8 @@ export default function Login() {
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Enter your username"
                     autoComplete="username"
-                    className={`w-full pl-12 pr-5 py-3 rounded-full border transition-colors
-    max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:py-0.5 max-lg:pl-9 max-lg:pr-0 max-lg:text-[15px] max-lg:outline-none max-lg:focus:ring-0 max-lg:placeholder:text-slate-400
+                    className={`w-full text-sm pl-12 pr-5 py-3 rounded-full border transition-colors
+    max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:py-0.5 max-lg:pl-9 max-lg:pr-0 max-lg:text-[13px] max-lg:outline-none max-lg:focus:ring-0 max-lg:placeholder:text-slate-400
     ${
       errors.username
         ? "border-orange-500 focus:border-orange-500 focus:ring-orange-500"
@@ -563,7 +563,7 @@ export default function Login() {
                 >
                   <label
                     htmlFor="login-password"
-                    className="block text-sm font-semibold text-[#0b1f45] mb-2 max-lg:mb-0 max-lg:pl-9 max-lg:text-[15px] max-lg:font-medium max-lg:text-[#0b1f45]"
+                    className="block text-sm font-semibold text-[#0b1f45] mb-2 max-lg:mb-0 max-lg:pl-9 max-lg:text-[13px] max-lg:font-medium max-lg:text-[#0b1f45]"
                   >
                     Password
                   </label>
@@ -579,8 +579,8 @@ export default function Login() {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
                       autoComplete="current-password"
-                      className={`w-full pl-12 pr-12 py-3 rounded-full border transition-colors
-            max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:py-0.5 max-lg:pl-9 max-lg:pr-9 max-lg:text-[15px] max-lg:outline-none max-lg:focus:ring-0 max-lg:placeholder:text-slate-400
+                      className={`w-full text-sm pl-12 pr-12 py-3 rounded-full border transition-colors
+            max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:py-0.5 max-lg:pl-9 max-lg:pr-9 max-lg:text-[13px] max-lg:outline-none max-lg:focus:ring-0 max-lg:placeholder:text-slate-400
             ${
               errors.password
                 ? "border-orange-500 focus:border-orange-500 focus:ring-orange-500"
@@ -616,13 +616,13 @@ export default function Login() {
                     onChange={(e) => setRemember(e.target.checked)}
                     className="h-4 w-4 accent-[#0b1f45] max-lg:h-5 max-lg:w-5 max-lg:accent-[#0b1f45]"
                   />
-                  <span className="text-sm text-[#0b1f45] max-lg:text-[15px]">
+                  <span className="text-sm text-[#0b1f45] max-lg:text-[13px]">
                     Remember me
                   </span>
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-sm font-medium text-brand-orange hover:underline max-lg:text-[15px]"
+                  className="text-sm font-medium text-brand-orange hover:underline max-lg:text-[13px]"
                 >
                   Forgot password?
                 </Link>
@@ -631,7 +631,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#0b1f45] hover:bg-[#0a1a3a] text-white font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 max-lg:py-3.5 max-lg:text-lg"
+                className="w-full bg-[#0b1f45] hover:bg-[#0a1a3a] text-white text-sm font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 max-lg:py-3.5 max-lg:text-base"
               >
                 {loading ? "Signing in..." : "Sign In"}
                 {!loading && <ArrowRight className="h-5 w-5 lg:hidden" />}
@@ -652,7 +652,7 @@ export default function Login() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-gray-400 pb-2 max-lg:pt-4 max-lg:pb-1 max-lg:text-[13px] lg:absolute lg:bottom-5 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:pb-0">
+        <p className="text-center text-xs text-gray-400 pb-2 max-lg:pt-4 max-lg:pb-1 max-lg:text-[12px] lg:absolute lg:bottom-5 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:pb-0">
           © {new Date().getFullYear()} Akrobat. All rights reserved.
         </p>
       </div>

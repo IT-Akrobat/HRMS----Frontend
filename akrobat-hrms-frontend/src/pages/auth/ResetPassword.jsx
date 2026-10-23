@@ -230,7 +230,7 @@ export default function ResetPassword() {
         </p>
         <Link
           to="/forgot-password"
-          className="block text-center text-sm font-semibold text-brand-orange hover:underline mt-6 max-lg:text-[15px]"
+          className="block text-center text-sm font-semibold text-brand-orange hover:underline mt-6 max-lg:text-[13px]"
         >
           Request a new link
         </Link>
@@ -249,7 +249,7 @@ export default function ResetPassword() {
         </div>
         <Link
           to="/login"
-          className="block text-center text-sm font-semibold text-brand-orange hover:underline mt-6 max-lg:text-[15px]"
+          className="block text-center text-sm font-semibold text-brand-orange hover:underline mt-6 max-lg:text-[13px]"
         >
           Go to sign in
         </Link>
@@ -304,7 +304,7 @@ export default function ResetPassword() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-[#0b1f45] hover:bg-[#0a1a3a] text-white font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 max-lg:py-3.5 max-lg:text-lg"
+          className="w-full bg-[#0b1f45] hover:bg-[#0a1a3a] text-white text-sm font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 max-lg:py-3.5 max-lg:text-base"
         >
           {loading ? "Updating..." : "Update password"}
           {!loading && <ArrowRight className="h-5 w-5 lg:hidden" />}
