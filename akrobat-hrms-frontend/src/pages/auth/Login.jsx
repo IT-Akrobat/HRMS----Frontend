@@ -322,7 +322,7 @@ import slide2 from "../../assets/images/slide2.jpeg";
 import slide3 from "../../assets/images/slide3.jpeg"; // TODO: replace placeholder
 import { DEFAULT_ROUTE_BY_ROLE, HR_HOME, ROLES } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
-import LoginMobileScene from "./LoginMobileScene";
+import LoginMobileScene from "./Loginmobilescene";
 
 const SLIDES = [slide1, slide2, slide3];
 
