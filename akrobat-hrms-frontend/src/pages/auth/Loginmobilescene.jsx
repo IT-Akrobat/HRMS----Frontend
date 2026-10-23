@@ -347,7 +347,7 @@ export default function LoginMobileScene() {
 
       {/* brand + tagline */}
       <div className="absolute right-6 top-0 w-[44%] max-w-[190px] pt-[max(2.25rem,calc(env(safe-area-inset-top)+1.25rem))]">
-        <img src={logo} alt="" className="w-[78%] max-w-[150px] h-auto" />
+        <img src={logo} alt="" className="w-[60%] max-w-[115px] h-auto" />
         <p className="mt-4 text-[15px] font-medium leading-snug tracking-wide text-[#0b1f45]">
           Safety Builds a Stronger Tomorrow
         </p>

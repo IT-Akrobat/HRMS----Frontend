@@ -446,7 +446,7 @@ export default function Login() {
         {/* content */}
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
           <div>
-            <img src={logo} alt="Akrobat" className="h-16 mb-10" />
+            <img src={logo} alt="Akrobat" className="h-12 mb-10" />
             <h1 className="text-3xl xl:text-4xl font-bold tracking-wide leading-tight text-white">
               AKROBAT
               <br />
