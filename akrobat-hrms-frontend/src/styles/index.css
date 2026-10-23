@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700&family=Source+Serif+4:wght@700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -976,5 +976,77 @@ body:has(
 @media (min-width: 1024px) {
   .theme-blue main {
     padding: 0.5rem 1.25rem 1.25rem;
+  }
+}
+
+/* =====================================================
+   LOGIN (mobile) -- climbing worker scene
+   See src/pages/auth/LoginMobileScene.jsx.
+   Climb 3 rungs (132 units), pause, climb back down, pause.
+   Limbs are animated with SMIL inside the SVG.
+===================================================== */
+
+@keyframes login-travel {
+  0% {
+    transform: translateY(0);
+  }
+  42.86% {
+    transform: translateY(-132px);
+  }
+  50% {
+    transform: translateY(-132px);
+  }
+  92.86% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes login-cloud-drift {
+  from {
+    transform: translateX(-24px);
+  }
+  to {
+    transform: translateX(24px);
+  }
+}
+
+.login-travel {
+  animation: login-travel 9.8s linear infinite;
+}
+
+.login-bob {
+  animation: login-bob 0.7s ease-in-out infinite;
+}
+
+.login-cloud-a {
+  animation: login-cloud-drift 18s ease-in-out infinite alternate;
+}
+.login-cloud-b {
+  animation: login-cloud-drift 24s ease-in-out infinite alternate-reverse;
+}
+.login-cloud-c {
+  animation: login-cloud-drift 30s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-travel,
+  .login-bob,
+  .login-cloud-a,
+  .login-cloud-b,
+  .login-cloud-c {
+    animation: none;
   }
 }

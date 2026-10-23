@@ -1,17 +1,328 @@
-import { Eye, EyeOff, Lock, Shield, User } from "lucide-react";
+// import { Eye, EyeOff, Lock, Shield, User } from "lucide-react";
+// import { useEffect, useState } from "react";
+// import { Link, useLocation, useNavigate } from "react-router-dom";
+// import logo from "../../assets/images/akrobat-logo.png"; // TODO: replace placeholder with real Akrobat logo
+// import slide1 from "../../assets/images/slide1.jpeg"; // TODO: replace placeholder
+// import slide2 from "../../assets/images/slide2.jpeg";
+// import slide3 from "../../assets/images/slide3.jpeg"; // TODO: replace placeholder
+// import {
+//   DEFAULT_ROUTE_BY_ROLE,
+//   HR_HOME,
+//   ROLE_BASE_PATH,
+//   ROLES,
+// } from "../../config/roles";
+// import { useAuth } from "../../context/AuthContext";
+
+// const SLIDES = [slide1, slide2, slide3];
+
+// export default function Login() {
+//   const { login } = useAuth();
+//   const navigate = useNavigate();
+//   const location = useLocation();
+
+//   const [current, setCurrent] = useState(0);
+//   const [showPwd, setShowPwd] = useState(false);
+//   const [remember, setRemember] = useState(false);
+//   const [username, setUsername] = useState("");
+//   const [password, setPassword] = useState("");
+//   const [loading, setLoading] = useState(false);
+//   const [errors, setErrors] = useState({ username: "", password: "" });
+//   useEffect(() => {
+//     // Old builds remembered the employee code under this key -- drop it
+//     // so it never gets pre-filled into the username box.
+//     localStorage.removeItem("remember_employee_code");
+
+//     const savedUsername = localStorage.getItem("remember_username");
+
+//     if (savedUsername) {
+//       setUsername(savedUsername);
+//       setRemember(true);
+//     }
+//   }, []);
+//   // Auto change slide every 5 seconds
+//   useEffect(() => {
+//     const interval = setInterval(() => {
+//       setCurrent((prev) => (prev + 1) % SLIDES.length);
+//     }, 5000);
+
+//     return () => clearInterval(interval);
+//   }, []);
+
+//   const handleSubmit = async (e) => {
+//     e.preventDefault();
+//     setErrors({ username: "", password: "" });
+
+//     try {
+//       setLoading(true);
+
+//       // login() calls the real backend (POST /auth/login + GET /auth/me)
+//       // and returns the normalized user object -- role, permissions,
+//       // sidebar, redirect_path all come from the backend, nothing is
+//       // decided here. See src/services/authService.js.
+//       const user = await login(username.trim(), password);
+//       if (remember) {
+//         localStorage.setItem("remember_username", username.trim());
+//       } else {
+//         localStorage.removeItem("remember_username");
+//       }
+//       // Prefer wherever the user was headed before being bounced to
+//       // /login (ProtectedRoute sets this), otherwise their role's
+//       // default dashboard.
+//       // HR always lands on the My Profile / Company chooser after a fresh
+//       // login, even if they were bounced to /login from another page
+//       // (e.g. after logout) -- otherwise `from` would skip the chooser.
+//       // A temporary / expired password (e.g. right after "Forgot
+//       // password") sends the user straight to Settings to change it.
+//       // (Built from ROLE_BASE_PATH, not the backend's redirect_path --
+//       // that DB value is e.g. "/hr" for HR, which isn't a real route.)
+//       const roleBase = ROLE_BASE_PATH[user.role];
+//       const mustChangePassword = user.passwordExpired && roleBase;
+//       const redirectTo = mustChangePassword
+//         ? `${roleBase}/settings`
+//         : user.role === ROLES.HR_ADMIN
+//           ? HR_HOME
+//           : (location.state?.from?.pathname ??
+//             DEFAULT_ROUTE_BY_ROLE[user.role] ??
+//             "/");
+//       navigate(redirectTo, { replace: true });
+//     } catch (err) {
+//       // The backend can be cold-starting (Render free/low tier spins the
+//       // service down after inactivity), which surfaces here as either a
+//       // network failure (apiClient's "Could not reach the server..."
+//       // message, no err.status) or a 502 from the proxy. Either way,
+//       // tell people to wait rather than let them assume it's a wrong
+//       // password and immediately retry -- repeated quick retries are
+//       // what trip the backend's 5-attempts/minute login rate limit
+//       // (429) on top of the slow start.
+//       const isColdStartLikely = !err.status || err.status === 502;
+//       const isRateLimited = err.status === 429;
+
+//       const message = isRateLimited
+//         ? "Too many attempts. Please wait a minute before trying again."
+//         : isColdStartLikely
+//           ? "Server is starting up, this can take up to a minute on the first try. Please wait and try again."
+//           : err.message || "Login failed.";
+
+//       setErrors({
+//         username: "",
+//         password: message,
+//       });
+
+//       setTimeout(() => {
+//         setErrors({
+//           username: "",
+//           password: "",
+//         });
+//       }, 5000);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   return (
+//     <div className="relative h-screen w-full flex bg-white overflow-hidden">
+//       {/* LEFT -- rotating image panel (ends ~20% into the login card) */}
+//       <div className="relative isolate hidden lg:flex lg:w-[calc(72%-138px)] h-screen overflow-hidden bg-[#0b1f45] text-white">
+//         {SLIDES.map((src, i) => (
+//           <img
+//             key={i}
+//             src={src}
+//             alt=""
+//             className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
+//               i === current ? "opacity-40" : "opacity-0"
+//             }`}
+//           />
+//         ))}
+//         {/* dark overlay */}
+//         <div className="absolute inset-0 bg-gradient-to-b from-[#0b1f45]/85 via-[#0b1f45]/70 to-[#0b1f45]/90" />
+
+//         {/* content */}
+//         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
+//           <div>
+//             <img src={logo} alt="Akrobat" className="h-16 mb-10" />
+//             <h1 className="text-3xl xl:text-4xl font-bold tracking-wide leading-tight text-white">
+//               AKROBAT
+//               <br />
+//               HR MANAGEMENT SYSTEM
+//             </h1>
+//             <div className="w-16 h-1 bg-orange-500 my-6" />
+//             <p className="text-base text-white/85 leading-relaxed max-w-md">
+//               Empowering People. Strengthening Performance.
+//               <br />
+//               Smart HR solutions for a stronger tomorrow.
+//             </p>
+//           </div>
+
+//           {/* dots */}
+//           <div className="flex gap-2 mt-8">
+//             {SLIDES.map((_, i) => (
+//               <button
+//                 key={i}
+//                 onClick={() => setCurrent(i)}
+//                 className={`h-1.5 rounded-full transition-all ${
+//                   i === current ? "w-8 bg-orange-500" : "w-4 bg-white/40"
+//                 }`}
+//                 aria-label={`Slide ${i + 1}`}
+//               />
+//             ))}
+//           </div>
+
+//           <div className="mt-8 bg-white/10 backdrop-blur-sm border border-white/15 rounded-lg p-4 max-w-xs flex gap-3">
+//             <Shield className="h-6 w-6 text-orange-400 shrink-0" />
+//             <div>
+//               <p className="font-semibold text-sm text-white">
+//                 Secure. Reliable. Compliant.
+//               </p>
+//               <p className="text-xs text-white/70 mt-0.5">
+//                 Your data is protected with enterprise grade security.
+//               </p>
+//             </div>
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* RIGHT -- form */}
+//       <div className="flex-1 flex flex-col px-6 sm:px-12 py-6 overflow-hidden lg:contents">
+//         {/* Mobile-only brand header removed — the AKROBAT HR MANAGEMENT
+//             SYSTEM logo and title only show in the desktop slide panel
+//             (`hidden lg:flex` above); no equivalent shown below the
+//             `lg` breakpoint. */}
+
+//         <div className="flex-1 flex flex-col justify-start lg:justify-center lg:items-center">
+//           <div className="w-full max-w-md mx-auto pt-20 pb-12 lg:z-20 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:max-w-none lg:mx-0 lg:pt-10 lg:pb-8 lg:px-14 lg:bg-white lg:rounded-[4rem] lg:shadow-[0_25px_70px_rgba(11,31,69,0.3)]">
+//             <h2 className="text-2xl font-bold text-[#0b1f45]">Welcome Back!</h2>
+//             <p className="text-gray-500 mt-1">
+//               Sign in to continue to your Akrobat HRMS account
+//             </p>
+
+//             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+//               <div>
+//                 <label className="block text-sm font-semibold text-gray-800 mb-2">
+//                   Username
+//                 </label>
+//                 <div className="relative">
+//                   <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+//                   <input
+//                     type="text"
+//                     required
+//                     value={username}
+//                     onChange={(e) => setUsername(e.target.value)}
+//                     placeholder="Your name"
+//                     autoComplete="username"
+//                     className={`w-full pl-12 pr-5 py-3 rounded-full border transition-colors
+//     ${
+//       errors.username
+//         ? "border-orange-500 focus:border-orange-500 focus:ring-orange-500"
+//         : "border-gray-200 focus:border-[#0b1f45] focus:ring-[#0b1f45]"
+//     }`}
+//                   />
+//                   {errors.username && (
+//                     <p className="mt-2 text-sm text-orange-500">
+//                       {errors.username}
+//                     </p>
+//                   )}
+//                 </div>
+//               </div>
+
+//               <div>
+//                 <label className="block text-sm font-semibold text-gray-800 mb-2">
+//                   Password
+//                 </label>
+
+//                 <div className="relative">
+//                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+
+//                   <input
+//                     type={showPwd ? "text" : "password"}
+//                     required
+//                     value={password}
+//                     onChange={(e) => setPassword(e.target.value)}
+//                     placeholder="Enter your password"
+//                     className={`w-full pl-12 pr-12 py-3 rounded-full border transition-colors
+//             ${
+//               errors.password
+//                 ? "border-orange-500 focus:border-orange-500 focus:ring-orange-500"
+//                 : "border-gray-200 focus:border-[#0b1f45] focus:ring-[#0b1f45]"
+//             }`}
+//                   />
+
+//                   {password.length > 0 && (
+//                     <button
+//                       type="button"
+//                       onClick={() => setShowPwd(!showPwd)}
+//                       className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+//                     >
+//                       {showPwd ? <EyeOff size={20} /> : <Eye size={20} />}
+//                     </button>
+//                   )}
+//                 </div>
+
+//                 <div className="h-5 mt-1">
+//                   {errors.password && (
+//                     <p className="text-sm text-orange-500">{errors.password}</p>
+//                   )}
+//                 </div>
+//               </div>
+
+//               <div className="flex items-center justify-between">
+//                 <label className="flex items-center gap-2 cursor-pointer">
+//                   <input
+//                     type="checkbox"
+//                     checked={remember}
+//                     onChange={(e) => setRemember(e.target.checked)}
+//                     className="h-4 w-4 accent-[#0b1f45]"
+//                   />
+//                   <span className="text-sm text-gray-700">Remember me</span>
+//                 </label>
+
+//                 <Link
+//                   to="/forgot-password"
+//                   className="text-sm font-semibold text-orange-500 hover:text-orange-600"
+//                 >
+//                   Forgot password?
+//                 </Link>
+//               </div>
+
+//               <button
+//                 type="submit"
+//                 disabled={loading}
+//                 className="w-full bg-[#0b1f45] hover:bg-[#0a1a3a] text-white font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors disabled:opacity-60"
+//               >
+//                 {loading ? "Signing in..." : "Sign In"}
+//               </button>
+
+//               {/* Desktop only — hidden on mobile per design. */}
+//               {/* <p className="hidden lg:block text-center text-sm text-gray-600 pt-2">
+//                 Don't have an account?{" "}
+//                 <a
+//                   href="#"
+//                   className="text-orange-500 font-semibold hover:text-orange-600"
+//                 >
+//                   Contact Administrator
+//                 </a>
+//               </p> */}
+//             </form>
+//           </div>
+//         </div>
+
+//         {/* Footer */}
+//         <p className="text-center text-xs text-gray-400 pb-2 lg:absolute lg:bottom-5 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:pb-0">
+//           © {new Date().getFullYear()} Akrobat. All rights reserved.
+//         </p>
+//       </div>
+//     </div>
+//   );
+// }
+import { ArrowRight, Eye, EyeOff, Lock, Shield, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import logo from "../../assets/images/akrobat-logo.png"; // TODO: replace placeholder with real Akrobat logo
 import slide1 from "../../assets/images/slide1.jpeg"; // TODO: replace placeholder
 import slide2 from "../../assets/images/slide2.jpeg";
 import slide3 from "../../assets/images/slide3.jpeg"; // TODO: replace placeholder
-import {
-  DEFAULT_ROUTE_BY_ROLE,
-  HR_HOME,
-  ROLE_BASE_PATH,
-  ROLES,
-} from "../../config/roles";
+import { DEFAULT_ROUTE_BY_ROLE, HR_HOME, ROLES } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
+import LoginMobileScene from "./LoginMobileScene";
 
 const SLIDES = [slide1, slide2, slide3];
 
@@ -71,15 +382,8 @@ export default function Login() {
       // HR always lands on the My Profile / Company chooser after a fresh
       // login, even if they were bounced to /login from another page
       // (e.g. after logout) -- otherwise `from` would skip the chooser.
-      // A temporary / expired password (e.g. right after "Forgot
-      // password") sends the user straight to Settings to change it.
-      // (Built from ROLE_BASE_PATH, not the backend's redirect_path --
-      // that DB value is e.g. "/hr" for HR, which isn't a real route.)
-      const roleBase = ROLE_BASE_PATH[user.role];
-      const mustChangePassword = user.passwordExpired && roleBase;
-      const redirectTo = mustChangePassword
-        ? `${roleBase}/settings`
-        : user.role === ROLES.HR_ADMIN
+      const redirectTo =
+        user.role === ROLES.HR_ADMIN
           ? HR_HOME
           : (location.state?.from?.pathname ??
             DEFAULT_ROUTE_BY_ROLE[user.role] ??
@@ -120,7 +424,10 @@ export default function Login() {
   };
 
   return (
-    <div className="relative h-screen w-full flex bg-white overflow-hidden">
+    <div className="relative h-screen w-full flex bg-white overflow-hidden max-lg:h-[100dvh] max-lg:flex-col max-lg:bg-[linear-gradient(180deg,#8dc2f1_0%,#b9dbf7_38%,#e1f0fc_72%,#eaf4fd_100%)]">
+      {/* MOBILE -- sky, wall, ladder and the climbing worker */}
+      <LoginMobileScene />
+
       {/* LEFT -- rotating image panel (ends ~20% into the login card) */}
       <div className="relative isolate hidden lg:flex lg:w-[calc(72%-138px)] h-screen overflow-hidden bg-[#0b1f45] text-white">
         {SLIDES.map((src, i) => (
@@ -182,34 +489,56 @@ export default function Login() {
       </div>
 
       {/* RIGHT -- form */}
-      <div className="flex-1 flex flex-col px-6 sm:px-12 py-6 overflow-hidden lg:contents">
+      <div className="flex-1 flex flex-col px-6 sm:px-12 py-6 overflow-hidden lg:contents max-lg:relative max-lg:z-10 max-lg:flex-none max-lg:mx-3.5 max-lg:mb-3.5 max-lg:rounded-[2rem] max-lg:bg-white/90 max-lg:px-6 max-lg:pt-7 max-lg:pb-3 max-lg:backdrop-blur-xl max-lg:shadow-[0_20px_60px_rgba(11,31,69,0.22)] max-lg:max-h-[78dvh] max-lg:overflow-y-auto">
         {/* Mobile-only brand header removed — the AKROBAT HR MANAGEMENT
             SYSTEM logo and title only show in the desktop slide panel
             (`hidden lg:flex` above); no equivalent shown below the
             `lg` breakpoint. */}
 
-        <div className="flex-1 flex flex-col justify-start lg:justify-center lg:items-center">
-          <div className="w-full max-w-md mx-auto pt-20 pb-12 lg:z-20 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:max-w-none lg:mx-0 lg:pt-10 lg:pb-8 lg:px-14 lg:bg-white lg:rounded-[4rem] lg:shadow-[0_25px_70px_rgba(11,31,69,0.3)]">
-            <h2 className="text-2xl font-bold text-[#0b1f45]">Welcome Back!</h2>
-            <p className="text-gray-500 mt-1">
-              Sign in to continue to your Akrobat HRMS account
+        <div className="flex-1 flex flex-col justify-start lg:justify-center lg:items-center max-lg:flex-none">
+          <div className="w-full max-w-md mx-auto lg:z-20 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:max-w-none lg:mx-0 lg:pt-10 lg:pb-8 lg:px-14 lg:bg-white lg:rounded-[4rem] lg:shadow-[0_25px_70px_rgba(11,31,69,0.3)]">
+            <h2 className="text-2xl font-bold text-[#0b1f45] max-lg:text-[#0b1f45] max-lg:font-display max-lg:text-[2rem] max-lg:leading-tight">
+              <span className="lg:hidden">Welcome back</span>
+              <span className="hidden lg:inline">Welcome Back!</span>
+            </h2>
+            <p className="text-[#0b1f45] mt-1 max-lg:text-[15px]">
+              <span className="lg:hidden">
+                Sign in to your Akrobat HRMS account.
+              </span>
+              <span className="hidden lg:inline">
+                Sign in to continue to your Akrobat HRMS account
+              </span>
             </p>
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2">
+            <form
+              onSubmit={handleSubmit}
+              className="mt-6 space-y-4 max-lg:mt-5 max-lg:space-y-3.5"
+            >
+              <div
+                className={`max-lg:relative max-lg:rounded-2xl max-lg:border max-lg:bg-white/80 max-lg:px-4 max-lg:pt-2.5 max-lg:pb-2 max-lg:transition-colors ${
+                  errors.username
+                    ? "max-lg:border-orange-500"
+                    : "max-lg:border-slate-200 max-lg:focus-within:border-[#0b1f45]"
+                }`}
+              >
+                <label
+                  htmlFor="login-username"
+                  className="block text-sm font-semibold text-[#0b1f45] mb-2 max-lg:mb-0 max-lg:pl-9 max-lg:text-[15px] max-lg:font-medium max-lg:text-[#0b1f45]"
+                >
                   Username
                 </label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <div className="relative max-lg:static">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#0b1f45] max-lg:left-4" />
                   <input
+                    id="login-username"
                     type="text"
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Your name"
+                    placeholder="Enter your username"
                     autoComplete="username"
                     className={`w-full pl-12 pr-5 py-3 rounded-full border transition-colors
+    max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:py-0.5 max-lg:pl-9 max-lg:pr-0 max-lg:text-[15px] max-lg:outline-none max-lg:focus:ring-0 max-lg:placeholder:text-slate-400
     ${
       errors.username
         ? "border-orange-500 focus:border-orange-500 focus:ring-orange-500"
@@ -225,39 +554,54 @@ export default function Login() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2">
-                  Password
-                </label>
+                <div
+                  className={`max-lg:relative max-lg:rounded-2xl max-lg:border max-lg:bg-white/80 max-lg:px-4 max-lg:pt-2.5 max-lg:pb-2 max-lg:transition-colors ${
+                    errors.password
+                      ? "max-lg:border-orange-500"
+                      : "max-lg:border-slate-200 max-lg:focus-within:border-[#0b1f45]"
+                  }`}
+                >
+                  <label
+                    htmlFor="login-password"
+                    className="block text-sm font-semibold text-[#0b1f45] mb-2 max-lg:mb-0 max-lg:pl-9 max-lg:text-[15px] max-lg:font-medium max-lg:text-[#0b1f45]"
+                  >
+                    Password
+                  </label>
 
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <div className="relative max-lg:static">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#0b1f45]" />
 
-                  <input
-                    type={showPwd ? "text" : "password"}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className={`w-full pl-12 pr-12 py-3 rounded-full border transition-colors
+                    <input
+                      id="login-password"
+                      type={showPwd ? "text" : "password"}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      autoComplete="current-password"
+                      className={`w-full pl-12 pr-12 py-3 rounded-full border transition-colors
+            max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:py-0.5 max-lg:pl-9 max-lg:pr-9 max-lg:text-[15px] max-lg:outline-none max-lg:focus:ring-0 max-lg:placeholder:text-slate-400
             ${
               errors.password
                 ? "border-orange-500 focus:border-orange-500 focus:ring-orange-500"
                 : "border-gray-200 focus:border-[#0b1f45] focus:ring-[#0b1f45]"
             }`}
-                  />
+                    />
 
-                  {password.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setShowPwd(!showPwd)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+                      aria-label={showPwd ? "Hide password" : "Show password"}
+                      className={`absolute right-4 top-1/2 -translate-y-1/2 text-[#0b1f45] ${
+                        password.length > 0 ? "" : "lg:hidden"
+                      }`}
                     >
                       {showPwd ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
-                  )}
+                  </div>
                 </div>
 
-                <div className="h-5 mt-1">
+                <div className="h-5 mt-1 max-lg:h-auto max-lg:min-h-0 max-lg:mt-1.5">
                   {errors.password && (
                     <p className="text-sm text-orange-500">{errors.password}</p>
                   )}
@@ -270,14 +614,15 @@ export default function Login() {
                     type="checkbox"
                     checked={remember}
                     onChange={(e) => setRemember(e.target.checked)}
-                    className="h-4 w-4 accent-[#0b1f45]"
+                    className="h-4 w-4 accent-[#0b1f45] max-lg:h-5 max-lg:w-5 max-lg:accent-[#0b1f45]"
                   />
-                  <span className="text-sm text-gray-700">Remember me</span>
+                  <span className="text-sm text-[#0b1f45] max-lg:text-[15px]">
+                    Remember me
+                  </span>
                 </label>
-
                 <Link
                   to="/forgot-password"
-                  className="text-sm font-semibold text-orange-500 hover:text-orange-600"
+                  className="text-sm font-medium text-brand-orange hover:underline max-lg:text-[15px]"
                 >
                   Forgot password?
                 </Link>
@@ -286,9 +631,10 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#0b1f45] hover:bg-[#0a1a3a] text-white font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors disabled:opacity-60"
+                className="w-full bg-[#0b1f45] hover:bg-[#0a1a3a] text-white font-semibold py-3 rounded-full shadow-lg shadow-[#0b1f45]/25 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 max-lg:py-3.5 max-lg:text-lg"
               >
                 {loading ? "Signing in..." : "Sign In"}
+                {!loading && <ArrowRight className="h-5 w-5 lg:hidden" />}
               </button>
 
               {/* Desktop only — hidden on mobile per design. */}
@@ -306,7 +652,7 @@ export default function Login() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-gray-400 pb-2 lg:absolute lg:bottom-5 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:pb-0">
+        <p className="text-center text-xs text-gray-400 pb-2 max-lg:pt-4 max-lg:pb-1 max-lg:text-[13px] lg:absolute lg:bottom-5 lg:left-[72%] lg:-translate-x-1/2 lg:w-[460px] lg:pb-0">
           © {new Date().getFullYear()} Akrobat. All rights reserved.
         </p>
       </div>
