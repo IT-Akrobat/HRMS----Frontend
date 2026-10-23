@@ -24,6 +24,7 @@ import SelectDropdown from "../../components/common/SelectDropdown";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { useBasePath } from "../../hooks/useBasePath";
 import { apiClient } from "../../services/apiClient";
+import { leaveDaysText } from "../../utils/leaveDays";
 
 // ---------------------------------------------------------------------
 // Backend contract: GET /leaves/my (see app/leaves/routes.py + services.py)
@@ -230,7 +231,7 @@ export default function LeaveHistory() {
     const body = filtered.map((r) => [
       `${r.start_date} to ${r.end_date}`,
       r.leave_types?.leave_name || "",
-      r.total_days,
+      r.total_days ?? "",
       r.reason,
       r.status,
       r.applied_date,
@@ -530,8 +531,7 @@ export default function LeaveHistory() {
                         {formatDateRange(r.start_date, r.end_date)}
                       </div>
                       <div className="text-xs text-slate-400">
-                        {db.weekday} · {r.total_days}{" "}
-                        {r.total_days === 1 ? "Day" : "Days"}
+                        {db.weekday} · {leaveDaysText(r)}
                       </div>
                     </div>
                   </div>
@@ -686,7 +686,7 @@ export default function LeaveHistory() {
                         />
                       </td>
                       <td className="px-5 py-3.5 text-slate-600">
-                        {r.total_days} {r.total_days === 1 ? "Day" : "Days"}
+                        {leaveDaysText(r)}
                       </td>
                       <td className="px-5 py-3.5 text-slate-600 max-w-[220px] truncate">
                         {r.reason || "—"}
@@ -922,7 +922,7 @@ export default function LeaveHistory() {
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400">Duration</span>
                     <span className="text-slate-700 font-medium">
-                      {r.total_days} {r.total_days === 1 ? "Day" : "Days"}
+                      {leaveDaysText(r)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">

@@ -1,5 +1,7 @@
 // MC (medical certificate) calls -- backend: app/leaves/routes.py
-//   POST /leaves/{id}/medical-certificate  (multipart) employee attaches the certificate
+//   POST /leaves/{id}/medical-certificate  (multipart: file + end_date) employee attaches the
+//                                          certificate and the end date printed on it; the
+//                                          days are calculated from that date
 //   GET  /leaves/{id}/medical-certificate  short-lived link (owner / leave manager / HR / Super Admin)
 //   PUT  /leaves/{id}/mc-validate          HR / Super Admin validates the leave as MC
 import { apiClient, BASE_URL, withCredentialsAndCsrf } from "./apiClient";
@@ -8,9 +10,10 @@ import { apiClient, BASE_URL, withCredentialsAndCsrf } from "./apiClient";
 export const MC_ACCEPTED_TYPES = ".pdf,.jpg,.jpeg,.png";
 
 export const leaveMcService = {
-  async uploadCertificate(leaveId, file) {
+  async uploadCertificate(leaveId, file, endDate) {
     const form = new FormData();
     form.append("file", file);
+    if (endDate) form.append("end_date", endDate); // YYYY-MM-DD
     const response = await fetch(
       `${BASE_URL}/leaves/${leaveId}/medical-certificate`,
       {

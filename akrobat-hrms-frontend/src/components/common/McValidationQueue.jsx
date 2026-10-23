@@ -87,9 +87,11 @@ export default function McValidationQueue({ onChanged }) {
                       : "bg-slate-100 text-slate-500"
                   }`}
                 >
-                  {r.days_waiting === 0
-                    ? "Applied today"
-                    : `Waiting ${r.days_waiting} day${r.days_waiting === 1 ? "" : "s"}`}
+                  {r.days_waiting == null
+                    ? "Certificate not uploaded"
+                    : r.days_waiting === 0
+                      ? "Certificate uploaded today"
+                      : `Waiting ${r.days_waiting} day${r.days_waiting === 1 ? "" : "s"} since upload`}
                   {r.overdue ? " · overdue" : ""}
                 </span>
               </div>

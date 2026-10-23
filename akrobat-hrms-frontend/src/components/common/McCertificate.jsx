@@ -1,14 +1,28 @@
 import { CheckCircle2, FileText, Loader2, Paperclip } from "lucide-react";
 import { useRef, useState } from "react";
 import {
-    leaveMcService,
-    MC_ACCEPTED_TYPES,
+  leaveMcService,
+  MC_ACCEPTED_TYPES,
 } from "../../services/leaveMcService";
 
+const fmt = (d) =>
+  d
+    ? new Date(`${String(d).slice(0, 10)}T00:00:00`).toLocaleDateString(
+        "en-GB",
+        {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        },
+      )
+    : "";
+
 // MC step 2 + HR validation, shared by every leave screen.
-//   mode="employee" -> employee attaches / replaces the certificate
-//   mode="hr"       -> HR / Super Admin views it and validates the MC
-//   mode="view"     -> leave manager: view only
+//   mode="employee" -> employee enters the END DATE printed on the certificate and
+//                      attaches / replaces it (days are calculated from that date)
+//   mode="hr"       -> HR / Super Admin sees the certificate end date + calculated
+//                      days (nobody else does yet) and validates the MC
+//   mode="view"     -> leave manager: view only, no days until HR validates
 // `leave` is a leave_requests row (mc_status, mc_certificate_name, ...).
 // Renders nothing for leaves that are not MC.
 const STATUS_LABEL = {
@@ -27,8 +41,14 @@ export default function McCertificate({ leave, mode = "view", onChanged }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Last day of medical leave on the certificate. Defaults to the applied end
+  // date; the employee changes it when the doctor gave more days.
+  const [endDate, setEndDate] = useState("");
 
   if (!leave?.mc_status) return null;
+  const startIso = String(leave.start_date).slice(0, 10);
+  const certEnd =
+    endDate || String(leave.mc_end_date || leave.end_date).slice(0, 10);
   const status = STATUS_LABEL[leave.mc_status];
   const hasFile = leave.mc_status !== "AWAITING_CERTIFICATE";
 
@@ -55,7 +75,12 @@ export default function McCertificate({ leave, mode = "view", onChanged }) {
   function handleFile(e) {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (file) run(() => leaveMcService.uploadCertificate(leave.id, file));
+    if (!file) return;
+    if (certEnd < startIso) {
+      setError("Certificate end date cannot be before the leave start date.");
+      return;
+    }
+    run(() => leaveMcService.uploadCertificate(leave.id, file, certEnd));
   }
 
   const btn =
@@ -86,6 +111,17 @@ export default function McCertificate({ leave, mode = "view", onChanged }) {
 
       {mode === "employee" && leave.mc_status !== "VALIDATED" && (
         <>
+          <label className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+            Certificate end date
+            <input
+              type="date"
+              value={certEnd}
+              min={startIso}
+              onChange={(e) => setEndDate(e.target.value)}
+              disabled={busy}
+              className="text-xs px-2 py-1 rounded-md border border-slate-200 text-slate-600"
+            />
+          </label>
           <input
             ref={inputRef}
             type="file"
@@ -103,6 +139,17 @@ export default function McCertificate({ leave, mode = "view", onChanged }) {
             {hasFile ? "Replace certificate" : "Attach certificate"}
           </button>
         </>
+      )}
+
+      {mode === "hr" && leave.mc_status === "CERTIFICATE_UPLOADED" && (
+        <span className="text-[11px] text-slate-500">
+          Certificate end date {fmt(leave.mc_end_date)}
+          {leave.total_days != null && ` · ${leave.total_days} working day(s)`}
+          {leave.mc_end_date &&
+            String(leave.mc_end_date).slice(0, 10) >
+              String(leave.end_date).slice(0, 10) &&
+            ` (applied till ${fmt(leave.end_date)})`}
+        </span>
       )}
 
       {mode === "hr" && leave.mc_status === "CERTIFICATE_UPLOADED" && (

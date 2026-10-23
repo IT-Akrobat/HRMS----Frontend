@@ -20,6 +20,7 @@ import PageHeader from "../../components/common/PageHeader";
 import SearchInput from "../../components/common/SearchInput";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
+import { leaveDaysText } from "../../utils/leaveDays";
 
 // ---------------------------------------------------------------------
 // Backend contract: GET /leaves/team (see app/leaves/routes.py + services.py)
@@ -361,8 +362,7 @@ export default function LeavePending() {
                           <p className="text-sm font-medium text-slate-700">
                             {leave.leave_types?.leave_name || "Leave"}{" "}
                             <span className="text-slate-400 font-normal">
-                              · {leave.total_days}{" "}
-                              {leave.total_days === 1 ? "day" : "days"}
+                              · {leaveDaysText(leave, true)}
                             </span>
                           </p>
                           <p className="text-xs text-slate-400 mt-0.5">
@@ -414,8 +414,7 @@ export default function LeavePending() {
                           <p className="text-sm font-medium text-slate-700">
                             {leave.leave_types?.leave_name || "Leave"}{" "}
                             <span className="text-slate-400 font-normal">
-                              · {leave.total_days}{" "}
-                              {leave.total_days === 1 ? "day" : "days"}
+                              · {leaveDaysText(leave, true)}
                             </span>
                           </p>
                           <p className="text-xs text-slate-400">
