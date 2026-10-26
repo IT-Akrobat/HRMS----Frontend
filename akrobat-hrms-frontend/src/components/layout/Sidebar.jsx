@@ -24,7 +24,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { useIsDesktop } from "../../hooks/useBasePath";
 import { isFieldEmployee } from "../../utils/employeeType";
-import { isSiteEmployee } from "../../utils/workingLocation";
+import { isChennaiEmployee, isSiteEmployee } from "../../utils/workingLocation";
 
 function isChildActive(children, pathname) {
   // EXACT match only - NO startsWith
@@ -58,6 +58,9 @@ export default function Sidebar({
   // Items flagged `hideForSite` (the Attendance tab) are hidden for
   // employees whose Working Location is exactly "Site".
   const siteEmployee = isSiteEmployee(user);
+  // Items flagged `chennaiOnly` (Saturday Swap) are shown only to employees
+  // whose Work Location mentions Chennai (e.g. "Chennai Office").
+  const chennaiEmployee = isChennaiEmployee(user);
   // Memoised so `items` keeps a stable identity between renders. Previously
   // it was rebuilt on every render, which re-triggered the effect below each
   // time a group was clicked and snapped the menu back to the active group.
@@ -85,7 +88,9 @@ export default function Sidebar({
           if (!item.children) return item;
           const children = item.children.filter(
             (c) =>
-              (!c.fieldOnly || showFieldOnly) && !(c.mobileOnly && isDesktop),
+              (!c.fieldOnly || showFieldOnly) &&
+              (!c.chennaiOnly || chennaiEmployee) &&
+              !(c.mobileOnly && isDesktop),
           );
           // "Leave Requests" lives INSIDE the leave group (only when
           // canSeeLeaveRequests, see above):
@@ -128,6 +133,7 @@ export default function Sidebar({
       inMySpace,
       showFieldOnly,
       siteEmployee,
+      chennaiEmployee,
       canSeeLeaveRequests,
       selfSpace,
       isDesktop,

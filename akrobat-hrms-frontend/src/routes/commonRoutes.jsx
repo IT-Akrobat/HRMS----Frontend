@@ -46,6 +46,7 @@ export function RequireReportingManager({ children }) {
 }
 
 const LeaveApply = lazy(() => import("../pages/shared/LeaveApply.jsx"));
+const SaturdaySwap = lazy(() => import("../pages/shared/SaturdaySwap.jsx"));
 const LeavePending = lazy(() => import("../pages/manager/LeavePending.jsx"));
 const MyProfile = lazy(() => import("../pages/shared/MyProfile.jsx"));
 const Notifications = lazy(() => import("../pages/shared/Notifications.jsx"));
@@ -69,6 +70,9 @@ export const commonRoutes = [
   { path: "settings", element: <Settings /> },
   { path: "notifications", element: <Notifications /> },
   { path: "leave/apply", element: <LeaveApply /> },
+  // Skip a regular working Saturday, work an off Saturday instead. Also where
+  // a reporting manager approves/rejects their team's swap requests.
+  { path: "leave/saturday-swap", element: <SaturdaySwap /> },
   // "Leave Requests": reporting managers only.
   {
     path: "team-leave-requests",

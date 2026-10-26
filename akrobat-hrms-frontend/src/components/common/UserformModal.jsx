@@ -720,6 +720,11 @@ export default function UserFormModal({
       .toUpperCase()
       .includes("PROJECT MANAGER");
   const worksSaturday = isOperationDept || form.works_saturday;
+  // Chennai office staff who work Saturdays do a full day (9:00 AM - 6:00 PM)
+  // instead of the half-day Office Saturday timings, so the form shows that
+  // fixed line rather than the 9-12 / 8:30-12:30 picker.
+  const isChennai = /chennai/i.test(form.work_location || "");
+  const isChennaiSaturday = isChennai && !isOperationDept && worksSaturday;
   const saturdayShift = useMemo(
     () =>
       isOperationDept
@@ -1354,8 +1359,13 @@ export default function UserFormModal({
                   className={inputCls}
                   value={form.work_location}
                   onChange={(e) => set("work_location", e.target.value)}
-                  placeholder="Singapore Office"
+                  placeholder="Chennai Office / Singapore Office"
+                  list="work-location-options"
                 />
+                <datalist id="work-location-options">
+                  <option value="Chennai Office" />
+                  <option value="Singapore Office" />
+                </datalist>
               </Field>
               <Field label="Working Location">
                 <FilterDropdown
@@ -1474,34 +1484,52 @@ export default function UserFormModal({
                         Yes
                       </button>
                     </div>
-                    {hasSaturdayChoice && !isOperationDept && (
-                      <div className="mt-2 flex gap-2">
-                        {officeSaturdayOptions.map((s) => (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => set("saturday_shift_id", s.id)}
-                            className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
-                              form.saturday_shift_id === s.id
-                                ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
-                                : "border-slate-200 text-slate-600 hover:border-slate-300"
-                            }`}
-                          >
-                            {formatTime12h(s.start_time)} –{" "}
-                            {formatTime12h(s.end_time)}
-                          </button>
-                        ))}
+                    {hasSaturdayChoice &&
+                      !isOperationDept &&
+                      !isChennaiSaturday && (
+                        <div className="mt-2 flex gap-2">
+                          {officeSaturdayOptions.map((s) => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => set("saturday_shift_id", s.id)}
+                              className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                                form.saturday_shift_id === s.id
+                                  ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                                  : "border-slate-200 text-slate-600 hover:border-slate-300"
+                              }`}
+                            >
+                              {formatTime12h(s.start_time)} –{" "}
+                              {formatTime12h(s.end_time)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    {isChennaiSaturday && (
+                      <div className="mt-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2.5 sm:py-2 text-sm font-medium text-orange-700">
+                        Saturday work hours · 9:00 AM – 6:00 PM
                       </div>
                     )}
                     {worksSaturday &&
                       saturdayShift &&
                       !hasSaturdayChoice &&
+                      !isChennaiSaturday &&
                       !isOperationDept && (
                         <span className="text-xs text-slate-400 mt-1 block">
                           Saturday: {formatTime12h(saturdayShift.start_time)} –{" "}
                           {formatTime12h(saturdayShift.end_time)}
                         </span>
                       )}
+                    {hasSaturdayChoice && !isChennai && (
+                      <button
+                        type="button"
+                        onClick={() => set("work_location", "Chennai Office")}
+                        className="mt-2 w-full rounded-lg border border-orange-300 bg-white px-3 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50"
+                      >
+                        Chennai employee? Click here for 9:00 AM – 6:00 PM
+                        Saturday
+                      </button>
+                    )}
                     <span className="text-xs text-slate-400 mt-1 block">
                       Controls this employee's Saturday shift assignment only.
                     </span>

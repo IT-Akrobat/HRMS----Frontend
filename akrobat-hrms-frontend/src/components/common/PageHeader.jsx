@@ -6,7 +6,12 @@ export default function PageHeader({
   // title, pushed to the right end (the subtitle goes underneath). Without
   // it, the buttons wrap onto their own row below the subtitle on phones.
   actionsInline = false,
+  // hideSubtitleOnMobile: hide the subtitle on phones (shown from md up).
+  hideSubtitleOnMobile = false,
 }) {
+  const subtitleClass = `text-sm text-slate-500 mt-1${
+    hideSubtitleOnMobile ? " hidden md:block" : ""
+  }`;
   if (actionsInline) {
     return (
       <div className="mb-6">
@@ -16,7 +21,7 @@ export default function PageHeader({
             <div className="flex items-center gap-2 shrink-0">{actions}</div>
           )}
         </div>
-        {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
+        {subtitle && <p className={subtitleClass}>{subtitle}</p>}
       </div>
     );
   }
@@ -26,7 +31,7 @@ export default function PageHeader({
     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 mb-6">
       <div className="min-w-0 flex-1 basis-80">
         <h1 className="text-2xl font-bold text-slate-800">{title}</h1>
-        {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
+        {subtitle && <p className={subtitleClass}>{subtitle}</p>}
       </div>
       {actions && (
         <div className="flex flex-wrap items-center gap-2 shrink-0 max-w-full">

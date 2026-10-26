@@ -39,6 +39,12 @@ const OrganizationDepartments = lazy(
   () => import("../pages/super-admin/OrganizationDepartments.jsx"),
 );
 const Reports = lazy(() => import("../pages/super-admin/Reports.jsx"));
+const ResignedEmployees = lazy(
+  () => import("../pages/super-admin/ResignedEmployees.jsx"),
+);
+const ResignedEmployeeDetail = lazy(
+  () => import("../pages/super-admin/ResignedEmployeeDetail.jsx"),
+);
 const SecurityAccessControl = lazy(
   () => import("../pages/super-admin/SecurityAccessControl.jsx"),
 );
@@ -117,4 +123,6 @@ export const superAdminRoutes = [
   //   element: <SystemSettingsIntegrations />,
   // },
   { path: "reports", element: <Reports /> },
+  { path: "resigned-employees", element: <ResignedEmployees /> },
+  { path: "resigned-employees/:id", element: <ResignedEmployeeDetail /> },
 ];

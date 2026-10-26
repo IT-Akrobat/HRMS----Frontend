@@ -11,6 +11,7 @@ import {
   Settings,
   ShieldCheck,
   User,
+  UserMinus,
   Users,
 } from "lucide-react";
 import { ROLES } from "./roles";
@@ -63,6 +64,11 @@ export const NAVIGATION_CONFIG = {
       children: [
         { label: "Apply Leave", path: "/employee/leave/apply" },
         { label: "Leave History", path: "/employee/leave/history" },
+        {
+          label: "Saturday Swap",
+          path: "/employee/leave/saturday-swap",
+          chennaiOnly: true,
+        },
         // { label: 'Leave Balance', path: '/employee/leave/balance' },
       ],
     },
@@ -124,7 +130,14 @@ export const NAVIGATION_CONFIG = {
     {
       label: "Leave Management",
       icon: Palmtree,
-      children: [{ label: "Leave History", path: "/manager/leave/history" }],
+      children: [
+        { label: "Leave History", path: "/manager/leave/history" },
+        {
+          label: "Saturday Swap",
+          path: "/manager/leave/saturday-swap",
+          chennaiOnly: true,
+        },
+      ],
     },
     // {
     //   label: "Projects",
@@ -328,6 +341,11 @@ export const NAVIGATION_CONFIG = {
     //     },
     //   ],
     // },
+    {
+      label: "Resigned Employees",
+      icon: UserMinus,
+      path: "/super-admin/resigned-employees",
+    },
     { label: "Reports", icon: BarChart3, path: "/super-admin/reports" },
     { label: "Notifications", icon: Bell, path: "/super-admin/notifications" },
     { label: "Settings", icon: Settings, path: "/super-admin/settings" },
@@ -369,6 +387,11 @@ export const HR_SELF_NAVIGATION = [
     children: [
       { label: "Apply Leave", path: "/hr-admin/me/leave/apply" },
       { label: "Leave History", path: "/hr-admin/me/leave/history" },
+      {
+        label: "Saturday Swap",
+        path: "/hr-admin/me/leave/saturday-swap",
+        chennaiOnly: true,
+      },
     ],
   },
   {
@@ -417,6 +440,11 @@ function buildSelfNavigation(base) {
       children: [
         { label: "Apply Leave", path: `${base}/leave/apply` },
         { label: "Leave History", path: `${base}/leave/history` },
+        {
+          label: "Saturday Swap",
+          path: `${base}/leave/saturday-swap`,
+          chennaiOnly: true,
+        },
       ],
     },
     {

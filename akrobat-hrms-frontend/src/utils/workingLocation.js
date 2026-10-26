@@ -13,3 +13,10 @@ export function isSiteEmployee(user) {
       .toLowerCase() === "site"
   );
 }
+
+// Saturday Swap is only offered to Chennai staff. `work_location` is free
+// text on the employee profile (e.g. "Chennai Office"), so match "chennai"
+// anywhere in it, case-insensitive -- same rule UserformModal uses.
+export function isChennaiEmployee(user) {
+  return /chennai/i.test(String(user?.profile?.work_location || ""));
+}

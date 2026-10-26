@@ -232,6 +232,7 @@ function MobileAttendanceCard({
   geoHint, // string shown under the card for location problems
   busy,
   checkInDisabled,
+  offDayReason,
   onCheckIn,
   onBreakToggle,
   onCheckOut,
@@ -250,6 +251,13 @@ function MobileAttendanceCard({
           {clock}
         </span>
       </div>
+
+      {!loading && offDayReason && !checkedIn && !done && (
+        <div className="flex items-start gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-3">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          {offDayReason}
+        </div>
+      )}
 
       {!loading && loadError && (
         <div className="flex items-center justify-between gap-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3">
@@ -397,6 +405,9 @@ export default function CheckInOutCard({
   // so a failed status fetch can never silently look like "not checked
   // in today". See the comment in load() below.
   const [loadError, setLoadError] = useState(null);
+  // Saturday off (works_saturday = false / not an alternate Saturday): the
+  // backend rejects check-in, so the button is disabled up front too.
+  const [offDayReason, setOffDayReason] = useState(null);
   const [notLinked, setNotLinked] = useState(false);
 
   // Live clock — ticks every second so the card always shows the actual
@@ -472,6 +483,17 @@ export default function CheckInOutCard({
       setLoadError(null);
       const res = await apiClient.get(`/attendance/timeline/${todayIso()}`);
       setToday(res.data ?? null);
+      try {
+        const wd = await apiClient.get(`/attendance/working-day/${todayIso()}`);
+        setOffDayReason(
+          wd.data && wd.data.is_working_day === false
+            ? wd.data.reason || "Today is your week off."
+            : null,
+        );
+      } catch {
+        // Best effort: the backend still blocks check-in on an off day.
+        setOffDayReason(null);
+      }
     } catch (err) {
       // No employee profile linked -> backend returns data: null via a 200,
       // so a thrown error here is a real failure, not "no record yet".
@@ -837,10 +859,13 @@ export default function CheckInOutCard({
     busy ||
     geoStatus === "locating" ||
     geoStatus === "unsupported" ||
-    !!loadError;
+    !!loadError ||
+    !!offDayReason;
 
   let checkInButtonLabel = "Check In";
-  if (geoStatus === "locating") {
+  if (offDayReason) {
+    checkInButtonLabel = "Week off";
+  } else if (geoStatus === "locating") {
     checkInButtonLabel = "Locating…";
   } else if (geoStatus === "denied") {
     checkInButtonLabel = "Retry Location";
@@ -851,6 +876,7 @@ export default function CheckInOutCard({
   }
 
   function handleCheckInClick() {
+    if (offDayReason) return;
     if (canRetryLocation) {
       detectLocation();
       return;
@@ -970,6 +996,7 @@ export default function CheckInOutCard({
         geoHint={geoHint}
         busy={busy}
         checkInDisabled={checkInDisabled}
+        offDayReason={offDayReason}
         onCheckIn={handleCheckInClick}
         onBreakToggle={() =>
           runAction(
@@ -1081,6 +1108,13 @@ export default function CheckInOutCard({
           </span>
         </div>
       </div>
+
+      {!loading && offDayReason && !checkedIn && !checkedOut && (
+        <div className="flex items-start gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 mb-3">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          {offDayReason}
+        </div>
+      )}
 
       {!loading && loadError && (
         <div className="flex items-center justify-between gap-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2.5 mb-3">
