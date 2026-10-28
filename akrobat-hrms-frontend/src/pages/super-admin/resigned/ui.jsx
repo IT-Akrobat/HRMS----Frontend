@@ -1,6 +1,7 @@
 import { ChevronDown, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { parseLocalISODate } from "../../../utils/date";
+import { parseLocalISODate, parseServerDate } from "../../../utils/date";
+import { is12h } from "../../../utils/timeFormat";
 
 // Change if the company pays in another currency.
 export const CURRENCY = "S$";
@@ -29,11 +30,20 @@ export function fmtDateTime(value) {
   });
 }
 
-export function fmtTime(value) {
+// Times come from the server as naive UTC. Parse them as UTC and show them
+// in the timezone the record happened in (`tz`, sent by the backend).
+export function fmtTime(value, tz) {
   if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const d = parseServerDate(value);
+  if (!d) return "—";
+  const opts = { hour: "2-digit", minute: "2-digit", hour12: is12h() };
+  if (tz) opts.timeZone = tz;
+  try {
+    return d.toLocaleTimeString("en-GB", opts);
+  } catch {
+    delete opts.timeZone;
+    return d.toLocaleTimeString("en-GB", opts);
+  }
 }
 
 export function money(n) {

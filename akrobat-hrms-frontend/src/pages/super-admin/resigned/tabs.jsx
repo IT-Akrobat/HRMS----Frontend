@@ -30,7 +30,7 @@ import {
   inputCls,
   money,
   statusColor,
-  useLoad
+  useLoad,
 } from "./ui";
 
 // First non-empty value among several possible column names. Personal /
@@ -622,8 +622,8 @@ export function AttendanceTab({ id }) {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium text-slate-800">
-                          {fmtTime(r.check_in_time)} →{" "}
-                          {fmtTime(r.check_out_time)}
+                          {fmtTime(r.check_in_time, r.timezone)} →{" "}
+                          {fmtTime(r.check_out_time, r.timezone)}
                         </div>
                         <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-slate-500">
                           <span>{hours(r.working_minutes)}</span>
@@ -645,11 +645,11 @@ export function AttendanceTab({ id }) {
                   { header: "Date", render: (r) => fmtDate(r.attendance_date) },
                   {
                     header: "Check in",
-                    render: (r) => fmtTime(r.check_in_time),
+                    render: (r) => fmtTime(r.check_in_time, r.timezone),
                   },
                   {
                     header: "Check out",
-                    render: (r) => fmtTime(r.check_out_time),
+                    render: (r) => fmtTime(r.check_out_time, r.timezone),
                   },
                   { header: "Hours", render: (r) => hours(r.working_minutes) },
                   {
