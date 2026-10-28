@@ -2,7 +2,8 @@ import { Clock3, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiClient } from "../../services/apiClient";
 
-// Top employees by attendance punctuality over the trailing 30 days —
+// Top employees over the trailing 30 days, ranked by total work hours, then
+// days present, then on-time check-ins —
 // backed by GET /dashboard/top-performers (see
 // app/dashboard/services.py -> get_top_performers). There's no separate
 // "performance rating" concept in this schema, so rather than show fake
@@ -123,9 +124,13 @@ export default function TopPerformersCard() {
                   <p className="text-sm font-medium text-slate-800 truncate">
                     {p.full_name}
                   </p>
-                  <p className="text-xs text-slate-400 truncate flex items-center gap-1">
+                  <p
+                    className="text-xs text-slate-400 truncate flex items-center gap-1"
+                    title="% = on-time days / working days. Weekends, holidays and approved leave are excluded; absent days count against."
+                  >
                     <Clock3 size={10} className="shrink-0" />
-                    {p.on_time_days}/{p.present_days} on-time
+                    {p.on_time_days} on-time · {p.present_days}/
+                    {p.working_days ?? p.present_days} days
                     {p.department_name ? ` · ${p.department_name}` : ""}
                   </p>
                 </div>
@@ -140,4 +145,3 @@ export default function TopPerformersCard() {
     </div>
   );
 }
- 
