@@ -39,6 +39,7 @@ import HolidaysCalendarCard, {
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import UserFormModal from "../../components/common/UserformModal";
 import { useAuth } from "../../context/AuthContext";
+import { useRegion } from "../../context/RegionContext";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import {
@@ -318,6 +319,7 @@ function StripKpi({ icon: Icon, label, value, loading, chip }) {
 // Site / Leave Balance buttons are portalled into the tab line instead of the
 // banner. undefined = standalone (buttons stay in the banner as before).
 export default function SuperAdminDashboard({ actionsSlot } = {}) {
+  const { region } = useRegion();
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -1097,9 +1099,11 @@ export default function SuperAdminDashboard({ actionsSlot } = {}) {
               onRangeChange={setTrendRange}
             />
 
-            <div className="h-80">
-              <TopPerformersCard />
-            </div>
+            {region !== "CHENNAI" && (
+              <div className="h-80">
+                <TopPerformersCard />
+              </div>
+            )}
 
             {/* ---------- Today: On Leave + Birthdays ----------
                 Moved below Top Performers, and switched from a fixed
@@ -1922,9 +1926,11 @@ export default function SuperAdminDashboard({ actionsSlot } = {}) {
           ))}
 
           {/* ---------- Top Performance ---------- */}
-          <div className="h-60 sm:h-72">
-            <TopPerformersCard />
-          </div>
+          {region !== "CHENNAI" && (
+            <div className="h-60 sm:h-72">
+              <TopPerformersCard />
+            </div>
+          )}
         </div>
       </div>
 

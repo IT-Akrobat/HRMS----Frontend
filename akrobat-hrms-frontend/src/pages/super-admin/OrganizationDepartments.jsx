@@ -169,9 +169,11 @@ export default function OrganizationDepartments() {
 
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // Hide departments that have no employees (count === 0).
+    const nonEmpty = deptRows.filter((d) => d.count > 0);
     const list = q
-      ? deptRows.filter((d) => d.name.toLowerCase().includes(q))
-      : [...deptRows];
+      ? nonEmpty.filter((d) => d.name.toLowerCase().includes(q))
+      : nonEmpty;
     list.sort((a, b) =>
       sortBy === "name" ? a.name.localeCompare(b.name) : b.count - a.count,
     );

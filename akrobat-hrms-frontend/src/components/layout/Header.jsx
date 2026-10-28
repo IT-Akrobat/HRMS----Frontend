@@ -17,6 +17,7 @@ import { useNotificationLiveUpdates } from "../../hooks/useNotificationLiveUpdat
 import { apiClient } from "../../services/apiClient";
 import { initNotificationFallback } from "../../services/Notificationfallback";
 import { parseServerDate } from "../../utils/date";
+import RegionToggle from "../common/RegionToggle";
 
 // Notification bell now backed by the real API (see app/notifications —
 // GET /notifications/my, PUT /:id/read, PUT /my/read-all). The leaves
@@ -395,6 +396,8 @@ export default function Header({ onMenuClick, overHero = false }) {
 
       {/* Notifications + Profile */}
       <div className="flex items-center gap-2 ml-auto">
+        <RegionToggle className="mr-1" />
+
         <NotificationBell overHero={overHero} />
 
         {/* Avatar + name — tap to open My Profile (/<role>/profile/personal,
@@ -404,10 +407,10 @@ export default function Header({ onMenuClick, overHero = false }) {
           onClick={() => navigate(`${base}/profile/personal`)}
           title="My Profile"
           aria-label="Open My Profile"
-          className="flex items-center gap-2 rounded-lg p-0.5 pr-1 hover:bg-slate-50 transition-colors"
+          className="flex items-center gap-2 rounded-full p-0.5 pr-1 md:border md:border-slate-200 md:bg-white md:pr-4 hover:bg-slate-50 transition-colors"
         >
           <div
-            className={`w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center font-semibold text-sm overflow-hidden ${
+            className={`w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-sm overflow-hidden ${
               overHero ? "max-lg:bg-white/20 max-lg:text-white" : ""
             }`}
           >
@@ -422,10 +425,11 @@ export default function Header({ onMenuClick, overHero = false }) {
             )}
           </div>
 
-          <div className="hidden md:block text-left">
-            <p className="text-sm font-medium text-slate-800">{user?.name}</p>
-            <p className="text-xs text-slate-400">{ROLE_LABELS[role]}</p>
-          </div>
+          <p className="hidden md:block text-sm font-medium text-slate-800 whitespace-nowrap">
+            {user?.name}
+            <span className="text-slate-400 font-normal"> · </span>
+            {ROLE_LABELS[role]}
+          </p>
         </button>
 
         {/* Logout — icon only */}

@@ -91,7 +91,7 @@ export function statusColor(status = "") {
 export function Card({ title, actions, children, className = "" }) {
   return (
     <section
-      className={`rounded-xl border border-slate-200 bg-white p-4 ${className}`}
+      className={`min-w-0 rounded-2xl border border-slate-200 bg-white p-4 md:rounded-xl ${className}`}
     >
       {(title || actions) && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -129,49 +129,108 @@ export function FieldGrid({ children }) {
   );
 }
 
-export function Table({ columns, rows, empty = "No records.", rowKey }) {
+// scroll: optional max-height class (e.g. "max-h-[380px]") for a fixed-height,
+// vertically scrolling body. mobileCards: force stacked cards on phones.
+export function Table({
+  columns,
+  rows,
+  empty = "No records.",
+  rowKey,
+  scroll = "",
+  mobileCards,
+  mobileRow,
+}) {
+  // Narrow tables turn into stacked cards on phones; wide ones scroll.
+  const compact = mobileCards ?? (mobileRow ? true : columns.length <= 4);
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-[13px]">
-        <thead>
-          <tr>
-            {columns.map((c) => (
-              <th
-                key={c.header}
-                className="whitespace-nowrap border-b border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold text-slate-500"
-              >
-                {c.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
+    <>
+      {compact && (
+        <div className={`overflow-y-auto md:hidden ${scroll}`}>
           {rows.length === 0 ? (
-            <tr>
-              <td
-                colSpan={columns.length}
-                className="px-3 py-8 text-center text-slate-400"
-              >
-                {empty}
-              </td>
-            </tr>
+            <p className="py-6 text-center text-[13px] text-slate-400">
+              {empty}
+            </p>
+          ) : mobileRow ? (
+            <div className="divide-y divide-slate-100">
+              {rows.map((r, i) => (
+                <div
+                  key={rowKey ? rowKey(r) : (r.id ?? i)}
+                  className="py-3 first:pt-0 last:pb-0"
+                >
+                  {mobileRow(r)}
+                </div>
+              ))}
+            </div>
           ) : (
-            rows.map((r, i) => (
-              <tr key={rowKey ? rowKey(r) : (r.id ?? i)}>
-                {columns.map((c) => (
-                  <td
-                    key={c.header}
-                    className="whitespace-nowrap border-b border-slate-100 px-3 py-2 text-[13px] text-slate-700"
-                  >
-                    {c.render(r)}
-                  </td>
-                ))}
-              </tr>
-            ))
+            <div className="space-y-2">
+              {rows.map((r, i) => (
+                <div
+                  key={rowKey ? rowKey(r) : (r.id ?? i)}
+                  className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
+                >
+                  {columns.map((c) => (
+                    <div
+                      key={c.header}
+                      className="flex items-start justify-between gap-3 py-0.5 text-[13px]"
+                    >
+                      <span className="shrink-0 text-slate-500">
+                        {c.header}
+                      </span>
+                      <span className="min-w-0 break-words text-right font-medium text-slate-700">
+                        {c.render(r)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           )}
-        </tbody>
-      </table>
-    </div>
+        </div>
+      )}
+      <div
+        className={`max-w-full overflow-auto ${scroll} ${compact ? "hidden md:block" : ""}`}
+      >
+        <table className="w-full min-w-[640px] border-collapse text-[13px]">
+          <thead>
+            <tr>
+              {columns.map((c) => (
+                <th
+                  key={c.header}
+                  className="sticky top-0 z-[1] whitespace-nowrap border-b border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold text-slate-500"
+                >
+                  {c.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-3 py-8 text-center text-slate-400"
+                >
+                  {empty}
+                </td>
+              </tr>
+            ) : (
+              rows.map((r, i) => (
+                <tr key={rowKey ? rowKey(r) : (r.id ?? i)}>
+                  {columns.map((c) => (
+                    <td
+                      key={c.header}
+                      className="whitespace-nowrap border-b border-slate-100 px-3 py-2 text-[13px] text-slate-700"
+                    >
+                      {c.render(r)}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -223,11 +282,11 @@ export function useLoad(loader, deps = []) {
 }
 
 export const inputCls =
-  "w-full min-h-[36px] rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[13px] text-slate-800 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-50";
+  "w-full min-h-[44px] md:min-h-[36px] rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[13px] text-slate-800 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-50";
 export const btnPrimary =
-  "inline-flex min-h-[36px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-[#F5730B] px-3.5 text-[13px] font-semibold text-white hover:bg-orange-600 disabled:opacity-60";
+  "inline-flex min-h-[44px] md:min-h-[36px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-[#F5730B] px-3.5 text-[13px] font-semibold text-white hover:bg-orange-600 disabled:opacity-60";
 export const btnGhost =
-  "inline-flex min-h-[36px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60";
+  "inline-flex min-h-[44px] md:min-h-[36px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60";
 
 // Styled dropdown: native arrow hidden, one chevron, same height as inputs.
 // `className` goes on the wrapper (use it for width, e.g. "w-44").

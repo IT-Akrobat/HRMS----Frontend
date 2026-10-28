@@ -34,6 +34,7 @@ import OutdoorCheckinAccessModal from "../../components/common/Outdoorcheckinacc
 import TopPerformersCard from "../../components/common/TopPerformanceCard";
 import UserFormModal from "../../components/common/UserformModal";
 import { useAuth } from "../../context/AuthContext";
+import { useRegion } from "../../context/RegionContext";
 import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import useOfficeFeedCounts from "../../hooks/useOfficeFeedCounts";
 import { apiClient } from "../../services/apiClient";
@@ -447,6 +448,7 @@ function DesktopBanner({
 }
 
 export default function HrAdminDashboard({ actionsSlot } = {}) {
+  const { region } = useRegion();
   const { user } = useAuth();
   const firstName = user?.name?.split(" ")[0] || "there";
 
@@ -736,9 +738,11 @@ export default function HrAdminDashboard({ actionsSlot } = {}) {
               range={trendRange}
               onRangeChange={setTrendRange}
             />
-            <div className="h-72">
-              <TopPerformersCard />
-            </div>
+            {region !== "CHENNAI" && (
+              <div className="h-72">
+                <TopPerformersCard />
+              </div>
+            )}
           </div>
         )}
 
@@ -1152,9 +1156,11 @@ export default function HrAdminDashboard({ actionsSlot } = {}) {
           ))}
 
           {/* ---------- Top Performance ---------- */}
-          <div className="h-60 sm:h-72">
-            <TopPerformersCard />
-          </div>
+          {region !== "CHENNAI" && (
+            <div className="h-60 sm:h-72">
+              <TopPerformersCard />
+            </div>
+          )}
         </div>
       </div>
 

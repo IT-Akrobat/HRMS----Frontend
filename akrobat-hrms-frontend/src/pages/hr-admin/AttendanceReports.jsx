@@ -12,6 +12,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
+import { PartTimeOrgSummary } from "../../components/common/PartTimeSummary";
 import SearchInput from "../../components/common/SearchInput";
 import SelectDropdown from "../../components/common/SelectDropdown";
 import DatePicker from "../../components/layout/DatePicker";
@@ -481,6 +482,8 @@ export default function AttendanceReports() {
           </>
         }
       />
+
+      <PartTimeOrgSummary />
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {/* Row 1: Search box. Mobile: hidden here — it now sits on the

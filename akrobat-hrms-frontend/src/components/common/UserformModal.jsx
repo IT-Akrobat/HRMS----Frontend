@@ -528,6 +528,8 @@ export default function UserFormModal({
     // _get_employee_shift). Independent flag, doesn't touch the
     // Yes/No toggle above.
     alternate_saturday: user?.alternate_saturday || false,
+    // Part-time: no shift/leave/OT -- only worked hours are calculated.
+    is_part_time: user?.is_part_time || false,
     // Office-hours staff only: chosen Saturday timing (9-12 / 8:30-12:30).
     saturday_shift_id: user?.saturday_shift_id || "",
     // Eligibility inputs for the leave policy engine (see
@@ -924,10 +926,12 @@ export default function UserFormModal({
           working_location: orUndefined(form.working_location),
           // Only the leave days HR typed / changed are sent; omitting the
           // key leaves every existing entitlement untouched.
-          leave_entitlements: entitlements.length ? entitlements : undefined,
+          leave_entitlements:
+            !form.is_part_time && entitlements.length ? entitlements : undefined,
           working_days_per_week: form.working_days_per_week,
           works_saturday: isOperationDept ? true : form.works_saturday,
           alternate_saturday: isOperationDept ? false : form.alternate_saturday,
+          is_part_time: !!form.is_part_time,
           // null clears it when the employee is no longer Office-hours.
           saturday_shift_id: hasSaturdayChoice
             ? orUndefined(form.saturday_shift_id)
@@ -959,10 +963,12 @@ export default function UserFormModal({
           employment_status: form.employment_status,
           work_location: form.work_location.trim() || undefined,
           working_location: orUndefined(form.working_location),
-          leave_entitlements: entitlements.length ? entitlements : undefined,
+          leave_entitlements:
+            !form.is_part_time && entitlements.length ? entitlements : undefined,
           working_days_per_week: form.working_days_per_week,
           works_saturday: isOperationDept ? true : form.works_saturday,
           alternate_saturday: isOperationDept ? false : form.alternate_saturday,
+          is_part_time: !!form.is_part_time,
           saturday_shift_id: hasSaturdayChoice
             ? orUndefined(form.saturday_shift_id)
             : undefined,
@@ -1073,6 +1079,22 @@ export default function UserFormModal({
               <span>{error}</span>
             </div>
           )}
+
+          <label className="flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={!!form.is_part_time}
+              onChange={(e) => set("is_part_time", e.target.checked)}
+            />
+            <span>
+              <span className="font-medium">Part-time employee</span>
+              <span className="block text-xs text-slate-400">
+                No fixed shift, leave or OT. Can work any day (incl. Sat/Sun);
+                only check-in to check-out time is calculated.
+              </span>
+            </span>
+          </label>
 
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
@@ -1293,6 +1315,7 @@ export default function UserFormModal({
                   getLabel={(u) => `${u.full_name} (${u.employee_id})`}
                 />
               </Field>
+              {!form.is_part_time && (
               <Field label="Weekday Hours">
                 {!form.department_id ? (
                   <div className="text-sm text-slate-400 border border-slate-200 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50">
@@ -1349,6 +1372,7 @@ export default function UserFormModal({
                   </span>
                 )}
               </Field>
+              )}
               <DatePicker
                 label="Joining Date"
                 value={form.joining_date || ""}
@@ -1383,6 +1407,8 @@ export default function UserFormModal({
           </div>
 
           <div>
+            {!form.is_part_time && (
+            <>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
               Leave Policy
             </h3>
@@ -1569,6 +1595,8 @@ export default function UserFormModal({
                 </span>
               </Field>
             </div>
+            </>
+            )}
           </div>
         </form>
 

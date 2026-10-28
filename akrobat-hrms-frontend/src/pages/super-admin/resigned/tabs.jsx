@@ -1,26 +1,36 @@
-import { ExternalLink } from "lucide-react";
+import {
+  Briefcase,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Landmark,
+  MapPin,
+  Phone,
+  User,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import DatePicker from "../../../components/layout/DatePicker";
 import { resignationService } from "../../../services/resignationService";
 import {
-    Card,
-    ErrorBox,
-    Field,
-    FieldGrid,
-    Select,
-    Spinner,
-    Table,
-    Tag,
-    btnGhost,
-    btnPrimary,
-    fmtDate,
-    fmtDateTime,
-    fmtTime,
-    hours,
-    inputCls,
-    money,
-    statusColor,
-    useLoad,
+  Card,
+  ErrorBox,
+  Field,
+  FieldGrid,
+  Select,
+  Spinner,
+  Table,
+  Tag,
+  btnPrimary,
+  fmtDate,
+  fmtDateTime,
+  fmtTime,
+  hours,
+  inputCls,
+  money,
+  statusColor,
+  useLoad
 } from "./ui";
 
 // First non-empty value among several possible column names. Personal /
@@ -30,6 +40,62 @@ const pick = (obj, ...keys) => {
   for (const k of keys) if (obj?.[k]) return obj[k];
   return "";
 };
+
+function SecTitle({ icon: Icon, children }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
+        <Icon className="h-4 w-4" />
+      </span>
+      {children}
+    </span>
+  );
+}
+
+const isEmpty = (v) => v === undefined || v === null || v === "";
+
+// Label/value rows on phones, the original field grid on desktop.
+// item = [label, value, stack?] - stack puts long text under its label.
+function InfoRows({ items }) {
+  return (
+    <>
+      <div className="md:hidden">
+        {items.map(([label, value, stack]) =>
+          stack ? (
+            <div
+              key={label}
+              className="border-t border-slate-100 py-2.5 first:border-t-0 first:pt-0 last:pb-0"
+            >
+              <div className="text-xs text-slate-500">{label}</div>
+              <div className="mt-0.5 break-words text-sm font-medium text-slate-800">
+                {isEmpty(value) ? "—" : value}
+              </div>
+            </div>
+          ) : (
+            <div
+              key={label}
+              className="flex items-start justify-between gap-4 border-t border-slate-100 py-2.5 text-sm first:border-t-0 first:pt-0 last:pb-0"
+            >
+              <span className="shrink-0 text-slate-500">{label}</span>
+              <span className="min-w-0 break-words text-right font-medium text-slate-800">
+                {isEmpty(value) ? "—" : value}
+              </span>
+            </div>
+          ),
+        )}
+      </div>
+      <div className="hidden md:block">
+        <FieldGrid>
+          {items.map(([label, value]) => (
+            <Field key={label} label={label}>
+              {value}
+            </Field>
+          ))}
+        </FieldGrid>
+      </div>
+    </>
+  );
+}
 
 function TabState({ state, children }) {
   if (state.loading) return <Spinner />;
@@ -102,7 +168,7 @@ export function ExitTab({ id, resignation, onChanged }) {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {error && (
         <div className="lg:col-span-2">
           <ErrorBox message={error} />
@@ -137,7 +203,7 @@ export function ExitTab({ id, resignation, onChanged }) {
       </Card>
 
       <Card title="Final settlement">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="text-xs text-slate-500">
             Pending salary
             <input
@@ -229,49 +295,70 @@ export function ProfileTab({ id }) {
   return (
     <TabState state={state}>
       {({ employee: e, emergency_contacts, site_assignments }) => (
-        <div className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="Personal information">
-              <FieldGrid>
-                <Field label="Full name">{e.full_name}</Field>
-                <Field label="Date of birth">
-                  {fmtDate(pick(e, "date_of_birth", "dob"))}
-                </Field>
-                <Field label="Gender">{e.gender}</Field>
-                <Field label="Blood group">{e.blood_group}</Field>
-                <Field label="Phone">{e.phone}</Field>
-                <Field label="Personal email">
-                  {pick(e, "personal_email")}
-                </Field>
-                <Field label="Current address">
-                  {pick(e, "current_address", "address")}
-                </Field>
-                <Field label="Permanent address">{e.permanent_address}</Field>
-              </FieldGrid>
+        <div className="min-w-0 space-y-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card title={<SecTitle icon={User}>Personal information</SecTitle>}>
+              <InfoRows
+                items={[
+                  ["Full name", e.full_name],
+                  ["Date of birth", fmtDate(pick(e, "date_of_birth", "dob"))],
+                  ["Gender", e.gender],
+                  ["Blood group", e.blood_group],
+                  ["Phone", e.phone],
+                  ["Personal email", pick(e, "personal_email"), true],
+                  [
+                    "Current address",
+                    pick(e, "current_address", "address"),
+                    true,
+                  ],
+                  ["Permanent address", e.permanent_address, true],
+                ]}
+              />
             </Card>
-            <Card title="Employment information">
-              <FieldGrid>
-                <Field label="Employee ID">{e.employee_id}</Field>
-                <Field label="Company email">{e.email}</Field>
-                <Field label="Department">
-                  {e.departments?.department_name}
-                </Field>
-                <Field label="Designation">
-                  {e.designations?.designation_name}
-                </Field>
-                <Field label="Reporting manager">{e.manager_name}</Field>
-                <Field label="Joining date">{fmtDate(e.joining_date)}</Field>
-                <Field label="Shift">{e.shifts?.shift_name}</Field>
-                <Field label="Work location">{e.work_location}</Field>
-                <Field label="Status">{e.employment_status}</Field>
-              </FieldGrid>
+            <Card
+              title={
+                <SecTitle icon={Briefcase}>Employment information</SecTitle>
+              }
+            >
+              <InfoRows
+                items={[
+                  ["Employee ID", e.employee_id],
+                  ["Company email", e.email, true],
+                  ["Department", e.departments?.department_name],
+                  ["Designation", e.designations?.designation_name],
+                  ["Reporting manager", e.manager_name],
+                  ["Joining date", fmtDate(e.joining_date)],
+                  ["Shift", e.shifts?.shift_name],
+                  ["Work location", e.work_location],
+                  ["Status", e.employment_status],
+                ]}
+              />
             </Card>
           </div>
 
-          <Card title="Site assignment history">
+          <Card
+            title={<SecTitle icon={MapPin}>Site assignment history</SecTitle>}
+          >
             <Table
               rows={site_assignments}
               empty="No site assignments."
+              scroll="max-h-[320px]"
+              mobileRow={(r) => (
+                <div className="space-y-0.5">
+                  <div className="text-sm font-semibold text-slate-800">
+                    {r.locations?.location_name || "—"}
+                  </div>
+                  <div className="text-[13px] text-slate-600">
+                    {fmtDate(r.assigned_from)} →{" "}
+                    {r.assigned_to ? fmtDate(r.assigned_to) : "Till date"}
+                  </div>
+                  {r.assigned_by_name && (
+                    <div className="text-xs text-slate-400">
+                      Assigned by {r.assigned_by_name}
+                    </div>
+                  )}
+                </div>
+              )}
               columns={[
                 {
                   header: "Site",
@@ -291,29 +378,63 @@ export function ProfileTab({ id }) {
             />
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="Bank and statutory">
-              <FieldGrid>
-                <Field label="Bank">{pick(e, "bank_name")}</Field>
-                <Field label="Account number">
-                  {mask(pick(e, "bank_account_number", "account_number"))}
-                </Field>
-                <Field label="IFSC / bank code">
-                  {pick(e, "ifsc_code", "bank_code")}
-                </Field>
-                <Field label="PAN / tax ID">
-                  {mask(pick(e, "pan_number", "pan", "tax_id"))}
-                </Field>
-                <Field label="UAN / CPF / PF">
-                  {pick(e, "uan", "pf_number", "cpf_number")}
-                </Field>
-                <Field label="ESI number">{pick(e, "esi_number")}</Field>
-              </FieldGrid>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card
+              title={<SecTitle icon={Landmark}>Bank and statutory</SecTitle>}
+            >
+              <InfoRows
+                items={[
+                  ["Bank", pick(e, "bank_name")],
+                  [
+                    "Account number",
+                    mask(pick(e, "bank_account_number", "account_number")),
+                  ],
+                  ["IFSC / bank code", pick(e, "ifsc_code", "bank_code")],
+                  [
+                    "PAN / tax ID",
+                    mask(pick(e, "pan_number", "pan", "tax_id")),
+                  ],
+                  ["UAN / CPF / PF", pick(e, "uan", "pf_number", "cpf_number")],
+                  ["ESI number", pick(e, "esi_number")],
+                ]}
+              />
             </Card>
-            <Card title="Emergency contacts">
+            <Card title={<SecTitle icon={Phone}>Emergency contacts</SecTitle>}>
               <Table
                 rows={emergency_contacts}
                 empty="No emergency contacts."
+                mobileRow={(r) => {
+                  const name =
+                    pick(r, "contact_name", "name", "full_name") || "—";
+                  const phone = pick(
+                    r,
+                    "phone",
+                    "phone_number",
+                    "contact_number",
+                  );
+                  return (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-slate-800">
+                          {name}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {r.relationship || "—"}
+                        </div>
+                      </div>
+                      {phone ? (
+                        <a
+                          href={`tel:${phone}`}
+                          className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full bg-orange-50 px-3 text-[13px] font-semibold text-orange-700"
+                        >
+                          <Phone className="h-3.5 w-3.5" /> {phone}
+                        </a>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </div>
+                  );
+                }}
                 columns={[
                   {
                     header: "Name",
@@ -348,6 +469,98 @@ function mask(v) {
 // Attendance
 // ---------------------------------------------------------------------
 
+const STATUS_CHIPS = [
+  ["", "All"],
+  ["Present", "Present"],
+  ["Absent", "Absent"],
+  ["Late", "Late"],
+  ["On Leave", "On leave"],
+];
+
+function monthLabel(m) {
+  if (!m) return "All months";
+  const [y, mo] = m.split("-").map(Number);
+  return new Date(y, mo - 1, 1).toLocaleDateString("en-GB", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function shiftMonth(m, delta) {
+  const now = new Date();
+  const [y, mo] = m
+    ? m.split("-").map(Number)
+    : [now.getFullYear(), now.getMonth() + 1];
+  const d = new Date(y, mo - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function AttendanceFilters({ month, status, setMonth, setStatus }) {
+  const active = month || status;
+  const arrow =
+    "flex h-11 w-11 shrink-0 items-center justify-center text-slate-600 active:bg-slate-100 md:h-9 md:w-9";
+  return (
+    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 md:flex md:items-center md:gap-4 md:space-y-0 md:rounded-xl">
+      <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 md:w-64 md:shrink-0">
+        <button
+          type="button"
+          aria-label="Previous month"
+          className={arrow}
+          onClick={() => setMonth(shiftMonth(month, -1))}
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setMonth("")}
+          title="Show all months"
+          className="flex min-w-0 flex-1 items-center justify-center gap-2 text-sm font-semibold text-slate-800"
+        >
+          <CalendarDays className="h-4 w-4 shrink-0 text-orange-500" />
+          <span className="truncate">{monthLabel(month)}</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Next month"
+          className={arrow}
+          onClick={() => setMonth(shiftMonth(month, 1))}
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="-mx-3 flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto px-3 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
+        {STATUS_CHIPS.map(([value, label]) => (
+          <button
+            key={label}
+            type="button"
+            aria-pressed={status === value}
+            onClick={() => setStatus(value)}
+            className={`min-h-[40px] shrink-0 whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium md:min-h-[32px] ${
+              status === value
+                ? "border-[#0B1830] bg-[#0B1830] text-white"
+                : "border-slate-200 bg-white text-slate-600"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        {active && (
+          <button
+            type="button"
+            onClick={() => {
+              setMonth("");
+              setStatus("");
+            }}
+            className="inline-flex min-h-[40px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3 text-[13px] font-semibold text-orange-600 md:min-h-[32px]"
+          >
+            <X className="h-3.5 w-3.5" /> Clear
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AttendanceTab({ id }) {
   const [month, setMonth] = useState("");
   const [status, setStatus] = useState("");
@@ -357,11 +570,17 @@ export function AttendanceTab({ id }) {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
+      <AttendanceFilters
+        month={month}
+        status={status}
+        setMonth={setMonth}
+        setStatus={setStatus}
+      />
       <TabState state={state}>
         {({ summary: s, monthly, records }) => (
           <>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div className="-mx-3 flex flex-nowrap gap-3 overflow-x-auto px-3 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-5 md:overflow-visible md:px-0 md:pb-0 [&::-webkit-scrollbar]:hidden">
               {[
                 ["Days present", s.present_days],
                 ["Absent days", s.absent_days],
@@ -371,57 +590,57 @@ export function AttendanceTab({ id }) {
               ].map(([label, value]) => (
                 <div
                   key={label}
-                  className="rounded-xl border border-slate-200 bg-white p-4"
+                  className="min-w-[132px] shrink-0 rounded-2xl border border-slate-200 bg-white p-4 md:min-w-0 md:rounded-xl"
                 >
                   <div className="text-2xl font-semibold text-slate-800">
                     {value}
                   </div>
-                  <div className="text-xs text-slate-500">{label}</div>
+                  <div className="whitespace-nowrap text-xs text-slate-500">
+                    {label}
+                  </div>
                 </div>
               ))}
             </div>
 
-            <Card
-              title="Daily records"
-              actions={
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="month"
-                    aria-label="Month"
-                    className="w-auto"
-                    value={month}
-                    onChange={(e) => setMonth(e.target.value)}
-                  />
-                  <Select
-                    aria-label="Status"
-                    className="w-auto"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                  >
-                    <option value="">All statuses</option>
-                    <option>Present</option>
-                    <option>Absent</option>
-                    <option>Late</option>
-                    <option>On Leave</option>
-                  </Select>
-                  {(month || status) && (
-                    <button
-                      className={btnGhost}
-                      onClick={() => {
-                        setMonth("");
-                        setStatus("");
-                      }}
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              }
-            >
+            <Card title="Daily records">
               <Table
                 rows={records}
                 rowKey={(r) => r.attendance_date}
                 empty="No attendance records."
+                scroll="max-h-[380px]"
+                mobileRow={(r) => {
+                  const [dd, mon] = fmtDate(r.attendance_date).split(" ");
+                  return (
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-slate-100">
+                        <span className="text-base font-semibold leading-none text-slate-800">
+                          {dd}
+                        </span>
+                        <span className="mt-0.5 text-[10px] uppercase text-slate-500">
+                          {mon}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-slate-800">
+                          {fmtTime(r.check_in_time)} →{" "}
+                          {fmtTime(r.check_out_time)}
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-slate-500">
+                          <span>{hours(r.working_minutes)}</span>
+                          {r.late_minutes ? (
+                            <span className="text-orange-600">
+                              Late {r.late_minutes}m
+                            </span>
+                          ) : null}
+                          {r.overtime_minutes ? (
+                            <span>OT {hours(r.overtime_minutes)}</span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <Tag color={statusColor(r.status)}>{r.status || "—"}</Tag>
+                    </div>
+                  );
+                }}
                 columns={[
                   { header: "Date", render: (r) => fmtDate(r.attendance_date) },
                   {
@@ -452,6 +671,20 @@ export function AttendanceTab({ id }) {
               <Table
                 rows={monthly}
                 rowKey={(r) => r.month}
+                scroll="max-h-[300px]"
+                mobileRow={(r) => (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-slate-800">
+                      {r.month}
+                    </span>
+                    <div className="flex flex-wrap justify-end gap-1">
+                      <Tag color="green">P {r.present}</Tag>
+                      <Tag color="red">A {r.absent}</Tag>
+                      <Tag color="orange">L {r.late}</Tag>
+                      <Tag>OT {r.ot_hours}h</Tag>
+                    </div>
+                  </div>
+                )}
                 columns={[
                   { header: "Month", render: (r) => r.month },
                   { header: "Days present", render: (r) => r.present },
@@ -472,6 +705,49 @@ export function AttendanceTab({ id }) {
 // Leaves
 // ---------------------------------------------------------------------
 
+function LeaveBalanceCards({ rows }) {
+  if (!rows.length)
+    return (
+      <p className="py-6 text-center text-[13px] text-slate-400 md:hidden">
+        No leave balances.
+      </p>
+    );
+  return (
+    <div className="-mx-4 flex flex-nowrap gap-3 overflow-x-auto px-4 pb-1 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {rows.map((b) => {
+        const total = Number(b.total_days) || 0;
+        const used = Number(b.used_days) || 0;
+        const pct = total ? Math.min(100, Math.round((used / total) * 100)) : 0;
+        return (
+          <div
+            key={b.leave_types?.leave_name}
+            className="w-[170px] shrink-0 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5"
+          >
+            <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              {b.leave_types?.leave_name || "—"}
+            </div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-3xl font-bold text-slate-800">
+                {b.remaining_days}
+              </span>
+              <span className="text-xs text-slate-500">left</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full bg-[#F5730B]"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="mt-1.5 text-xs text-slate-500">
+              Used {b.used_days} of {b.total_days}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function LeavesTab({ id }) {
   const state = useLoad(() => resignationService.leaves(id), [id]);
   return (
@@ -480,32 +756,59 @@ export function LeavesTab({ id }) {
         const latestYear = balances[0]?.year;
         const current = balances.filter((b) => b.year === latestYear);
         return (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <Card
               title={`Leave balance${latestYear ? ` (${latestYear})` : ""}`}
             >
-              <Table
-                rows={current}
-                rowKey={(r) => r.leave_types?.leave_name}
-                empty="No leave balances."
-                columns={[
-                  {
-                    header: "Leave type",
-                    render: (r) => r.leave_types?.leave_name || "—",
-                  },
-                  { header: "Entitled", render: (r) => r.total_days },
-                  { header: "Used", render: (r) => r.used_days },
-                  {
-                    header: "Balance",
-                    render: (r) => <b>{r.remaining_days}</b>,
-                  },
-                ]}
-              />
+              <LeaveBalanceCards rows={current} />
+              <div className="hidden md:block">
+                <Table
+                  rows={current}
+                  rowKey={(r) => r.leave_types?.leave_name}
+                  empty="No leave balances."
+                  columns={[
+                    {
+                      header: "Leave type",
+                      render: (r) => r.leave_types?.leave_name || "—",
+                    },
+                    { header: "Entitled", render: (r) => r.total_days },
+                    { header: "Used", render: (r) => r.used_days },
+                    {
+                      header: "Balance",
+                      render: (r) => <b>{r.remaining_days}</b>,
+                    },
+                  ]}
+                />
+              </div>
             </Card>
             <Card title="Leave history">
               <Table
                 rows={requests}
                 empty="No leave requests."
+                scroll="max-h-[420px]"
+                mobileRow={(r) => (
+                  <div className="space-y-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-sm font-semibold text-slate-800">
+                        {r.leave_types?.leave_name || "—"}
+                      </span>
+                      <Tag color={statusColor(r.status)}>{r.status}</Tag>
+                    </div>
+                    <div className="text-[13px] text-slate-600">
+                      {fmtDate(r.start_date)} – {fmtDate(r.end_date)} ·{" "}
+                      {r.total_days}{" "}
+                      {Number(r.total_days) === 1 ? "day" : "days"}
+                    </div>
+                    {r.reason && (
+                      <div className="text-xs text-slate-500">{r.reason}</div>
+                    )}
+                    {r.approved_by_name && (
+                      <div className="text-xs text-slate-400">
+                        Approved by {r.approved_by_name}
+                      </div>
+                    )}
+                  </div>
+                )}
                 columns={[
                   {
                     header: "Type",

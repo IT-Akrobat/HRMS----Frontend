@@ -1,5 +1,6 @@
 import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useRegion } from "../../context/RegionContext";
 import { apiClient } from "../../services/apiClient";
 import { parseLocalISODate, toLocalISODate } from "../../utils/date";
 
@@ -191,6 +192,9 @@ export function countUpcomingHolidays(rows) {
 }
 
 export default function HolidaysCalendarCard({ onCount } = {}) {
+  // A region tab already shows only its own calendar (backend filters by
+  // X-Region), so the SG / IN tag is redundant there.
+  const { region } = useRegion();
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
   // Only exists to force a re-render so `today` below is recalculated.
@@ -277,7 +281,7 @@ export default function HolidaysCalendarCard({ onCount } = {}) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-slate-800 truncate flex items-center gap-1.5">
                   <span className="truncate">{h.holiday_name}</span>
-                  {singleCountryTag(h) && (
+                  {!region && singleCountryTag(h) && (
                     <span className="shrink-0 text-[10px] font-semibold leading-none px-1.5 py-1 rounded bg-slate-100 text-slate-500">
                       {singleCountryTag(h)}
                     </span>

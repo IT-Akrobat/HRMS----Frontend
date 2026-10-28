@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
+import { PartTimeMySummary } from "../../components/common/PartTimeSummary";
 import { useAuth } from "../../context/AuthContext";
 import { useBasePath } from "../../hooks/useBasePath";
 import { apiClient } from "../../services/apiClient";
@@ -373,6 +374,8 @@ export default function Attendance() {
           </Link>
         }
       />
+
+      <PartTimeMySummary />
 
       {error && (
         <div className="mb-4 text-sm text-orange-500 bg-orange-50 border border-orange-100 rounded-lg px-4 py-3">

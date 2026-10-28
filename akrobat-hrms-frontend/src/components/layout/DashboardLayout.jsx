@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ROLE_BASE_PATH } from "../../config/roles";
 import { useAuth } from "../../context/AuthContext";
+import { useRegion } from "../../context/RegionContext";
 import BirthdayWish from "../common/Birthdaywish";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
@@ -15,6 +16,7 @@ export default function DashboardLayout() {
   // the sidebar is always visible exactly as before.
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { user } = useAuth();
+  const { region } = useRegion();
   // Navy sidebar + blue-tinted content area for every role
   // (styles live under .theme-blue in index.css). Keep in sync with the
   // `blue` flag in Sidebar.jsx.
@@ -81,7 +83,9 @@ export default function DashboardLayout() {
               </button>
             </div>
           )}
-          <Outlet />
+          {/* key={region}: switching Chennai <-> Singapore remounts the page
+              so every list / dashboard refetches for the new region. */}
+          <Outlet key={region || "none"} />
         </main>
       </div>
 

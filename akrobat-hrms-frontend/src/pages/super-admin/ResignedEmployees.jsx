@@ -1,12 +1,11 @@
 import {
-    CalendarDays,
-    Clock,
-    Download,
-    Lock,
-    Search,
-    UserMinus,
-    Wallet,
-    X,
+  CalendarDays,
+  Clock,
+  Download,
+  Search,
+  UserMinus,
+  Wallet,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -17,22 +16,22 @@ import StatCard from "../../components/common/StatCard";
 import DatePicker from "../../components/layout/DatePicker";
 import { apiClient } from "../../services/apiClient";
 import {
-    REASON_CATEGORIES,
-    resignationService,
+  REASON_CATEGORIES,
+  resignationService,
 } from "../../services/resignationService";
 import { toLocalISODate } from "../../utils/date";
 import { unwrap } from "../../utils/unwrap";
 import {
-    ErrorBox,
-    Spinner,
-    Table,
-    Tag,
-    btnGhost,
-    btnPrimary,
-    fmtDate,
-    initials,
-    inputCls,
-    statusColor,
+  ErrorBox,
+  Spinner,
+  Table,
+  Tag,
+  btnGhost,
+  btnPrimary,
+  fmtDate,
+  initials,
+  inputCls,
+  statusColor,
 } from "./resigned/ui";
 
 const STATUS_OPTIONS = ["Serving Notice", "Relieved"];
@@ -123,9 +122,6 @@ export default function ResignedEmployees() {
         actionsInline
         actions={
           <>
-            <span className="hidden items-center gap-1.5 rounded-full bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-800 sm:inline-flex">
-              <Lock className="h-3.5 w-3.5" /> Super Admin only
-            </span>
             <button className={btnPrimary} onClick={() => setShowModal(true)}>
               <UserMinus className="h-4 w-4" /> Mark as resigned
             </button>

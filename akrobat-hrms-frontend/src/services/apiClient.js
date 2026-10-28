@@ -80,6 +80,37 @@ function captureCsrfToken(data) {
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+// ---------------------------------------------------------------------
+// Chennai / Singapore region (see context/RegionContext.jsx). The active
+// region is sent as `X-Region` on every request. The backend only honours
+// it for Super Admin (everyone else is locked to their own region), and
+// scopes all employee / master data by it (app/core/region.py).
+// ---------------------------------------------------------------------
+const REGION_STORAGE_KEY = "akrobat_active_region";
+const REGION_HEADER_NAME = "X-Region";
+
+let activeRegion = null;
+try {
+  activeRegion = localStorage.getItem(REGION_STORAGE_KEY) || null;
+} catch {
+  /* storage blocked -- fine, falls back to the default */
+}
+
+export function getActiveRegion() {
+  return activeRegion;
+}
+
+export function setActiveRegion(region) {
+  const next = region || null;
+  if (next === activeRegion) return;
+  activeRegion = next;
+  try {
+    if (next) localStorage.setItem(REGION_STORAGE_KEY, next);
+  } catch {
+    /* ignore */
+  }
+}
+
 // Mobile-specific failure mode this guards against: the phone locks, or
 // switches from WiFi to cellular, or the signal drops out, right in the
 // middle of a fetch. Without a timeout, that fetch's promise just never
@@ -191,6 +222,8 @@ async function request(
   } = {},
 ) {
   const finalHeaders = { "Content-Type": "application/json", ...headers };
+
+  if (auth && activeRegion) finalHeaders[REGION_HEADER_NAME] = activeRegion;
 
   if (auth && MUTATING_METHODS.has(method)) {
     const csrfToken = getCsrfToken();
@@ -307,6 +340,7 @@ export const apiClient = {
 // credentials + CSRF-header rules apply, just attached by hand.
 export function withCredentialsAndCsrf(method, headers = {}) {
   const finalHeaders = { ...headers };
+  if (activeRegion) finalHeaders[REGION_HEADER_NAME] = activeRegion;
   if (MUTATING_METHODS.has(method)) {
     const csrfToken = getCsrfToken();
     if (csrfToken) finalHeaders[CSRF_HEADER_NAME] = csrfToken;
