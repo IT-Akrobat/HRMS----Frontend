@@ -844,7 +844,29 @@ function monthTotalsRow(days, leadingBlanks) {
   ];
 }
 
-// Every employee x every date of the month, in one sheet.
+// Monthly attendance for everyone: a "Summary" sheet (one row per
+// employee) followed by ONE SHEET PER EMPLOYEE with their day-by-day rows
+// and their own TOTAL row. Previously every employee x every date was one
+// long sheet, which was confusing to read.
+function excelSheetName(emp, used) {
+  const id = emp.employee?.employee_id || "";
+  const name = (emp.employee?.full_name || "Employee")
+    .replace(/[\\/?*[\]:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  // Excel sheet names max out at 31 chars and must be unique.
+  const suffix = id ? ` (${id})` : "";
+  let base = name.slice(0, Math.max(1, 31 - suffix.length)).trim() + suffix;
+  let candidate = base;
+  let n = 2;
+  while (used.has(candidate.toLowerCase())) {
+    const tag = ` ${n++}`;
+    candidate = base.slice(0, 31 - tag.length) + tag;
+  }
+  used.add(candidate.toLowerCase());
+  return candidate;
+}
+
 function downloadMonthlyCalendarExcel(employees, monthLabel) {
   const header = [
     "Employee Name",
@@ -852,19 +874,7 @@ function downloadMonthlyCalendarExcel(employees, monthLabel) {
     "Date",
     ...MONTHLY_DAY_HEADER,
   ];
-  const rows = [];
-  employees.forEach((emp) => {
-    (emp.days || []).forEach((day) => {
-      rows.push([
-        emp.employee?.full_name || "",
-        emp.employee?.employee_id || "",
-        formatDate(day.attendance_date),
-        ...dayExportCells(day),
-      ]);
-    });
-  });
-  const sheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
-  sheet["!cols"] = [
+  const colWidths = [
     { wch: 26 },
     { wch: 14 },
     { wch: 14 },
@@ -876,22 +886,82 @@ function downloadMonthlyCalendarExcel(employees, monthLabel) {
     { wch: 11 },
     { wch: 36 },
   ];
-  styleHeaderRow(sheet, header.length);
-  styleStatusColumn(sheet, header.length - 1, 1, rows.length);
-  // Grand total of everything above (all employees, all dates).
-  const allDays = employees.flatMap((e) => e.days || []);
-  appendTotalsRow(
-    sheet,
-    header.length,
-    rows.length,
-    monthTotalsRow(allDays, [
-      "TOTAL",
-      `${employees.length} employee${employees.length === 1 ? "" : "s"}`,
-      "",
-    ]),
-  );
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, "Attendance");
+  const usedNames = new Set(["summary"]);
+  const summaryRows = [];
+  const employeeSheets = [];
+
+  employees.forEach((emp) => {
+    const days = emp.days || [];
+    const rows = days.map((day) => [
+      emp.employee?.full_name || "",
+      emp.employee?.employee_id || "",
+      formatDate(day.attendance_date),
+      ...dayExportCells(day),
+    ]);
+
+    // ---- this employee's own sheet ----
+    const sheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    sheet["!cols"] = colWidths;
+    styleHeaderRow(sheet, header.length);
+    styleStatusColumn(sheet, header.length - 1, 1, rows.length);
+    appendTotalsRow(
+      sheet,
+      header.length,
+      rows.length,
+      monthTotalsRow(days, ["TOTAL", emp.employee?.employee_id || "", ""]),
+    );
+    employeeSheets.push({ name: excelSheetName(emp, usedNames), sheet });
+
+    // ---- one line on the Summary sheet ----
+    const statuses = rows.map((r) => String(r[r.length - 1] || ""));
+    const countStatus = (label) =>
+      statuses.filter((st) => st.toLowerCase() === label.toLowerCase()).length;
+    const recs = days
+      .filter((d) => d.day_type === "Record" && d.record?.check_in_time)
+      .map((d) => d.record);
+    summaryRows.push([
+      emp.employee?.full_name || "",
+      emp.employee?.employee_id || "",
+      countStatus("Present"),
+      countStatus("Half Day"),
+      countStatus("Early Checkout"),
+      countStatus("Leave"),
+      countStatus("Not Check-in"),
+      recs.filter((r) => (r.late_minutes || 0) > 0).length,
+      formatMinutes(recs.reduce((t, r) => t + (r.working_minutes || 0), 0)),
+    ]);
+  });
+
+  const summaryHeader = [
+    "Employee Name",
+    "Employee ID",
+    "Present",
+    "Half Day",
+    "Early Checkout",
+    "Leave",
+    "Not Check-in",
+    "Late Days",
+    "Total Working Hours",
+  ];
+  const summarySheet = XLSX.utils.aoa_to_sheet([summaryHeader, ...summaryRows]);
+  summarySheet["!cols"] = [
+    { wch: 30 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 15 },
+    { wch: 8 },
+    { wch: 13 },
+    { wch: 10 },
+    { wch: 20 },
+  ];
+  styleHeaderRow(summarySheet, summaryHeader.length);
+
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+  employeeSheets.forEach(({ name, sheet }) =>
+    XLSX.utils.book_append_sheet(workbook, sheet, name),
+  );
   XLSX.writeFile(workbook, `attendance-report-${monthLabel}.xlsx`);
 }
 

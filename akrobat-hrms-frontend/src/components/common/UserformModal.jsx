@@ -927,7 +927,9 @@ export default function UserFormModal({
           // Only the leave days HR typed / changed are sent; omitting the
           // key leaves every existing entitlement untouched.
           leave_entitlements:
-            !form.is_part_time && entitlements.length ? entitlements : undefined,
+            !form.is_part_time && entitlements.length
+              ? entitlements
+              : undefined,
           working_days_per_week: form.working_days_per_week,
           works_saturday: isOperationDept ? true : form.works_saturday,
           alternate_saturday: isOperationDept ? false : form.alternate_saturday,
@@ -964,7 +966,9 @@ export default function UserFormModal({
           work_location: form.work_location.trim() || undefined,
           working_location: orUndefined(form.working_location),
           leave_entitlements:
-            !form.is_part_time && entitlements.length ? entitlements : undefined,
+            !form.is_part_time && entitlements.length
+              ? entitlements
+              : undefined,
           working_days_per_week: form.working_days_per_week,
           works_saturday: isOperationDept ? true : form.works_saturday,
           alternate_saturday: isOperationDept ? false : form.alternate_saturday,
@@ -1080,21 +1084,31 @@ export default function UserFormModal({
             </div>
           )}
 
-          <label className="flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={!!form.is_part_time}
-              onChange={(e) => set("is_part_time", e.target.checked)}
-            />
-            <span>
-              <span className="font-medium">Part-time employee</span>
-              <span className="block text-xs text-slate-400">
-                No fixed shift, leave or OT. Can work any day (incl. Sat/Sun);
-                only check-in to check-out time is calculated.
-              </span>
-            </span>
-          </label>
+          {/* Shown only for EMPLOYEE role, and in Edit only when the user is
+              already part-time (Create always shows it, to make part-timers).
+              Part-time is only meaningful for the EMPLOYEE role, so the
+              option is hidden for HR / Manager / Super Admin. Kept as one
+              compact line; the explanation only appears once it's ticked. */}
+          {String(selectedRoleName || "").toUpperCase() === "EMPLOYEE" &&
+            (!isEdit || user?.is_part_time) && (
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={!!form.is_part_time}
+                  onChange={(e) => set("is_part_time", e.target.checked)}
+                />
+                <span>
+                  <span className="font-medium">Part-time employee</span>
+                  {form.is_part_time && (
+                    <span className="block text-xs text-slate-400">
+                      No fixed shift, leave or OT. Can work any day (incl.
+                      Sat/Sun); only check-in to check-out time is calculated.
+                    </span>
+                  )}
+                </span>
+              </label>
+            )}
 
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
@@ -1316,62 +1330,63 @@ export default function UserFormModal({
                 />
               </Field>
               {!form.is_part_time && (
-              <Field label="Weekday Hours">
-                {!form.department_id ? (
-                  <div className="text-sm text-slate-400 border border-slate-200 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50">
-                    Select department first
-                  </div>
-                ) : filteredShifts.length <= 1 ? (
-                  // Inspection / Operation / Work Shop — one fixed timing,
-                  // nothing for HR to choose, so show it read-only instead
-                  // of a dropdown with a single, unclickable-feeling option.
-                  <div className="text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50">
-                    {filteredShifts[0]
-                      ? `${formatTime12h(filteredShifts[0].start_time)} – ${formatTime12h(filteredShifts[0].end_time)} (fixed)`
-                      : "No matching shift configured"}
-                  </div>
-                ) : isInspectionChoice ? (
-                  // Inspection — choice of 8:00-4:30 / 8:30-5:30 as a
-                  // dropdown.
-                  <FilterDropdown
-                    fullWidth
-                    showAllOption={false}
-                    allLabel="Select timing"
-                    value={form.shift_id}
-                    onChange={(v) => set("shift_id", v)}
-                    options={filteredShifts}
-                    getKey={(s) => s.id}
-                    getLabel={(s) =>
-                      `${formatTime12h(s.start_time)} – ${formatTime12h(s.end_time)}`
-                    }
-                  />
-                ) : (
-                  // Office — the one area with a real choice.
-                  <div className="flex gap-2">
-                    {filteredShifts.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => set("shift_id", s.id)}
-                        className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
-                          form.shift_id === s.id
-                            ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
-                            : "border-slate-200 text-slate-600 hover:border-slate-300"
-                        }`}
-                      >
-                        {formatTime12h(s.start_time)} –{" "}
-                        {formatTime12h(s.end_time)}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {selectedDesignation?.shifts && filteredShifts.length > 1 && (
-                  <span className="text-xs text-slate-400 mt-1 block">
-                    Defaults to {selectedDesignation.shifts.shift_name}'s timing
-                    for this designation — pick the other option to override.
-                  </span>
-                )}
-              </Field>
+                <Field label="Weekday Hours">
+                  {!form.department_id ? (
+                    <div className="text-sm text-slate-400 border border-slate-200 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50">
+                      Select department first
+                    </div>
+                  ) : filteredShifts.length <= 1 ? (
+                    // Inspection / Operation / Work Shop — one fixed timing,
+                    // nothing for HR to choose, so show it read-only instead
+                    // of a dropdown with a single, unclickable-feeling option.
+                    <div className="text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50">
+                      {filteredShifts[0]
+                        ? `${formatTime12h(filteredShifts[0].start_time)} – ${formatTime12h(filteredShifts[0].end_time)} (fixed)`
+                        : "No matching shift configured"}
+                    </div>
+                  ) : isInspectionChoice ? (
+                    // Inspection — choice of 8:00-4:30 / 8:30-5:30 as a
+                    // dropdown.
+                    <FilterDropdown
+                      fullWidth
+                      showAllOption={false}
+                      allLabel="Select timing"
+                      value={form.shift_id}
+                      onChange={(v) => set("shift_id", v)}
+                      options={filteredShifts}
+                      getKey={(s) => s.id}
+                      getLabel={(s) =>
+                        `${formatTime12h(s.start_time)} – ${formatTime12h(s.end_time)}`
+                      }
+                    />
+                  ) : (
+                    // Office — the one area with a real choice.
+                    <div className="flex gap-2">
+                      {filteredShifts.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => set("shift_id", s.id)}
+                          className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                            form.shift_id === s.id
+                              ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                              : "border-slate-200 text-slate-600 hover:border-slate-300"
+                          }`}
+                        >
+                          {formatTime12h(s.start_time)} –{" "}
+                          {formatTime12h(s.end_time)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {selectedDesignation?.shifts && filteredShifts.length > 1 && (
+                    <span className="text-xs text-slate-400 mt-1 block">
+                      Defaults to {selectedDesignation.shifts.shift_name}'s
+                      timing for this designation — pick the other option to
+                      override.
+                    </span>
+                  )}
+                </Field>
               )}
               <DatePicker
                 label="Joining Date"
@@ -1408,194 +1423,198 @@ export default function UserFormModal({
 
           <div>
             {!form.is_part_time && (
-            <>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
-              Leave Policy
-            </h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
-              <Field label="Leave Scheme">
-                <FilterDropdown
-                  fullWidth
-                  showAllOption={false}
-                  allLabel="Select leave scheme"
-                  value={form.leave_scheme}
-                  onChange={(v) => set("leave_scheme", v)}
-                  options={LEAVE_SCHEMES}
-                  getKey={(o) => o.value}
-                  getLabel={(o) => o.label}
+              <>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+                  Leave Policy
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
+                  <Field label="Leave Scheme">
+                    <FilterDropdown
+                      fullWidth
+                      showAllOption={false}
+                      allLabel="Select leave scheme"
+                      value={form.leave_scheme}
+                      onChange={(v) => set("leave_scheme", v)}
+                      options={LEAVE_SCHEMES}
+                      getKey={(o) => o.value}
+                      getLabel={(o) => o.label}
+                    />
+                  </Field>
+                  <Field label="Leave Manager (approves leave)">
+                    <FilterDropdown
+                      fullWidth
+                      allLabel="None"
+                      searchable
+                      searchOptions={managerSearchPool}
+                      labelOptions={users}
+                      value={form.leave_manager_id}
+                      onChange={(v) => set("leave_manager_id", v)}
+                      options={managerCandidates}
+                      getKey={(u) => u.id}
+                      getLabel={(u) => `${u.full_name} (${u.employee_id})`}
+                    />
+                  </Field>
+                </div>
+                <LeaveEntitlementsField
+                  isEdit={isEdit}
+                  employeeId={user?.id}
+                  gender={form.gender}
+                  maritalStatus={form.marital_status}
+                  leaveScheme={form.leave_scheme}
+                  onChange={setEntitlements}
                 />
-              </Field>
-              <Field label="Leave Manager (approves leave)">
-                <FilterDropdown
-                  fullWidth
-                  allLabel="None"
-                  searchable
-                  searchOptions={managerSearchPool}
-                  labelOptions={users}
-                  value={form.leave_manager_id}
-                  onChange={(v) => set("leave_manager_id", v)}
-                  options={managerCandidates}
-                  getKey={(u) => u.id}
-                  getLabel={(u) => `${u.full_name} (${u.employee_id})`}
-                />
-              </Field>
-            </div>
-            <LeaveEntitlementsField
-              isEdit={isEdit}
-              employeeId={user?.id}
-              gender={form.gender}
-              maritalStatus={form.marital_status}
-              leaveScheme={form.leave_scheme}
-              onChange={setEntitlements}
-            />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Works Saturdays?">
-                {isOperationDept ? (
-                  <>
-                    <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2.5 sm:py-2 text-sm font-medium text-orange-700">
-                      Every Saturday
-                      {isFixedOperationSaturday
-                        ? saturdayShift
-                          ? ` · ${formatTime12h(saturdayShift.start_time)} – ${formatTime12h(saturdayShift.end_time)}`
-                          : " · 8:00 AM – 3:30 PM"
-                        : ""}
-                    </div>
-                    {hasSaturdayChoice && (
-                      <div className="mt-2 flex gap-2">
-                        {officeSaturdayOptions.map((s) => (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="Works Saturdays?">
+                    {isOperationDept ? (
+                      <>
+                        <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2.5 sm:py-2 text-sm font-medium text-orange-700">
+                          Every Saturday
+                          {isFixedOperationSaturday
+                            ? saturdayShift
+                              ? ` · ${formatTime12h(saturdayShift.start_time)} – ${formatTime12h(saturdayShift.end_time)}`
+                              : " · 8:00 AM – 3:30 PM"
+                            : ""}
+                        </div>
+                        {hasSaturdayChoice && (
+                          <div className="mt-2 flex gap-2">
+                            {officeSaturdayOptions.map((s) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => set("saturday_shift_id", s.id)}
+                                className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                                  form.saturday_shift_id === s.id
+                                    ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                                    : "border-slate-200 text-slate-600 hover:border-slate-300"
+                                }`}
+                              >
+                                {formatTime12h(s.start_time)} –{" "}
+                                {formatTime12h(s.end_time)}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <span className="text-xs text-slate-400 mt-1 block">
+                          Operation department works every Saturday — no
+                          alternate Saturday option.
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex gap-2">
                           <button
-                            key={s.id}
                             type="button"
-                            onClick={() => set("saturday_shift_id", s.id)}
+                            onClick={() => set("works_saturday", false)}
                             className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
-                              form.saturday_shift_id === s.id
+                              !worksSaturday
                                 ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
                                 : "border-slate-200 text-slate-600 hover:border-slate-300"
                             }`}
                           >
-                            {formatTime12h(s.start_time)} –{" "}
-                            {formatTime12h(s.end_time)}
+                            No
                           </button>
-                        ))}
-                      </div>
-                    )}
-                    <span className="text-xs text-slate-400 mt-1 block">
-                      Operation department works every Saturday — no alternate
-                      Saturday option.
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => set("works_saturday", false)}
-                        className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
-                          !worksSaturday
-                            ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
-                            : "border-slate-200 text-slate-600 hover:border-slate-300"
-                        }`}
-                      >
-                        No
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => set("works_saturday", true)}
-                        className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
-                          worksSaturday
-                            ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
-                            : "border-slate-200 text-slate-600 hover:border-slate-300"
-                        }`}
-                      >
-                        Yes
-                      </button>
-                    </div>
-                    {hasSaturdayChoice &&
-                      !isOperationDept &&
-                      !isChennaiSaturday && (
-                        <div className="mt-2 flex gap-2">
-                          {officeSaturdayOptions.map((s) => (
-                            <button
-                              key={s.id}
-                              type="button"
-                              onClick={() => set("saturday_shift_id", s.id)}
-                              className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
-                                form.saturday_shift_id === s.id
-                                  ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
-                                  : "border-slate-200 text-slate-600 hover:border-slate-300"
-                              }`}
-                            >
-                              {formatTime12h(s.start_time)} –{" "}
-                              {formatTime12h(s.end_time)}
-                            </button>
-                          ))}
+                          <button
+                            type="button"
+                            onClick={() => set("works_saturday", true)}
+                            className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                              worksSaturday
+                                ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                                : "border-slate-200 text-slate-600 hover:border-slate-300"
+                            }`}
+                          >
+                            Yes
+                          </button>
                         </div>
-                      )}
-                    {isChennaiSaturday && (
-                      <div className="mt-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2.5 sm:py-2 text-sm font-medium text-orange-700">
-                        Saturday work hours · 9:00 AM – 6:00 PM
-                      </div>
-                    )}
-                    {worksSaturday &&
-                      saturdayShift &&
-                      !hasSaturdayChoice &&
-                      !isChennaiSaturday &&
-                      !isOperationDept && (
+                        {hasSaturdayChoice &&
+                          !isOperationDept &&
+                          !isChennaiSaturday && (
+                            <div className="mt-2 flex gap-2">
+                              {officeSaturdayOptions.map((s) => (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  onClick={() => set("saturday_shift_id", s.id)}
+                                  className={`flex-1 rounded-lg border px-3 py-2.5 sm:py-2 text-sm transition-colors ${
+                                    form.saturday_shift_id === s.id
+                                      ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
+                                      : "border-slate-200 text-slate-600 hover:border-slate-300"
+                                  }`}
+                                >
+                                  {formatTime12h(s.start_time)} –{" "}
+                                  {formatTime12h(s.end_time)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        {isChennaiSaturday && (
+                          <div className="mt-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2.5 sm:py-2 text-sm font-medium text-orange-700">
+                            Saturday work hours · 9:00 AM – 6:00 PM
+                          </div>
+                        )}
+                        {worksSaturday &&
+                          saturdayShift &&
+                          !hasSaturdayChoice &&
+                          !isChennaiSaturday &&
+                          !isOperationDept && (
+                            <span className="text-xs text-slate-400 mt-1 block">
+                              Saturday:{" "}
+                              {formatTime12h(saturdayShift.start_time)} –{" "}
+                              {formatTime12h(saturdayShift.end_time)}
+                            </span>
+                          )}
+                        {hasSaturdayChoice && !isChennai && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              set("work_location", "Chennai Office")
+                            }
+                            className="mt-2 w-full rounded-lg border border-orange-300 bg-white px-3 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50"
+                          >
+                            Chennai employee? Click here for 9:00 AM – 6:00 PM
+                            Saturday
+                          </button>
+                        )}
                         <span className="text-xs text-slate-400 mt-1 block">
-                          Saturday: {formatTime12h(saturdayShift.start_time)} –{" "}
-                          {formatTime12h(saturdayShift.end_time)}
+                          Controls this employee's Saturday shift assignment
+                          only.
                         </span>
-                      )}
-                    {hasSaturdayChoice && !isChennai && (
-                      <button
-                        type="button"
-                        onClick={() => set("work_location", "Chennai Office")}
-                        className="mt-2 w-full rounded-lg border border-orange-300 bg-white px-3 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50"
-                      >
-                        Chennai employee? Click here for 9:00 AM – 6:00 PM
-                        Saturday
-                      </button>
+                        {worksSaturday && (
+                          <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+                            <input
+                              type="checkbox"
+                              checked={!!form.alternate_saturday}
+                              onChange={(e) =>
+                                set("alternate_saturday", e.target.checked)
+                              }
+                              className="rounded border-slate-300"
+                            />
+                            Alternate Saturday (2nd &amp; 4th Saturday only)
+                          </label>
+                        )}
+                      </>
                     )}
-                    <span className="text-xs text-slate-400 mt-1 block">
-                      Controls this employee's Saturday shift assignment only.
-                    </span>
-                    {worksSaturday && (
-                      <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={!!form.alternate_saturday}
-                          onChange={(e) =>
-                            set("alternate_saturday", e.target.checked)
-                          }
-                          className="rounded border-slate-300"
-                        />
-                        Alternate Saturday (2nd &amp; 4th Saturday only)
-                      </label>
-                    )}
-                  </>
-                )}
-              </Field>
-              <Field label="Working Days / Week">
-                {/* Fully independent of "Works Saturdays?" above --
+                  </Field>
+                  <Field label="Working Days / Week">
+                    {/* Fully independent of "Works Saturdays?" above --
                     payroll's Unpaid Leave deduction denominator, with no
                     defined relationship to Saturday shift hours in the
                     source Leave Info doc. HR sets this on its own. */}
-                <FilterDropdown
-                  fullWidth
-                  showAllOption={false}
-                  allLabel="Select"
-                  value={form.working_days_per_week}
-                  onChange={(v) => set("working_days_per_week", Number(v))}
-                  options={[5, 5.5, 6]}
-                  getKey={(d) => d}
-                  getLabel={(d) => `${d} days`}
-                />
-                <span className="text-xs text-slate-400 mt-1 block">
-                  Used by payroll to calculate the Unpaid Leave deduction.
-                </span>
-              </Field>
-            </div>
-            </>
+                    <FilterDropdown
+                      fullWidth
+                      showAllOption={false}
+                      allLabel="Select"
+                      value={form.working_days_per_week}
+                      onChange={(v) => set("working_days_per_week", Number(v))}
+                      options={[5, 5.5, 6]}
+                      getKey={(d) => d}
+                      getLabel={(d) => `${d} days`}
+                    />
+                    <span className="text-xs text-slate-400 mt-1 block">
+                      Used by payroll to calculate the Unpaid Leave deduction.
+                    </span>
+                  </Field>
+                </div>
+              </>
             )}
           </div>
         </form>
