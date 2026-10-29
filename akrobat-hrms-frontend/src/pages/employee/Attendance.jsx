@@ -10,7 +10,7 @@ import {
   Info,
   TimerReset,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 import { PartTimeMySummary } from "../../components/common/PartTimeSummary";
@@ -127,6 +127,22 @@ function todayIso() {
   return toLocalISODate();
 }
 
+// Monday (YYYY-MM-DD) of the week containing the given date.
+function mondayOfIso(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const dow = d.getDay(); // 0 = Sun .. 6 = Sat
+  d.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
+  return toLocalISODate(d);
+}
+
+// "Oct 26 - Nov 1" (no year) for the week strip heading.
+function formatDayMonth(dateStr) {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function formatTime(iso) {
   if (!iso) return "--:--";
   const d = parseServerDate(iso);
@@ -180,6 +196,15 @@ export default function Attendance() {
   // it for the same month grid used on desktop. Desktop is unaffected —
   // this state only drives the <div className="lg:hidden"> block below.
   const [mobileCalendarExpanded, setMobileCalendarExpanded] = useState(false);
+
+  // Mobile week strip: which Monday-started week is on screen. Swiping the
+  // strip moves this by +/-7 days (it does NOT change selectedDate, so the
+  // summary/timeline below stay on the day the person tapped).
+  const [weekStart, setWeekStart] = useState(() => mondayOfIso(todayIso()));
+  // Attendance status per date for the visible week (the month fetch only
+  // covers monthCursor, so a week from another month would have no dots).
+  const [weekRows, setWeekRows] = useState({});
+  const swipeRef = useRef(null);
 
   // Ticks every 30s so the live "working now" time keeps counting up while
   // the employee is checked in and hasn't checked out yet.
@@ -238,6 +263,56 @@ export default function Attendance() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthCursor]);
 
+  // Keep the strip on the week of the selected date when it changes from
+  // elsewhere (e.g. picking a day in "Full calendar"). Tapping a day inside
+  // the strip never changes the week, so this is a no-op there.
+  useEffect(() => {
+    setWeekStart(mondayOfIso(selectedDate));
+  }, [selectedDate]);
+
+  function loadWeek(startIso) {
+    const d = new Date(`${startIso}T00:00:00`);
+    d.setDate(d.getDate() + 6);
+    apiClient
+      .get(`/attendance/my?from_date=${startIso}&to_date=${toLocalISODate(d)}`)
+      .then((res) => {
+        const map = {};
+        (res.data || []).forEach((r) => {
+          map[r.date] = r.status;
+        });
+        setWeekRows(map);
+      })
+      .catch(() => setWeekRows({}));
+  }
+
+  useEffect(() => {
+    loadWeek(weekStart);
+  }, [weekStart]);
+
+  // Swipe handling for the week strip: swipe right = previous week, swipe
+  // left = next week (never past the current week).
+  function shiftWeek(delta) {
+    const d = new Date(`${weekStart}T00:00:00`);
+    d.setDate(d.getDate() + delta * 7);
+    const next = toLocalISODate(d);
+    if (next > mondayOfIso(todayIso())) return;
+    setWeekStart(next);
+  }
+  function onStripTouchStart(e) {
+    const t = e.touches[0];
+    swipeRef.current = { x: t.clientX, y: t.clientY };
+  }
+  function onStripTouchEnd(e) {
+    const start = swipeRef.current;
+    swipeRef.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+    shiftWeek(dx > 0 ? -1 : 1);
+  }
+
   function selectDate(dateStr) {
     setSelectedDate(dateStr);
   }
@@ -249,6 +324,7 @@ export default function Attendance() {
       await apiClient.post(path, {});
       loadDay(todayIso());
       loadMonth(monthCursor);
+      loadWeek(weekStart);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -324,18 +400,19 @@ export default function Attendance() {
   const firstDay = new Date(year, month, 1).getDay();
 
   // ---------- mobile week strip (Mon-Sun containing selectedDate) ----------
-  const weekDates = useMemo(() => {
-    const d = new Date(`${selectedDate}T00:00:00`);
-    const dow = d.getDay(); // 0 = Sun .. 6 = Sat
-    const mondayOffset = dow === 0 ? -6 : 1 - dow;
-    const monday = new Date(d);
-    monday.setDate(d.getDate() + mondayOffset);
-    return Array.from({ length: 7 }, (_, i) => {
-      const dt = new Date(monday);
-      dt.setDate(monday.getDate() + i);
-      return toLocalISODate(dt);
-    });
-  }, [selectedDate]);
+  const weekDates = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, i) => {
+        const dt = new Date(`${weekStart}T00:00:00`);
+        dt.setDate(dt.getDate() + i);
+        return toLocalISODate(dt);
+      }),
+    [weekStart],
+  );
+  const isCurrentWeek = weekStart === mondayOfIso(todayIso());
+  const weekLabel = isCurrentWeek
+    ? "This week"
+    : `${formatDayMonth(weekDates[0])} - ${formatDayMonth(weekDates[6])}`;
   const WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
 
   // ---------- Option B: progress ring + month counters ----------
@@ -363,6 +440,7 @@ export default function Attendance() {
       <PageHeader
         title="My Attendance"
         subtitle="Track your daily attendance and working hours."
+        actionsInline
         actions={
           <Link
             to={`${base}/attendance/history`}
@@ -443,7 +521,7 @@ export default function Attendance() {
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium text-slate-800">
-              {mobileCalendarExpanded ? "Full calendar" : "This week"}
+              {mobileCalendarExpanded ? "Full calendar" : weekLabel}
             </span>
             <button
               type="button"
@@ -456,9 +534,13 @@ export default function Attendance() {
           </div>
 
           {!mobileCalendarExpanded ? (
-            <div className="flex gap-1.5">
+            <div
+              className="flex gap-1.5 touch-pan-y select-none"
+              onTouchStart={onStripTouchStart}
+              onTouchEnd={onStripTouchEnd}
+            >
               {weekDates.map((dateStr, i) => {
-                const status = rowsByDate[dateStr];
+                const status = weekRows[dateStr] ?? rowsByDate[dateStr];
                 const isToday = dateStr === todayIso();
                 const isSelected = dateStr === selectedDate;
                 const isFuture = dateStr > todayIso();

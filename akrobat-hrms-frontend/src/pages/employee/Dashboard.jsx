@@ -3,6 +3,7 @@ import {
   Building2,
   Cake,
   CalendarDays,
+  ChevronRight,
   ClipboardList,
   Clock,
   FileText,
@@ -15,7 +16,6 @@ import {
   Settings,
   User,
   Users,
-  Zap,
 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -54,13 +54,13 @@ const QUICK_ACTION_TILES = [
     to: "/employee/leave/apply",
     label: "Leave",
     icon: FileText,
-    style: "from-violet-50 to-white border-violet-100 text-violet-500",
+    tint: "bg-violet-100 text-violet-600",
   },
   {
     to: "/employee/attendance",
     label: "Attendance",
     icon: Clock,
-    style: "from-sky-50 to-white border-sky-100 text-sky-500",
+    tint: "bg-sky-100 text-sky-600",
     // Working Location = "Site" employees don't see their own attendance
     // pages (see utils/workingLocation.js) — hidden from Quick Actions.
     hideForSite: true,
@@ -70,7 +70,7 @@ const QUICK_ACTION_TILES = [
     to: "/employee/leave/history",
     label: "Request",
     icon: ClipboardList,
-    style: "from-orange-50 to-white border-orange-100 text-orange-500",
+    tint: "bg-orange-100 text-orange-600",
   },
 ];
 
@@ -334,6 +334,11 @@ export default function EmployeeDashboard() {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }, [user?.name]);
 
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  }, []);
+
   const todayLong = useMemo(
     () =>
       new Date().toLocaleDateString(undefined, {
@@ -354,7 +359,7 @@ export default function EmployeeDashboard() {
         key: "announcements",
         label: "Announcements",
         icon: Megaphone,
-        accent: "from-orange-50 to-white border-orange-100 text-orange-500",
+        accent: "bg-orange-100 text-orange-600",
         preview:
           activeAnnouncements.length === 0
             ? "No active announcements"
@@ -365,7 +370,7 @@ export default function EmployeeDashboard() {
         key: "birthdays",
         label: "Birthdays",
         icon: Cake,
-        accent: "from-pink-50 to-white border-pink-100 text-pink-500",
+        accent: "bg-pink-100 text-pink-600",
         preview: "No birthdays in the next 30 days",
         // Shows WHO is celebrating right on the tile.
         primary: details.birthdays[0]?.full_name,
@@ -382,7 +387,7 @@ export default function EmployeeDashboard() {
         key: "anniversaries",
         label: "Anniversaries",
         icon: PartyPopper,
-        accent: "from-purple-50 to-white border-purple-100 text-purple-500",
+        accent: "bg-purple-100 text-purple-600",
         preview: "No work anniversaries in the next 30 days",
         primary: details.anniversaries[0]?.full_name,
         avatar: initialsOf(details.anniversaries[0]?.full_name),
@@ -398,7 +403,7 @@ export default function EmployeeDashboard() {
         key: "holidays",
         label: "Holidays",
         icon: CalendarDays,
-        accent: "from-sky-50 to-white border-sky-100 text-sky-500",
+        accent: "bg-sky-100 text-sky-600",
         preview: "No upcoming holidays",
         primary: details.holidays[0]?.holiday_name,
         secondary: details.holidays[0]
@@ -413,7 +418,7 @@ export default function EmployeeDashboard() {
         key: "onleave",
         label: "On Leave",
         icon: PlaneTakeoff,
-        accent: "from-violet-50 to-white border-violet-100 text-violet-500",
+        accent: "bg-violet-100 text-violet-600",
         preview: "No one is out today",
         primary: details.onleave
           .slice(0, 2)
@@ -465,15 +470,17 @@ export default function EmployeeDashboard() {
         {/* ---------- Greeting on the full-bleed header gradient ----------
             The gradient itself is drawn by DashboardLayout (it has to sit
             behind the top bar too). Text here is white on top of it. */}
-        <div className="mb-5">
+        <div className="mb-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-orange-300">
-                {todayLong}
-              </p>
-              <h1 className="text-2xl font-bold text-white mt-0.5 truncate">
-                Hi, {firstName.toUpperCase()}
+              <p className="text-sm font-medium text-white/70">{greeting},</p>
+              <h1 className="text-[26px] leading-tight font-bold text-white mt-0.5 truncate capitalize">
+                {firstName.toLowerCase()}
               </h1>
+              <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/80">
+                <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
+                {todayLong}
+              </span>
             </div>
             <button
               type="button"
@@ -497,7 +504,6 @@ export default function EmployeeDashboard() {
           </div>
           {/* Spacer so the attendance card below overlaps the gradient's
               lower edge, like the reference design. */}
-          <div className="h-10" />
         </div>
 
         {/* ---------- Check-in / Site Visit / Meeting ----------
@@ -508,18 +514,18 @@ export default function EmployeeDashboard() {
             in the day, not something you read top-to-bottom together.
             Everyone else has no second tab at all, so they just get the
             plain check-in card, same as before. ---------- */}
-        <div className="mb-6">
+        <div className="mb-3 -mt-2">
           {/* Swipe carousel: horizontal scroll-snap, one card per
               "page". Replaces the old tab strip — swipe left/right to
               move between Check In and Site Visit / Meeting. */}
           <div
             ref={swipeRef}
             onScroll={handleSwipeScroll}
-            style={swipeH ? { height: swipeH + 16 } : undefined}
-            className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory items-start gap-3 pb-4 transition-[height] duration-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            style={swipeH ? { height: swipeH + 32 } : undefined}
+            className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory items-start gap-3 pb-8 transition-[height] duration-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <div className="w-full shrink-0 snap-center">
-              <div className="rounded-2xl shadow-xl shadow-slate-900/20 [&>div]:rounded-2xl [&>div]:border-0">
+              <div className="rounded-2xl shadow-lg shadow-slate-900/10 [&>div]:rounded-2xl [&>div]:border-0">
                 <CheckInOutCard
                   ultraCompact
                   onActivityChange={loadTodayStatus}
@@ -578,51 +584,49 @@ export default function EmployeeDashboard() {
           <QuoteOfDayCard compact />
         </div> */}
 
-        {/* ---------- Quick Actions ---------- */}
-        <div className="flex items-center gap-2 mb-2 px-0.5">
-          <Zap size={16} className="text-orange-500 fill-orange-500" />
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Quick Actions
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-4 gap-2.5 mb-6">
-          {quickTiles.map(({ to, label, icon: Icon, style }) => (
-            <Link
-              key={to}
-              to={withBase(to)}
-              className={`rounded-2xl border bg-gradient-to-br py-4 px-1 flex flex-col items-center gap-2 active:scale-[0.96] transition-transform ${style}`}
+        {/* ---------- Quick Actions: one card, round icon buttons ---------- */}
+        <h2 className="text-sm font-bold text-slate-800 mb-2.5 px-1">
+          Quick actions
+        </h2>
+        <div className="rounded-3xl bg-white border border-slate-100 shadow-sm shadow-slate-200/70 px-3 py-4 mb-6">
+          <div className="grid grid-cols-4 gap-1">
+            {quickTiles.map(({ to, label, icon: Icon, tint }) => (
+              <Link
+                key={to}
+                to={withBase(to)}
+                className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
+              >
+                <span
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center ${tint}`}
+                >
+                  <Icon size={22} strokeWidth={1.75} />
+                </span>
+                <span className="text-[11px] font-semibold text-slate-700 truncate max-w-full">
+                  {label}
+                </span>
+              </Link>
+            ))}
+            <button
+              type="button"
+              onClick={() => setOpenSheet("more")}
+              className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
             >
-              <Icon size={24} strokeWidth={1.75} />
-              <span className="text-xs font-semibold text-slate-700 truncate max-w-full">
-                {label}
+              <span className="w-12 h-12 rounded-2xl flex items-center justify-center bg-slate-100 text-slate-600">
+                <MoreHorizontal size={22} strokeWidth={1.75} />
               </span>
-            </Link>
-          ))}
-          <button
-            type="button"
-            onClick={() => setOpenSheet("more")}
-            className="rounded-2xl border bg-gradient-to-br from-slate-50 to-white border-slate-200 py-4 px-1 flex flex-col items-center gap-2 active:scale-[0.96] transition-transform"
-          >
-            <span className="w-6 h-6 rounded-full bg-slate-400 text-white flex items-center justify-center">
-              <MoreHorizontal size={15} />
-            </span>
-            <span className="text-xs font-semibold text-slate-700">More</span>
-          </button>
+              <span className="text-[11px] font-semibold text-slate-700">
+                More
+              </span>
+            </button>
+          </div>
         </div>
 
-        {/* ---------- Around the Office: tappable bento grid ----------
-            Four equal square tiles, two per row (2x2).
-            Tapping any tile slides up a bottom sheet with the full card
-            — nothing is stacked full-height in the page flow. */}
-        <div className="flex items-center gap-2 mb-2 px-0.5">
-          <span className="h-1.5 w-4 rounded-full bg-orange-500" />
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Around the Office
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        {/* ---------- Around the Office: one list card ----------
+            Each row opens the matching bottom sheet. */}
+        <h2 className="text-sm font-bold text-slate-800 mb-2.5 px-1">
+          Around the office
+        </h2>
+        <div className="rounded-3xl bg-white border border-slate-100 shadow-sm shadow-slate-200/70 overflow-hidden divide-y divide-slate-100 mb-6">
           {officeTiles.map(
             ({
               key,
@@ -632,47 +636,37 @@ export default function EmployeeDashboard() {
               preview,
               primary,
               secondary,
-              avatar,
               badge,
             }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setOpenSheet(key)}
-                className={`text-left rounded-2xl border bg-gradient-to-br p-4 active:scale-[0.97] transition-transform ${accent}`}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-slate-50 transition-colors"
               >
-                <div className="flex items-center justify-between mb-2.5">
+                <span
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${accent}`}
+                >
                   <Icon size={18} />
-                  {badge ? (
-                    <span className="rounded-full bg-white/70 px-1.5 text-[10px] font-semibold">
-                      {badge}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="text-xs font-semibold text-slate-700">{label}</p>
-                {primary ? (
-                  <>
-                    <div className="flex items-center gap-1.5 mt-1.5">
-                      {avatar ? (
-                        <span className="w-5 h-5 shrink-0 rounded-full bg-white/80 text-[9px] font-semibold flex items-center justify-center">
-                          {avatar}
-                        </span>
-                      ) : null}
-                      <p className="text-[12px] font-medium text-slate-700 truncate">
-                        {primary}
-                      </p>
-                    </div>
-                    {secondary ? (
-                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-                        {secondary}
-                      </p>
-                    ) : null}
-                  </>
-                ) : (
-                  <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
-                    {preview}
-                  </p>
-                )}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold text-slate-800">
+                    {label}
+                  </span>
+                  <span className="block text-xs text-slate-400 truncate">
+                    {primary
+                      ? secondary
+                        ? `${primary} · ${secondary}`
+                        : primary
+                      : preview}
+                  </span>
+                </span>
+                {badge ? (
+                  <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-orange-500 text-white text-[11px] font-semibold flex items-center justify-center">
+                    {badge}
+                  </span>
+                ) : null}
+                <ChevronRight size={16} className="text-slate-300 shrink-0" />
               </button>
             ),
           )}

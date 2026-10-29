@@ -5,8 +5,7 @@ import { useRegion } from "../../context/RegionContext";
 // Region switcher (header).
 //  * Mobile (below lg)  -> pill + dropdown (Chennai / Singapore).
 //  * Web (lg and up)    -> original Chennai | Singapore tab pill.
-// Super Admin gets the switch; every other role just sees their own
-// region as a fixed label (unchanged on both mobile and web).
+// Super Admin / HR (Company) get the switch; every other role sees nothing.
 export default function RegionToggle({ className = "" }) {
   const { region, regions, canSwitch, switchRegion } = useRegion();
   const [open, setOpen] = useState(false);
@@ -37,16 +36,10 @@ export default function RegionToggle({ className = "" }) {
 
   const label = regions.find((r) => r.value === region)?.label;
 
-  if (!canSwitch) {
-    return (
-      <span
-        className={`inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-600 ${className}`}
-        title="Your region"
-      >
-        {label}
-      </span>
-    );
-  }
+  // Only roles that can actually switch region (Super Admin, HR in Company
+  // workspace) see anything here. Employees / Managers / HR My Space get no
+  // region label at all.
+  if (!canSwitch) return null;
 
   return (
     <>

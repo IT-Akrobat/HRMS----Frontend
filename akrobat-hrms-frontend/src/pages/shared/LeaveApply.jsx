@@ -421,6 +421,7 @@ export default function LeaveApply() {
       <PageHeader
         title="Apply Leave"
         subtitle="Fill in the details below to apply for leave."
+        actionsInline
         actions={
           <Link
             to={leaveHistoryPath}

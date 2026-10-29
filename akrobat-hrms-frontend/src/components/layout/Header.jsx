@@ -3,7 +3,6 @@ import {
   Bell,
   CalendarClock,
   Clock,
-  LogOut,
   Megaphone,
   Menu,
 } from "lucide-react";
@@ -348,7 +347,7 @@ function NotificationBell({ overHero = false }) {
 // transparent with white icons and scrolls away with the hero; lg and up
 // is untouched.
 export default function Header({ onMenuClick, overHero = false }) {
-  const { user, role, logout } = useAuth();
+  const { user, role } = useAuth();
   const base = useBasePath();
   const navigate = useNavigate();
 
@@ -430,21 +429,6 @@ export default function Header({ onMenuClick, overHero = false }) {
             <span className="text-slate-400 font-normal"> · </span>
             {ROLE_LABELS[role]}
           </p>
-        </button>
-
-        {/* Logout — icon only */}
-        <button
-          type="button"
-          onClick={logout}
-          title="Logout"
-          aria-label="Logout"
-          className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
-            overHero
-              ? "text-slate-500 hover:text-orange-500 hover:bg-orange-50 max-lg:text-white max-lg:hover:bg-white/10 max-lg:hover:text-white"
-              : "text-slate-500 hover:text-orange-500 hover:bg-orange-50"
-          }`}
-        >
-          <LogOut size={18} />
         </button>
       </div>
     </header>

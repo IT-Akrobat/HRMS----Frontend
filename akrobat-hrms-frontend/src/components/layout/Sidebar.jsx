@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  LogOut,
   Search,
   User,
   X,
@@ -39,7 +40,7 @@ export default function Sidebar({
   mobileOpen = false,
   onCloseMobile = () => {},
 }) {
-  const { role, user } = useAuth();
+  const { role, user, logout } = useAuth();
   // Navy sidebar theme for every role. To limit it to some roles, use e.g.
   // `const blue = role === ROLES.SUPER_ADMIN;`
   const blue = true;
@@ -576,7 +577,22 @@ export default function Sidebar({
           })}
         </nav>
 
-        <div className="h-4 shrink-0" />
+        {/* Logout -- bottom right: round orange button on the sidebar-coloured footer */}
+        <div
+          className={`shrink-0 flex px-4 pt-2 pb-4 ${blue ? "bg-[#0b1f45]" : "bg-white"} ${
+            effectiveCollapsed ? "justify-center" : "justify-end"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={logout}
+            title="Logout"
+            aria-label="Logout"
+            className={`h-10 w-10 flex items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-[0_6px_16px_rgba(0,0,0,0.25)] hover:from-orange-500 hover:to-orange-700 transition-colors`}
+          >
+            <LogOut size={20} strokeWidth={1.75} />
+          </button>
+        </div>
       </aside>
     </>
   );

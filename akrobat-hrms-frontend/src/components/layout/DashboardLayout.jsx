@@ -46,12 +46,8 @@ export default function DashboardLayout() {
         {overHero && (
           <div
             aria-hidden="true"
-            className="lg:hidden absolute inset-x-0 top-0 z-0 h-[230px] overflow-hidden bg-gradient-to-b from-[#0e1a45] via-[#1e2552] via-40% to-[#7a5558]"
-          >
-            <span className="absolute -top-10 right-8 w-24 h-24 rounded-full bg-white/10" />
-            <span className="absolute -bottom-3 left-4 w-20 h-20 rounded-t-xl bg-white/[0.07]" />
-            <span className="absolute -bottom-3 right-4 w-24 h-28 rounded-t-2xl bg-white/[0.07]" />
-          </div>
+            className="lg:hidden absolute inset-x-0 top-0 z-0 h-[192px] rounded-b-[2rem] bg-[#0b1f45]"
+          />
         )}
         <Header
           overHero={overHero}
