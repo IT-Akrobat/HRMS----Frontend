@@ -482,25 +482,6 @@ export default function EmployeeDashboard() {
                 {todayLong}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setOpenSheet("recentleave");
-                if (recentLeaves === null) {
-                  apiClient
-                    .get("/leaves/my")
-                    .then((res) =>
-                      setRecentLeaves((res.data || []).slice(0, 5)),
-                    )
-                    .catch(() => setRecentLeaves([]));
-                }
-              }}
-              title="Applied Leave Requests"
-              aria-label="Applied Leave Requests"
-              className="w-8 h-8 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors shrink-0"
-            >
-              <ClipboardList size={15} />
-            </button>
           </div>
           {/* Spacer so the attendance card below overlaps the gradient's
               lower edge, like the reference design. */}

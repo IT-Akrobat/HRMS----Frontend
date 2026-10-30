@@ -68,8 +68,11 @@ export function useNotificationLiveUpdates(onNotification) {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (e) => {
         if (cancelled) return;
+        // Visible in DevTools > Console: 4401 = auth/ticket rejected,
+        // 4403 = no employee record, 1006 = blocked/unreachable.
+        console.warn("[notifications ws] closed, code:", e?.code);
         reconnectTimer = setTimeout(connect, 5000);
       };
 

@@ -153,6 +153,7 @@ export default function NotificationsPage({
       await apiClient.put("/notifications/retention", { days: option.days });
       setRetentionDays(option.days);
       load();
+      announce("reload");
     } catch {
       // keep previous selection if the request failed
     } finally {
@@ -247,24 +248,38 @@ export default function NotificationsPage({
     return filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   }, [filtered, page]);
 
+  // Tell the bell in Header.jsx about changes made here, so its unread
+  // badge updates immediately instead of staying stale until a refresh.
+  function announce(action, id) {
+    window.dispatchEvent(
+      new CustomEvent("akrobat:notifications-changed", {
+        detail: { action, id },
+      }),
+    );
+  }
+
   async function markRead(n) {
     if (n.is_read) return;
     setNotifications((prev) =>
       prev.map((x) => (x.id === n.id ? { ...x, is_read: true } : x)),
     );
+    announce("read", n.id);
     try {
       await apiClient.put(`/notifications/${n.id}/read`);
     } catch {
       load();
+      announce("reload");
     }
   }
 
   async function markAllRead() {
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    announce("read-all");
     try {
       await apiClient.put("/notifications/my/read-all");
     } catch {
       load();
+      announce("reload");
     }
   }
 
@@ -272,10 +287,12 @@ export default function NotificationsPage({
     setBusyId(n.id);
     const previous = notifications;
     setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+    announce("delete", n.id);
     try {
       await apiClient.delete(`/notifications/${n.id}`);
     } catch {
       setNotifications(previous);
+      announce("reload");
     } finally {
       setBusyId(null);
     }

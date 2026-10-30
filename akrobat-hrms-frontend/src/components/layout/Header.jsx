@@ -152,11 +152,81 @@ function NotificationBell({ overHero = false }) {
         setNotifications(rows);
         for (const n of rows) seenIdsRef.current.add(n.id);
       })
-      .catch(() => setNotifications([]));
+      .catch(() => {});
   }
 
   useEffect(() => {
     load();
+  }, []);
+
+  // Keep the badge in sync with what happens on the Notifications page
+  // (read / read-all / delete / retention purge), which has its own
+  // list state. Without this the badge stayed at its mount-time count.
+  useEffect(() => {
+    function onChanged(e) {
+      const { action, id } = e.detail || {};
+      if (action === "read") {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
+        );
+      } else if (action === "read-all") {
+        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      } else if (action === "delete") {
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+      } else {
+        load();
+      }
+    }
+    window.addEventListener("akrobat:notifications-changed", onChanged);
+    return () =>
+      window.removeEventListener("akrobat:notifications-changed", onChanged);
+  }, []);
+
+  // Re-sync when the person comes back to the tab/app (phone unlock,
+  // switching back from another app) -- the WebSocket may have dropped
+  // while away, and the badge should be correct the moment they look.
+  // Guaranteed delivery path. The WebSocket (below) is instant when it
+  // works, but it silently fails on some networks/hosts (proxy blocks
+  // the upgrade, backend asleep, cookie/ticket rejected) and the
+  // API-activity fallback only fires when the person is actively
+  // clicking around. So also poll every 20s while the tab is visible,
+  // and once immediately on tab focus. Anything not seen yet is shown
+  // (toast/sound) exactly like a pushed one; seenIdsRef de-dupes
+  // against the WebSocket and fallback paths.
+  useEffect(() => {
+    let last = 0;
+    let busy = false;
+    async function sync() {
+      if (document.hidden || busy) return;
+      const now = Date.now();
+      if (now - last < 5000) return;
+      last = now;
+      busy = true;
+      try {
+        const res = await apiClient.get("/notifications/my");
+        const rows = res?.data || [];
+        const fresh = rows
+          .filter((n) => !seenIdsRef.current.has(n.id))
+          .reverse(); // oldest first
+        setNotifications(rows); // server is the source of truth
+        for (const n of fresh) {
+          seenIdsRef.current.add(n.id);
+          alertFor(n);
+        }
+      } catch {
+        // Best-effort -- next tick retries.
+      } finally {
+        busy = false;
+      }
+    }
+    const timer = setInterval(sync, 20000);
+    document.addEventListener("visibilitychange", sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", sync);
+      window.removeEventListener("focus", sync);
+    };
   }, []);
 
   function openNotifications() {
@@ -173,7 +243,12 @@ function NotificationBell({ overHero = false }) {
     seenIdsRef.current.add(n.id);
 
     setNotifications((prev) => [n, ...prev]);
+    alertFor(n);
+  }
 
+  // Sound + toast + OS popup for one notification (list/badge are
+  // handled by the caller).
+  function alertFor(n) {
     // Only alert (sound + toast + OS popup) for a genuinely-new arrival
     // created during this session. Older rows -- replayed by the socket on
     // (re)connect or surfaced by the fallback before load() finished --

@@ -171,6 +171,14 @@ export async function enablePushNotifications() {
   }
 }
 
+// Diagnostic: asks the backend to push a real test notification to every
+// device saved for this employee and returns what the push services said.
+// Used by the "Send test" button in PushSetupCard.
+export async function sendTestPush() {
+  const res = await apiClient.post("/push-subscriptions/test");
+  return res?.data || { configured: false, devices: 0, results: [] };
+}
+
 // Call on logout so a shared/kiosk device stops receiving another
 // employee's notifications after they sign out.
 export async function disablePushNotifications() {
