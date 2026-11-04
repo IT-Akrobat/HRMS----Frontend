@@ -24,6 +24,7 @@ import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
+import ExtraWorkCard from "../../components/common/ExtraWorkCard";
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import {
   default as OutdoorCheckinAccessModal,
@@ -524,6 +525,12 @@ export default function EmployeeDashboard() {
               </div>
             )}
 
+            {/* After-checkout extra work (OT-eligible only; the card hides
+                itself otherwise). */}
+            <div className="w-full shrink-0 snap-center empty:hidden">
+              <ExtraWorkCard onActivityChange={loadTodayStatus} />
+            </div>
+
             {/* Ad-hoc "meeting/site" check-in — separate gate from
                 isFieldStaff; only for employees HR enabled. */}
             {!isFieldStaff && canOutdoorCheckin && (
@@ -821,6 +828,8 @@ export default function EmployeeDashboard() {
               onActivityChange={loadTodayStatus}
             />
           )}
+
+          <ExtraWorkCard onActivityChange={loadTodayStatus} />
 
           {!isFieldStaff && canOutdoorCheckin && (
             <OutdoorVisitCard

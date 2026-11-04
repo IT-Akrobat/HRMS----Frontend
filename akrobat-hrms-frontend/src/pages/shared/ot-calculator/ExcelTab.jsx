@@ -439,6 +439,13 @@ export default function ExcelTab({
                             {formatClock(selRow.check_out) || "--"} ·{" "}
                             {selRow.after_shift_minutes} min after shift
                           </div>
+                          {selRow.visit_minutes_after_shift > 0 && (
+                            <div className="text-xs text-amber-700 mb-3 -mt-2">
+                              Includes {selRow.visit_minutes_after_shift} min of
+                              site visit after check-out (last activity{" "}
+                              {formatClock(selRow.last_activity) || "--"})
+                            </div>
+                          )}
 
                           <div className="grid grid-cols-2 gap-2 mb-3">
                             <div className="rounded-lg bg-slate-50 px-3 py-2">
@@ -648,6 +655,12 @@ export default function ExcelTab({
                         <div className="text-xs text-slate-400">
                           till {formatClock(row.shift_end) || "--"}
                         </div>
+                        {row.visit_minutes_after_shift > 0 && (
+                          <div className="text-[11px] text-amber-700">
+                            + site visit till{" "}
+                            {formatClock(row.last_activity) || "--"}
+                          </div>
+                        )}
                       </div>
                       <div className="text-right shrink-0">
                         <span

@@ -6,6 +6,7 @@ import {
   LogIn,
   LogOut,
   MapPin,
+  Play,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
@@ -186,6 +187,7 @@ const STATUS = {
   working: { label: "Working", color: "text-green-500" },
   break: { label: "On break", color: "text-orange-500" },
   done: { label: "Day complete", color: "text-slate-500" },
+  extra: { label: "Extra work", color: "text-orange-500" },
 };
 
 function RoundAction({ icon: Icon, label, onClick, disabled, tone, pulse }) {
@@ -237,11 +239,18 @@ function MobileAttendanceCard({
   onBreakToggle,
   onCheckOut,
   error,
+  // "Resume" = work again after check-out (OT-eligible staff only).
+  extraEligible,
+  extraSince, // "08:00 PM" while an extra-work session is running
+  onResume,
+  onEndExtra,
 }) {
   const status = STATUS[state] || STATUS.idle;
   const pct = Math.min(100, ((workedMinutes || 0) / WORKDAY_MINUTES) * 100);
   const checkedIn = state === "working" || state === "break";
-  const done = state === "done";
+  const extra = state === "extra";
+  // "done" also covers an extra-work session: the day is still checked out.
+  const done = state === "done" || extra;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4">
@@ -290,28 +299,41 @@ function MobileAttendanceCard({
             </div>
 
             <div className="flex items-start gap-1 shrink-0">
-              <RoundAction
-                icon={LogIn}
-                label="Check in"
-                tone="green"
-                onClick={onCheckIn}
-                disabled={checkedIn || done || checkInDisabled}
-                pulse={geoStatus === "locating" && !checkedIn && !done}
-              />
-              <RoundAction
-                icon={Coffee}
-                label={state === "break" ? "End break" : "Break"}
-                tone={state === "break" ? "active" : "navy"}
-                onClick={onBreakToggle}
-                disabled={!checkedIn || busy}
-              />
-              <RoundAction
-                icon={LogOut}
-                label="Check out"
-                tone="orange"
-                onClick={onCheckOut}
-                disabled={!checkedIn || busy}
-              />
+              {done && extraEligible ? (
+                <RoundAction
+                  icon={extra ? LogOut : Play}
+                  label={extra ? "End work" : "Resume"}
+                  tone={extra ? "orange" : "green"}
+                  onClick={extra ? onEndExtra : onResume}
+                  disabled={busy}
+                  pulse={extra}
+                />
+              ) : (
+                <>
+                  <RoundAction
+                    icon={LogIn}
+                    label="Check in"
+                    tone="green"
+                    onClick={onCheckIn}
+                    disabled={checkedIn || done || checkInDisabled}
+                    pulse={geoStatus === "locating" && !checkedIn && !done}
+                  />
+                  <RoundAction
+                    icon={Coffee}
+                    label={state === "break" ? "End break" : "Break"}
+                    tone={state === "break" ? "active" : "navy"}
+                    onClick={onBreakToggle}
+                    disabled={!checkedIn || busy}
+                  />
+                  <RoundAction
+                    icon={LogOut}
+                    label="Check out"
+                    tone="orange"
+                    onClick={onCheckOut}
+                    disabled={!checkedIn || busy}
+                  />
+                </>
+              )}
             </div>
           </div>
 
@@ -337,6 +359,13 @@ function MobileAttendanceCard({
               Out {outTime || "--:--"}
             </span>
           </div>
+
+          {extra && (
+            <div className="mt-2 text-[11px] text-orange-600 bg-orange-50 rounded-lg px-2.5 py-1.5">
+              Extra work since {extraSince || "--:--"} · counts towards your OT.
+              Tap End work when you finish.
+            </div>
+          )}
 
           {/* {(checkedIn || done) && location && (
             <div className="mt-2 flex items-center gap-1 text-[11px] text-slate-400">
@@ -458,6 +487,18 @@ export default function CheckInOutCard({
   // one with no distance cutoff.
   const [checkInPlace, setCheckInPlace] = useState(null);
   const [checkOutPlace, setCheckOutPlace] = useState(null);
+  // Extra work after check-out (OT-eligible staff). No approval needed --
+  // see app/attendance/extra_work.py. { eligible, open_session, ... }
+  const [extraWork, setExtraWork] = useState(null);
+
+  async function loadExtra() {
+    try {
+      const res = await apiClient.get("/attendance/extra-work/today");
+      setExtraWork(res?.data || null);
+    } catch {
+      // Best effort: without it the Resume option just stays hidden.
+    }
+  }
 
   async function load() {
     try {
@@ -483,6 +524,7 @@ export default function CheckInOutCard({
       setLoadError(null);
       const res = await apiClient.get(`/attendance/timeline/${todayIso()}`);
       setToday(res.data ?? null);
+      loadExtra();
       try {
         const wd = await apiClient.get(`/attendance/working-day/${todayIso()}`);
         setOffDayReason(
@@ -822,11 +864,42 @@ export default function CheckInOutCard({
     }
   }
 
+  // Resume / End extra work after check-out. Same double-tap guard as
+  // runAction; the backend enforces eligibility and "checked out first".
+  async function runExtra(path) {
+    if (actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const liveCoords = coords || (await getFreshCoords());
+      await apiClient.post(
+        `/attendance/extra-work/${path}`,
+        liveCoords
+          ? { latitude: liveCoords.latitude, longitude: liveCoords.longitude }
+          : {},
+      );
+      await Promise.all([load(), loadExtra()]);
+      onActivityChange?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+      actionInFlightRef.current = false;
+    }
+  }
+
   const onBreak =
     today?.breaks?.length > 0 &&
     !today.breaks[today.breaks.length - 1].break_end;
   const checkedIn = !!today?.check_in_time;
   const checkedOut = !!today?.check_out_time;
+  const extraOpen = extraWork?.open_session || null;
+  const extraEligible = !!extraWork?.eligible && (checkedOut || !!extraOpen);
+  const extraStart = extraOpen ? parseServerDate(extraOpen.start_time) : null;
+  const extraLiveMinutes = extraStart
+    ? Math.max(0, (now - extraStart) / 60000)
+    : 0;
 
   // Check-in is blocked until location is actually detected AND resolved
   // to a shown place — not just as soon as a raw GPS fix comes in. A GPS
@@ -958,9 +1031,12 @@ export default function CheckInOutCard({
       });
       workedMinutes = Math.max(0, (endDate - checkInDate - breakMs) / 60000);
     }
+    // Running extra-work session ticks up live on top of the day total.
+    workedMinutes += extraLiveMinutes;
 
     let mobileState = "idle";
-    if (checkedOut) mobileState = "done";
+    if (extraOpen) mobileState = "extra";
+    else if (checkedOut) mobileState = "done";
     else if (checkedIn && onBreak) mobileState = "break";
     else if (checkedIn) mobileState = "working";
     else if (geoStatus === "locating") mobileState = "locating";
@@ -1005,6 +1081,10 @@ export default function CheckInOutCard({
         }
         onCheckOut={() => runAction("/attendance/check-out")}
         error={error}
+        extraEligible={extraEligible}
+        extraSince={extraOpen ? formatTime(extraOpen.start_time) : null}
+        onResume={() => runExtra("start")}
+        onEndExtra={() => runExtra("end")}
       />
     );
   }
@@ -1088,6 +1168,13 @@ export default function CheckInOutCard({
     CircleIcon = CheckCircle2;
     circleRing = "bg-green-50";
     circleFill = "bg-green-500";
+  }
+  if (extraOpen) {
+    statusLabel = "Extra Work";
+    statusTime = formatTime(extraOpen.start_time);
+    CircleIcon = Play;
+    circleRing = "bg-orange-50";
+    circleFill = "bg-orange-500";
   }
 
   return (
@@ -1207,12 +1294,34 @@ export default function CheckInOutCard({
                   </button>
                 )}
 
-                {checkedOut && (
+                {checkedOut && !extraEligible && (
                   <button
                     disabled
                     className="flex items-center justify-center gap-2 bg-slate-100 text-slate-400 text-sm font-medium py-2 rounded-lg cursor-not-allowed"
                   >
                     <LogOut size={15} /> Checked Out
+                  </button>
+                )}
+
+                {/* Work again after check-out (OT-eligible only). */}
+                {extraEligible && !extraOpen && (
+                  <button
+                    onClick={() => runExtra("start")}
+                    disabled={busy}
+                    className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+                  >
+                    <Play size={15} /> Resume Work
+                  </button>
+                )}
+
+                {extraEligible && extraOpen && (
+                  <button
+                    onClick={() => runExtra("end")}
+                    disabled={busy}
+                    className="flex items-center justify-center gap-2 border border-orange-500 text-orange-600 hover:bg-orange-50 disabled:opacity-50 text-sm font-medium py-2 rounded-lg transition-colors"
+                  >
+                    <LogOut size={15} /> End Extra Work ·{" "}
+                    {formatDuration(Math.floor(extraLiveMinutes))}
                   </button>
                 )}
               </div>
