@@ -24,7 +24,7 @@ import BirthdaysCard, {
   OnLeaveTodayCard,
 } from "../../components/common/CelebrationsStrip";
 import CheckInOutCard from "../../components/common/CheckInOutCard";
-import ExtraWorkCard from "../../components/common/ExtraWorkCard";
+
 import HolidaysCalendarCard from "../../components/common/Holidayscalendarcard";
 import {
   default as OutdoorCheckinAccessModal,
