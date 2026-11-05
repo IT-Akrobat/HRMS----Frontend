@@ -854,7 +854,7 @@ export default function LeaveBalance() {
                                     <span className="inline-flex items-center gap-2">
                                       <MiniBar pct={ty.pct} />
                                       <span className="tabular-nums">
-                                        {round1(ty.balance)}/{ty.allocated}
+                                        {round1(ty.used)}/{ty.allocated}
                                       </span>
                                     </span>
                                   ) : (
@@ -911,7 +911,7 @@ export default function LeaveBalance() {
                 </tbody>
               </table>
               <p className="px-3.5 py-2 text-[11px] text-slate-400">
-                Cells show days left / yearly allocation.
+                Cells show days taken / yearly allocation.
               </p>
             </div>
 
