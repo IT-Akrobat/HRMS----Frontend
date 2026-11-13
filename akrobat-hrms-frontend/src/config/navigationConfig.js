@@ -55,7 +55,7 @@ export const NAVIGATION_CONFIG = {
       hideForSite: true,
       children: [
         { label: "My Attendance", path: "/employee/attendance" },
-        { label: "Attendance History", path: "/employee/attendance/history" },
+        // { label: "Attendance History", path: "/employee/attendance/history" },
       ],
     },
     {
@@ -378,7 +378,7 @@ export const HR_SELF_NAVIGATION = [
     hideForSite: true,
     children: [
       { label: "My Attendance", path: "/hr-admin/me/attendance" },
-      { label: "Attendance History", path: "/hr-admin/me/attendance/history" },
+      // { label: "Attendance History", path: "/hr-admin/me/attendance/history" },
     ],
   },
   {
@@ -431,7 +431,7 @@ function buildSelfNavigation(base) {
       hideForSite: true,
       children: [
         { label: "My Attendance", path: `${base}/attendance` },
-        { label: "Attendance History", path: `${base}/attendance/history` },
+        // { label: "Attendance History", path: `${base}/attendance/history` },
       ],
     },
     {

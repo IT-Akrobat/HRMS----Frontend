@@ -16,7 +16,7 @@ function fmt(d) {
 
 export default function McValidationQueue({ onChanged }) {
   const [rows, setRows] = useState(null); // null = loading
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false); // collapsed by default
 
   function load() {
     apiClient

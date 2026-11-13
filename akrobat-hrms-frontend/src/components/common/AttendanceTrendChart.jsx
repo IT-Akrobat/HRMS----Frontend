@@ -54,6 +54,35 @@ function RangeToggle({ range, onRangeChange }) {
   );
 }
 
+// ["2026-11-03", "2026-11-05"] -> "03 Nov, 05 Nov" (year added only when the
+// dates span more than one year). Plain string math -- no Date/timezone
+// conversion, so a date can never shift by a day.
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+function formatDates(dates) {
+  const list = (dates || []).filter(Boolean);
+  if (!list.length) return "-";
+  const multiYear = new Set(list.map((d) => d.slice(0, 4))).size > 1;
+  return list
+    .map((d) => {
+      const [y, m, day] = d.slice(0, 10).split("-");
+      return `${day} ${MONTHS[Number(m) - 1] || m}${multiYear ? ` ${y}` : ""}`;
+    })
+    .join(", ");
+}
+
 // Small icon button used to trigger the PDF export. Rendered twice at
 // different breakpoints (see ExportButton usages below) rather than once
 // with responsive classes, since desktop places it inline next to the
@@ -313,13 +342,18 @@ export default function AttendanceTrendChart({
         }
 
         autoTable(doc, {
-          head: [["Employee", "Employee ID", "Department", "Days"]],
+          head: [["Employee", "Employee ID", "Department", "Days", "Dates"]],
           body: segPeople.map((p) => [
             p.full_name || "",
             p.employee_code || "",
             p.department || "",
             p.days ?? "",
+            formatDates(p.dates),
           ]),
+          columnStyles: {
+            3: { cellWidth: 14 },
+            4: { cellWidth: 62 },
+          },
           startY: cursorY + 3,
           styles: { fontSize: 8, cellPadding: 2.5 },
           headStyles: { fillColor: hexToRgbArray(s.color) },

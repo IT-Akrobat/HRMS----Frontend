@@ -17,8 +17,13 @@ import Modal from "../../components/common/Modal";
 import PageHeader from "../../components/common/PageHeader";
 import SearchInput from "../../components/common/SearchInput";
 import { useModalBackClose } from "../../components/common/usemodalbackclose";
+import DatePicker from "../../components/layout/DatePicker";
 import { apiClient } from "../../services/apiClient";
-import { parseServerDate } from "../../utils/date";
+import {
+  parseLocalISODate,
+  parseServerDate,
+  toLocalISODate,
+} from "../../utils/date";
 import { geocodeQueue, placeKey, reverseGeocode } from "../../utils/Geocode";
 
 // ---------------------------------------------------------------------
@@ -123,6 +128,8 @@ function parseDescription(raw) {
         message: parsed.message || "",
         changes: parsed.changes || null,
         targetEmployeeId: parsed.target_employee_id || null,
+        targetEmployeeName: parsed.target_employee_name || null,
+        targetEmployeeCode: parsed.target_employee_code || null,
       };
     }
   } catch {
@@ -268,6 +275,8 @@ export default function AuditLogs() {
   // (/audit-logs/action/{action}) rather than /audit-logs/module/{module}.
   // Only one of module / actionFilter is ever active at a time.
   const [actionFilter, setActionFilter] = useState("");
+  // "YYYY-MM-DD" (viewer's local day) or "" for no date filter.
+  const [dateFilter, setDateFilter] = useState("");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
@@ -290,6 +299,13 @@ export default function AuditLogs() {
       page: String(page),
       limit: String(PAGE_SIZE),
     });
+
+    // Local-day -> UTC range, so "Oct 1" means Oct 1 where the viewer is.
+    if (dateFilter) {
+      const [y, m, d] = dateFilter.split("-").map(Number);
+      params.set("start", new Date(y, m - 1, d).toISOString());
+      params.set("end", new Date(y, m - 1, d + 1).toISOString());
+    }
 
     const path = actionFilter
       ? `/audit-logs/action/${encodeURIComponent(actionFilter)}?${params.toString()}`
@@ -330,7 +346,7 @@ export default function AuditLogs() {
       });
   }
 
-  useEffect(load, [page, module, actionFilter]);
+  useEffect(load, [page, module, actionFilter, dateFilter]);
 
   const filtered = useMemo(() => {
     if (!records) return null;
@@ -398,6 +414,39 @@ export default function AuditLogs() {
       <PageHeader
         title="Audit Logs"
         subtitle="Full trail of who did what, across every module — company-wide."
+        actions={
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <DatePicker
+              bordered
+              clearable
+              overlay
+              value={dateFilter}
+              max={toLocalISODate()}
+              placeholder="Filter by date"
+              onChange={(iso) => {
+                setDateFilter(iso);
+                setPage(1);
+              }}
+              className="flex-1 sm:flex-none sm:w-48"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setDateFilter(
+                  dateFilter === toLocalISODate() ? "" : toLocalISODate(),
+                );
+                setPage(1);
+              }}
+              className={`shrink-0 h-9 px-4 rounded-lg text-sm font-medium border transition-colors ${
+                dateFilter === toLocalISODate()
+                  ? "bg-orange-500 border-orange-500 text-white"
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Today
+            </button>
+          </div>
+        }
       />
 
       {error && (
@@ -481,6 +530,20 @@ export default function AuditLogs() {
             <button
               onClick={() => {
                 setModule("");
+                setActionFilter("LATE");
+                setPage(1);
+              }}
+              className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                actionFilter === "LATE"
+                  ? "bg-orange-500 border-orange-500 text-white"
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Late
+            </button>
+            <button
+              onClick={() => {
+                setModule("");
                 setActionFilter(SITE_VISIT_ACTIONS.join(","));
                 setPage(1);
               }}
@@ -526,6 +589,34 @@ export default function AuditLogs() {
             />
           </div>
         </div>
+
+        {/* Active date filter summary */}
+        {dateFilter && (
+          <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-2 bg-orange-50/70 border-b border-orange-100 text-xs text-orange-700">
+            <span className="truncate">
+              Showing events on{" "}
+              <span className="font-semibold">
+                {parseLocalISODate(dateFilter)?.toLocaleDateString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+              {records !== null && <> · {total} total</>}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setDateFilter("");
+                setPage(1);
+              }}
+              className="shrink-0 font-semibold hover:underline"
+            >
+              Clear
+            </button>
+          </div>
+        )}
 
         {/* Table */}
         {filtered === null ? (
@@ -778,9 +869,13 @@ export default function AuditLogs() {
 }
 
 function AuditDetail({ log }) {
-  const { message, changes, targetEmployeeId } = parseDescription(
-    log.description,
-  );
+  const {
+    message,
+    changes,
+    targetEmployeeId,
+    targetEmployeeName,
+    targetEmployeeCode,
+  } = parseDescription(log.description);
 
   // Resolve the same way the table row does — this modal doesn't have
   // access to SecurityAuditLogs' placeCache, so it looks the coordinate
@@ -825,7 +920,15 @@ function AuditDetail({ log }) {
         <Field label="Record ID" value={log.record_id || "—"} mono />
         <Field label="Location" value={locationText} />
         {targetEmployeeId && (
-          <Field label="Target Employee" value={targetEmployeeId} mono />
+          <Field
+            label="Target Employee"
+            value={
+              targetEmployeeName
+                ? `${targetEmployeeName}${targetEmployeeCode ? ` (${targetEmployeeCode})` : ""}`
+                : targetEmployeeId
+            }
+            mono={!targetEmployeeName}
+          />
         )}
       </div>
 

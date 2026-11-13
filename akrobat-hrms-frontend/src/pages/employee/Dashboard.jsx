@@ -7,7 +7,6 @@ import {
   ClipboardList,
   Clock,
   FileText,
-  History,
   MapPin,
   Megaphone,
   MoreHorizontal,
@@ -77,12 +76,13 @@ const QUICK_ACTION_TILES = [
 // Contents of the "More" bottom sheet. `fieldOnly` mirrors the sidebar:
 // Sites Worked is only for Inspection / Operation staff.
 const MORE_LINKS = [
-  {
-    to: "/employee/attendance/history",
-    label: "Attendance History",
-    icon: History,
-    hideForSite: true,
-  },
+  // Attendance History hidden for every role (nav entry removed).
+  // {
+  //   to: "/employee/attendance/history",
+  //   label: "Attendance History",
+  //   icon: History,
+  //   hideForSite: true,
+  // },
   {
     to: "/employee/profile/sites",
     label: "Sites Worked",

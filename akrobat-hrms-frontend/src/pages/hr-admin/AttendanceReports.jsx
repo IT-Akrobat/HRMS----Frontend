@@ -9,13 +9,14 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Avatar from "../../components/common/Avatar";
 import PageHeader from "../../components/common/PageHeader";
 import { PartTimeOrgSummary } from "../../components/common/PartTimeSummary";
 import SearchInput from "../../components/common/SearchInput";
 import SelectDropdown from "../../components/common/SelectDropdown";
 import DatePicker from "../../components/layout/DatePicker";
+import { useAttendanceLiveUpdates } from "../../hooks/Useattendanceliveupdates";
 import { apiClient } from "../../services/apiClient";
 import { parseServerDate } from "../../utils/date";
 function asList(res) {
@@ -203,36 +204,57 @@ export default function AttendanceReports() {
       .then((res) => setDepartments(asList(res)))
       .catch(() => setDepartments([]));
     apiClient
-      .get("/employees/")
+      .get("/employees/?exclude_super_admin=true")
       .then((res) => setEmployees(asList(res)))
       .catch(() => setEmployees([]));
   }, []);
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    const params = new URLSearchParams({
-      from_date: fromDate,
-      to_date: toDate,
-    });
-    if (departmentId) params.set("department_id", departmentId);
-    if (employeeId) params.set("employee_id", employeeId);
-    if (status) params.set("status", status);
+  // `silent` = background refetch (live update): keep the current table on
+  // screen instead of flashing the loading state / wiping it on a blip.
+  const loadReport = useCallback(
+    (silent = false) => {
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
+      const params = new URLSearchParams({
+        from_date: fromDate,
+        to_date: toDate,
+      });
+      if (departmentId) params.set("department_id", departmentId);
+      if (employeeId) params.set("employee_id", employeeId);
+      if (status) params.set("status", status);
 
-    apiClient
-      .get(`/attendance/org/report?${params.toString()}`)
-      .then((res) =>
-        setReport({
-          employees: res?.data?.employees || [],
-          daily_records: res?.data?.daily_records || [],
-        }),
-      )
-      .catch((err) => {
-        setReport({ employees: [], daily_records: [] });
-        setError(err.message || "Could not load the attendance report.");
-      })
-      .finally(() => setLoading(false));
-  }, [fromDate, toDate, departmentId, employeeId, status]);
+      return apiClient
+        .get(`/attendance/org/report?${params.toString()}`)
+        .then((res) =>
+          setReport({
+            employees: res?.data?.employees || [],
+            daily_records: res?.data?.daily_records || [],
+          }),
+        )
+        .catch((err) => {
+          if (silent) return;
+          setReport({ employees: [], daily_records: [] });
+          setError(err.message || "Could not load the attendance report.");
+        })
+        .finally(() => {
+          if (!silent) setLoading(false);
+        });
+    },
+    [fromDate, toDate, departmentId, employeeId, status],
+  );
+
+  useEffect(() => {
+    loadReport(false);
+  }, [loadReport]);
+
+  // HR/Admin manually fixing a check-out (or anyone checking in/out) changes
+  // working hours / status / OT. Without this the report kept showing the
+  // old figures until the page was reloaded.
+  useAttendanceLiveUpdates((event) => {
+    if (!event || event.type === "attendance_event") loadReport(true);
+  });
 
   // Any filter/search/tab change invalidates whatever page we were on
   // (e.g. page 3 of "By employee" can easily not exist anymore once a

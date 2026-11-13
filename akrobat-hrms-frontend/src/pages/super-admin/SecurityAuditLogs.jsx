@@ -128,6 +128,8 @@ function parseDescription(raw) {
         message: parsed.message || "",
         changes: parsed.changes || null,
         targetEmployeeId: parsed.target_employee_id || null,
+        targetEmployeeName: parsed.target_employee_name || null,
+        targetEmployeeCode: parsed.target_employee_code || null,
       };
     }
   } catch {
@@ -574,6 +576,20 @@ export default function SecurityAuditLogs() {
             <button
               onClick={() => {
                 setModule("");
+                setActionFilter("LATE");
+                setPage(1);
+              }}
+              className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                actionFilter === "LATE"
+                  ? "bg-orange-500 border-orange-500 text-white"
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Late
+            </button>
+            <button
+              onClick={() => {
+                setModule("");
                 setActionFilter(SITE_VISIT_ACTIONS.join(","));
                 setPage(1);
               }}
@@ -881,9 +897,13 @@ export default function SecurityAuditLogs() {
 }
 
 function AuditDetail({ log }) {
-  const { message, changes, targetEmployeeId } = parseDescription(
-    log.description,
-  );
+  const {
+    message,
+    changes,
+    targetEmployeeId,
+    targetEmployeeName,
+    targetEmployeeCode,
+  } = parseDescription(log.description);
 
   // Resolve the same way the table row does — this modal doesn't have
   // access to SecurityAuditLogs' placeCache, so it looks the coordinate
@@ -944,7 +964,15 @@ function AuditDetail({ log }) {
         <Field label="Record ID" value={log.record_id || "—"} mono />
         <Field label="Location" value={locationText} />
         {targetEmployeeId && (
-          <Field label="Target Employee" value={targetEmployeeId} mono />
+          <Field
+            label="Target Employee"
+            value={
+              targetEmployeeName
+                ? `${targetEmployeeName}${targetEmployeeCode ? ` (${targetEmployeeCode})` : ""}`
+                : targetEmployeeId
+            }
+            mono={!targetEmployeeName}
+          />
         )}
       </div>
 

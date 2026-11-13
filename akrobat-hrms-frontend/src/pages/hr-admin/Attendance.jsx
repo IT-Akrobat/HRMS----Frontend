@@ -884,7 +884,7 @@ export default function HrAttendanceOverview() {
 
   useEffect(() => {
     apiClient
-      .get("/employees/")
+      .get("/employees/?exclude_super_admin=true")
       .then((res) => {
         const list = unwrap(res) || [];
         const active = list.filter((e) => e.employment_status === "Active");
