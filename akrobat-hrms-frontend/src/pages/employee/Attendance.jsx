@@ -6,13 +6,10 @@ import {
   Circle,
   Clock,
   Coffee,
-  History,
   Info,
   TimerReset,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import PageHeader from "../../components/common/PageHeader";
 import { PartTimeMySummary } from "../../components/common/PartTimeSummary";
 import { useAuth } from "../../context/AuthContext";
 import { useBasePath } from "../../hooks/useBasePath";
@@ -437,7 +434,7 @@ export default function Attendance() {
 
   return (
     <div>
-      <PageHeader
+      {/* <PageHeader
         title="My Attendance"
         subtitle="Track your daily attendance and working hours."
         actionsInline
@@ -451,7 +448,7 @@ export default function Attendance() {
             <span className="hidden sm:inline">View History</span>
           </Link>
         }
-      />
+      /> */}
 
       <PartTimeMySummary />
 

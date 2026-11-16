@@ -534,7 +534,12 @@ export default function CheckInOutCard({
         );
       } catch {
         // Best effort: the backend still blocks check-in on an off day.
-        setOffDayReason(null);
+        // Fallback so Sunday stays disabled even if this lookup fails.
+        setOffDayReason(
+          new Date(`${todayIso()}T00:00:00`).getDay() === 0
+            ? "Sunday is your week off."
+            : null,
+        );
       }
     } catch (err) {
       // No employee profile linked -> backend returns data: null via a 200,
